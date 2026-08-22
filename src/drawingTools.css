@@ -1,0 +1,38 @@
+.panel[data-panel="tools"] {
+  width: 260px;
+  max-height: calc(100% - 42px);
+  overflow: auto;
+}
+
+.tool-choosers { display: grid; gap: 7px; }
+.tool-select {
+  display: grid !important;
+  grid-template-columns: 34px 1fr !important;
+  align-items: center;
+  gap: 8px !important;
+  margin: 0 !important;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface2);
+}
+.tool-select.active { border-color: Highlight; box-shadow: 0 0 0 1px Highlight; }
+.tool-select-icon { display: grid; place-items: center; font-size: 20px; color: var(--muted); }
+.tool-select-copy { display: grid; min-width: 0; }
+.tool-select-copy small { color: var(--muted); font-size: 9px; text-transform: uppercase; letter-spacing: .08em; }
+.tool-select select { width: 100%; padding: 2px 24px 2px 0; border: 0; background-color: transparent; font-weight: 650; }
+.tool-select select:focus-visible { outline-offset: 1px; }
+.utility-tools { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; }
+.drawing-panel .utility-tool { flex-direction: row; justify-content: center; gap: 6px; padding: 6px; border-color: var(--border); background: transparent; font-size: 11px; }
+.drawing-panel .utility-tool span { height: auto; font-size: 16px; line-height: 1; }
+.drawing-panel .utility-tool.active { border-color: Highlight; background: var(--surface2); }
+.drawing-panel .tool-options {
+  border-top: 1px solid var(--border);
+  margin-top: 10px;
+  padding-top: 5px;
+}
+.drawing-panel input[type="range"] { accent-color: Highlight; }
+
+@media (max-width: 900px) {
+  .panel[data-panel="tools"] { width: 230px !important; }
+}

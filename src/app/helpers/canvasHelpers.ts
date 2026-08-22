@@ -1,5 +1,6 @@
-import type { ImageFormat } from "../models/appTypes.js";
-import { canvasContext } from "./domHelpers.js";
+import type { ImageFormat } from "../models/appTypes";
+import { imageFormat } from "../models/imageFormats";
+import { canvasContext } from "./domHelpers";
 
 export function copyCanvas(source: HTMLCanvasElement): HTMLCanvasElement {
   const copy = document.createElement("canvas");
@@ -17,17 +18,18 @@ export function hasTransparency(context: CanvasRenderingContext2D, width: number
   return false;
 }
 
-export function encodeCanvas(source: HTMLCanvasElement, type: ImageFormat, quality = .92): Promise<Blob> {
+export function encodeCanvas(source: HTMLCanvasElement, type: ImageFormat): Promise<Blob> {
+  const format = imageFormat(type);
   const output = document.createElement("canvas");
   output.width = source.width;
   output.height = source.height;
   const context = canvasContext(output);
-  if (type === "image/jpeg") {
+  if (!format.supportsTransparency) {
     context.fillStyle = "#ffffff";
     context.fillRect(0, 0, output.width, output.height);
   }
   context.drawImage(source, 0, 0);
   return new Promise((resolve, reject) => {
-    output.toBlob(blob => blob ? resolve(blob) : reject(new Error("Image encoding failed")), type, quality);
+    output.toBlob(blob => blob ? resolve(blob) : reject(new Error("Image encoding failed")), format.mimeType, format.quality);
   });
 }

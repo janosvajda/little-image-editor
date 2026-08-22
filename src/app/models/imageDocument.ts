@@ -1,6 +1,7 @@
-import { copyCanvas, encodeCanvas, hasTransparency } from "../helpers/canvasHelpers.js";
-import { canvasContext } from "../helpers/domHelpers.js";
-import type { CropRect, ImageFormat, NewImageOptions } from "./appTypes.js";
+import { copyCanvas, encodeCanvas, hasTransparency } from "../helpers/canvasHelpers";
+import { canvasContext } from "../helpers/domHelpers";
+import type { CropRect, DocumentSessionSnapshot, HistorySnapshot, ImageFormat, ImageSnapshot, NewImageOptions } from "./appTypes";
+import { DEFAULT_IMAGE_FORMAT } from "./imageFormats";
 
 const HISTORY_LIMIT = 30;
 
@@ -11,12 +12,14 @@ export class CanvasDocument {
   hasImage = false;
   fileHandle: FileSystemFileHandle | null = null;
   baseName = "little-image";
-  savedType: ImageFormat = "image/png";
+  savedType: ImageFormat = DEFAULT_IMAGE_FORMAT.mimeType;
 
   #history: ImageData[] = [];
   #historyIndex = -1;
   #historyListeners = new Set<(canUndo: boolean, canRedo: boolean) => void>();
   #documentListeners = new Set<(snapshot: Readonly<{ hasImage: boolean; width: number; height: number }>) => void>();
+  #contentListeners = new Set<(snapshot: DocumentSessionSnapshot | null) => void>();
+  #toolbarStates: Record<string, unknown> = {};
 
   constructor(readonly canvas: HTMLCanvasElement, readonly overlay: HTMLCanvasElement) {
     this.context = canvasContext(canvas, { willReadFrequently: true });
@@ -34,6 +37,52 @@ export class CanvasDocument {
   onDocumentChange(listener: (snapshot: Readonly<{ hasImage: boolean; width: number; height: number }>) => void): void {
     this.#documentListeners.add(listener);
     listener(this.snapshot());
+  }
+
+  onContentChange(listener: (snapshot: DocumentSessionSnapshot | null) => void): void { this.#contentListeners.add(listener); }
+
+  snapshotPixels(): ImageSnapshot {
+    return {
+      width: this.width,
+      height: this.height,
+      pixels: new Uint8ClampedArray(this.context.getImageData(0, 0, this.width, this.height).data),
+      baseName: this.baseName,
+      savedType: this.savedType
+    };
+  }
+
+  snapshotSession(): DocumentSessionSnapshot {
+    return {
+      ...this.snapshotPixels(),
+      history: this.#history.map(state => this.#snapshotImageData(state)),
+      historyIndex: this.#historyIndex,
+      toolbarStates: structuredClone(this.#toolbarStates)
+    };
+  }
+
+  restoreSnapshot(snapshot: ImageSnapshot): void {
+    this.setSize(snapshot.width, snapshot.height);
+    this.context.putImageData(new ImageData(new Uint8ClampedArray(snapshot.pixels), snapshot.width, snapshot.height), 0, 0);
+    this.savedType = snapshot.savedType;
+    this.activate(snapshot.baseName);
+  }
+
+  restoreSession(snapshot: DocumentSessionSnapshot): void {
+    this.setSize(snapshot.width, snapshot.height);
+    this.#history = snapshot.history.map(state => new ImageData(new Uint8ClampedArray(state.pixels), state.width, state.height));
+    this.#historyIndex = Math.min(Math.max(snapshot.historyIndex, 0), this.#history.length - 1);
+    const current = new ImageData(new Uint8ClampedArray(snapshot.pixels), snapshot.width, snapshot.height);
+    this.context.putImageData(current, 0, 0);
+    if (this.#historyIndex >= 0) this.#history[this.#historyIndex] = current;
+    else { this.#history = [current]; this.#historyIndex = 0; }
+    this.savedType = snapshot.savedType;
+    this.hasImage = true;
+    this.fileHandle = null;
+    this.baseName = snapshot.baseName;
+    this.#toolbarStates = structuredClone(snapshot.toolbarStates ?? {});
+    this.clearOverlay();
+    this.#emitHistory();
+    this.#emitDocumentChange();
   }
 
   setSize(width: number, height: number): void {
@@ -59,7 +108,7 @@ export class CanvasDocument {
       this.context.fillStyle = options.background;
       this.context.fillRect(0, 0, options.width, options.height);
     }
-    this.savedType = "image/png";
+    this.savedType = options.format ?? DEFAULT_IMAGE_FORMAT.mimeType;
     this.activate(options.name || "untitled");
   }
 
@@ -67,11 +116,25 @@ export class CanvasDocument {
     this.hasImage = true;
     this.fileHandle = null;
     this.baseName = name;
+    this.#toolbarStates = {};
     this.#history = [];
     this.#historyIndex = -1;
+    this.#toolbarStates = {};
     this.clearOverlay();
     this.commit();
     this.#emitDocumentChange();
+  }
+
+  close(): void {
+    this.hasImage = false;
+    this.fileHandle = null;
+    this.#history = [];
+    this.#historyIndex = -1;
+    this.context.clearRect(0, 0, this.width, this.height);
+    this.clearOverlay();
+    this.#emitHistory();
+    this.#emitDocumentChange();
+    this.#contentListeners.forEach(listener => listener(null));
   }
 
   commit(): void {
@@ -81,10 +144,22 @@ export class CanvasDocument {
     if (this.#history.length > HISTORY_LIMIT) this.#history.shift();
     this.#historyIndex = this.#history.length - 1;
     this.#emitHistory();
+    if (this.hasImage) {
+      const snapshot = this.snapshotSession();
+      this.#contentListeners.forEach(listener => listener(snapshot));
+    }
   }
 
   undo(): void { this.#restore(this.#historyIndex - 1); }
   redo(): void { this.#restore(this.#historyIndex + 1); }
+
+  toolbarState<T>(key: string): T | undefined { return this.#toolbarStates[key] as T | undefined; }
+
+  setToolbarState(key: string, state: unknown): void {
+    if (!this.hasImage) return;
+    this.#toolbarStates[key] = structuredClone(state);
+    this.#contentListeners.forEach(listener => listener(this.snapshotSession()));
+  }
 
   clearOverlay(): void {
     this.overlayContext.clearRect(0, 0, this.overlay.width, this.overlay.height);
@@ -141,6 +216,11 @@ export class CanvasDocument {
     this.#historyIndex = index;
     this.clearOverlay();
     this.#emitHistory();
+    this.#contentListeners.forEach(listener => listener(this.snapshotSession()));
+  }
+
+  #snapshotImageData(state: ImageData): HistorySnapshot {
+    return { width: state.width, height: state.height, pixels: new Uint8ClampedArray(state.data) };
   }
 
   #emitHistory(): void {

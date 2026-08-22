@@ -1,15 +1,22 @@
-import { element } from "../helpers/domHelpers.js";
-import { CanvasDocument } from "../models/imageDocument.js";
-import type { ImageFormat } from "../models/appTypes.js";
+import { element } from "../helpers/domHelpers";
+import { ensureImageExtension, hasValidExtension, preferredExtension } from "../helpers/fileNameHelpers";
+import { CanvasDocument } from "../models/imageDocument";
+import type { ImageFormat } from "../models/appTypes";
+import { imageFormat } from "../models/imageFormats";
+import { populateImageFormatSelect } from "../ui/formatSelectHelpers";
 
 type PickerWindow = Window & { showSaveFilePicker?: (options: object) => Promise<FileSystemFileHandle> };
 
 export class FileController {
   readonly fileInput = element<HTMLInputElement>("#fileInput");
   readonly #format = element<HTMLSelectElement>("#formatSelect");
-  readonly #saveButtons = [element<HTMLButtonElement>("#saveButton"), element<HTMLButtonElement>("#saveAsButton"), element<HTMLButtonElement>("#quickSaveButton")];
+  readonly #saveButtons: HTMLButtonElement[];
 
   constructor(readonly documentModel: CanvasDocument) {
+    element("#saveAsButton").insertAdjacentHTML("afterend", '<div class="menu-rule"></div><button id="exportButton" role="menuitem" disabled><span>Export…</span></button>');
+    element("#exportButton").insertAdjacentHTML("afterend", '<div class="menu-rule"></div><button id="closeImageButton" role="menuitem" disabled><span>Close image</span></button>');
+    populateImageFormatSelect(this.#format);
+    this.#saveButtons = [element<HTMLButtonElement>("#saveButton"), element<HTMLButtonElement>("#saveAsButton"), element<HTMLButtonElement>("#exportButton"), element<HTMLButtonElement>("#quickSaveButton"), element<HTMLButtonElement>("#closeImageButton")];
     this.documentModel.onDocumentChange(({ hasImage }) => this.#saveButtons.forEach(button => { button.disabled = !hasImage; }));
     this.bindEvents();
   }
@@ -19,26 +26,37 @@ export class FileController {
   async save(): Promise<void> {
     if (!this.documentModel.hasImage) return;
     if (!this.documentModel.fileHandle) { await this.saveAs(); return; }
-    if (!this.confirmJpegTransparency(this.documentModel.savedType)) return;
+    if (!this.confirmTransparency(this.documentModel.savedType)) return;
     await this.write(this.documentModel.fileHandle, this.documentModel.savedType);
   }
 
   async saveAs(): Promise<void> {
+    await this.saveCopy(true);
+  }
+
+  async exportImage(): Promise<void> {
+    await this.saveCopy(false);
+  }
+
+  private async saveCopy(updateDocument: boolean): Promise<void> {
     if (!this.documentModel.hasImage) return;
     const type = this.#format.value as ImageFormat;
-    if (!this.confirmJpegTransparency(type)) return;
-    const extension = type === "image/jpeg" ? "jpg" : type.split("/")[1]!;
+    if (!this.confirmTransparency(type)) return;
+    const extension = preferredExtension(type);
     try {
       const picker = (window as PickerWindow).showSaveFilePicker;
       if (picker) {
-        const handle = await picker({ suggestedName: `${this.documentModel.baseName}.${extension}`, types: [{ description: `${extension.toUpperCase()} image`, accept: { [type]: [`.${extension}`] } }] });
+        const handle = await this.pickHandle(picker, ensureImageExtension(this.documentModel.baseName, type), type);
         await this.write(handle, type);
-        this.documentModel.fileHandle = handle;
-        this.documentModel.savedType = type;
-        this.documentModel.baseName = handle.name.replace(/\.[^.]+$/, "") || this.documentModel.baseName;
+        if (updateDocument) {
+          this.documentModel.fileHandle = handle;
+          this.documentModel.savedType = type;
+          this.documentModel.baseName = handle.name.replace(/\.[^.]+$/, "") || this.documentModel.baseName;
+        }
         return;
       }
-      const filename = window.prompt("Save image as", `${this.documentModel.baseName}.${extension}`);
+      const requestedName = window.prompt("Save image as", ensureImageExtension(this.documentModel.baseName, type));
+      const filename = requestedName ? ensureImageExtension(requestedName, type) : null;
       if (!filename) return;
       const link = document.createElement("a");
       link.href = URL.createObjectURL(await this.documentModel.toBlob(type));
@@ -54,11 +72,26 @@ export class FileController {
     this.fileInput.addEventListener("change", () => { const file = this.fileInput.files?.[0]; if (file) void this.documentModel.load(file); });
     element("#saveButton").addEventListener("click", () => void this.save());
     element("#saveAsButton").addEventListener("click", () => void this.saveAs());
+    element("#exportButton").addEventListener("click", () => void this.exportImage());
+    element("#closeImageButton").addEventListener("click", () => this.documentModel.close());
     element("#quickSaveButton").addEventListener("click", () => void this.save());
   }
 
-  private confirmJpegTransparency(type: ImageFormat): boolean {
-    return type !== "image/jpeg" || !this.documentModel.containsTransparency() || window.confirm("JPEG does not support transparency. Transparent pixels will be replaced with white. Continue saving?");
+  private confirmTransparency(type: ImageFormat): boolean {
+    const format = imageFormat(type);
+    return format.supportsTransparency || !this.documentModel.containsTransparency() || window.confirm(`${format.label} does not support transparency. Transparent pixels will be replaced with white. Continue?`);
+  }
+
+  private async pickHandle(picker: NonNullable<PickerWindow["showSaveFilePicker"]>, suggestedName: string, type: ImageFormat): Promise<FileSystemFileHandle> {
+    let suggestion = suggestedName;
+    for (;;) {
+      const format = imageFormat(type);
+      const extension = format.extensions[0]!;
+      const handle = await picker({ suggestedName: suggestion, types: [{ description: `${format.label} image`, accept: { [type]: format.extensions.map(value => `.${value}`) } }] });
+      if (hasValidExtension(handle.name, type)) return handle;
+      suggestion = ensureImageExtension(handle.name, type);
+      window.alert(`The file must use the .${extension} extension. Save As will reopen with the corrected filename.`);
+    }
   }
 
   private async write(handle: FileSystemFileHandle, type: ImageFormat): Promise<void> {

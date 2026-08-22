@@ -3,8 +3,18 @@
   "name": "Little Image Editor",
   "version": "0.1.0",
   "description": "A fast, private image editor with drawing, filters, conversion, and sprite sheets.",
+  "icons": {
+    "16": "assets/images/extensionIcon.png",
+    "32": "assets/images/extensionIcon.png",
+    "48": "assets/images/extensionIcon.png",
+    "128": "assets/images/extensionIcon.png"
+  },
   "action": {
-    "default_title": "Open Little Image Editor"
+    "default_title": "Open Little Image Editor",
+    "default_icon": {
+      "16": "assets/images/extensionIcon.png",
+      "32": "assets/images/extensionIcon.png"
+    }
   },
   "background": {
     "service_worker": "background.js",

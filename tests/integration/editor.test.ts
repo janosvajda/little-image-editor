@@ -2,11 +2,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 async function boot(): Promise<void> {
   vi.resetModules();
-  await import("../../src/editor.js");
+  await import("../../src/editor");
 }
 
 function click(selector: string): void {
   document.querySelector<HTMLButtonElement>(selector)!.click();
+}
+
+function selectTool(tool: string): void {
+  const selector = ["pencil", "brush", "marker", "highlighter", "calligraphy", "spray", "eraser"].includes(tool) ? "#paintToolSelect" : "#shapeToolSelect";
+  const select = document.querySelector<HTMLSelectElement>(selector)!;
+  select.value = tool; select.dispatchEvent(new Event("change"));
 }
 
 describe("editor integration", () => {
@@ -18,10 +24,15 @@ describe("editor integration", () => {
     expect(document.querySelector<HTMLDialogElement>("#newImageDialog")!.open).toBe(true);
     const preset = document.querySelector<HTMLSelectElement>("#newImagePreset")!;
     preset.value = "1280x720"; preset.dispatchEvent(new Event("change"));
+    const newFormat = document.querySelector<HTMLSelectElement>("#newImageFormat")!;
+    expect([...newFormat.options].map(option => option.text)).toEqual(["PNG", "JPEG", "WebP"]);
+    newFormat.value = "image/webp";
     expect(document.querySelector<HTMLInputElement>("#newImageWidth")!.value).toBe("1280");
     click("#createImageButton");
     expect(document.querySelector("#canvasWrap")!.classList.contains("hidden")).toBe(false);
     expect(document.querySelector<HTMLButtonElement>("#saveButton")!.disabled).toBe(false);
+    expect(document.querySelector<HTMLSelectElement>("#formatSelect")!.value).toBe("image/webp");
+    expect(document.querySelector<HTMLButtonElement>("#exportButton")!.disabled).toBe(false);
 
     click('[data-effect="invert"]'); click('[data-effect="grayscale"]'); click('[data-effect="sepia"]'); click('[data-effect="sharpen"]');
     click("#rotateRightButton"); click("#rotateLeftButton"); click("#flipHButton"); click("#flipVButton");
@@ -41,7 +52,8 @@ describe("editor integration", () => {
     expect(document.querySelector("#transparencyWarning")!.classList.contains("hidden")).toBe(false);
 
     click("#createImageButton");
-    for (const tool of ["brush", "eraser", "line", "rectangle", "ellipse", "picker", "crop"]) click(`[data-tool="${tool}"]`);
+    for (const tool of ["pencil", "brush", "marker", "highlighter", "calligraphy", "spray", "eraser", "line", "arrow", "rectangle", "roundedRectangle", "ellipse", "triangle", "diamond", "star"]) selectTool(tool);
+    click('[data-tool="picker"]'); click('[data-tool="crop"]');
     click("#functionsButton"); click("#addSpriteButton");
     click("#resetLayoutButton");
     const theme = document.querySelector<HTMLSelectElement>("#themeSelect")!;
@@ -57,10 +69,17 @@ describe("editor integration", () => {
     const overlay = document.querySelector<HTMLCanvasElement>("#overlay")!;
     vi.spyOn(overlay, "getBoundingClientRect").mockReturnValue({ x: 0, y: 0, left: 0, top: 0, right: 800, bottom: 600, width: 800, height: 600, toJSON: () => ({}) });
     const pointer = (type: string, x: number, y: number) => overlay.dispatchEvent(new MouseEvent(type, { clientX: x, clientY: y, bubbles: true }) as unknown as PointerEvent);
-    for (const tool of ["brush", "eraser", "line", "rectangle", "ellipse"]) {
-      click(`[data-tool="${tool}"]`); pointer("pointerdown", 10, 10); pointer("pointermove", 40, 30); pointer("pointerup", 40, 30);
+    for (const tool of ["pencil", "brush", "marker", "highlighter", "calligraphy", "spray", "eraser", "line", "arrow", "rectangle", "roundedRectangle", "ellipse", "triangle", "diamond", "star"]) {
+      selectTool(tool); pointer("pointerdown", 10, 10); pointer("pointermove", 40, 30); pointer("pointerup", 40, 30);
     }
+    selectTool("highlighter");
     click('[data-tool="picker"]'); pointer("pointerdown", 2, 2);
+    pointer("pointerdown", 3, 3);
+    expect(document.querySelector('[data-tool="picker"]')!.classList.contains("active")).toBe(true);
+    document.querySelector<HTMLElement>("#paintToolControl")!.click();
+    expect(document.querySelector("#paintToolControl")!.classList.contains("active")).toBe(true);
+    expect(document.querySelector('[data-tool="picker"]')!.classList.contains("active")).toBe(false);
+    pointer("pointerdown", 2, 2); pointer("pointermove", 5, 5); pointer("pointerup", 5, 5);
     click('[data-tool="crop"]'); pointer("pointerdown", 0, 0); pointer("pointermove", 20, 20); pointer("pointerup", 20, 20);
     expect(document.querySelector("#applyCropButton")!.classList.contains("hidden")).toBe(false);
     click("#applyCropButton");
@@ -72,10 +91,13 @@ describe("editor integration", () => {
     for (const name of ["brightness", "contrast", "saturation"]) {
       const input = document.querySelector<HTMLInputElement>(`[data-filter="${name}"]`)!;
       input.value = "25"; input.dispatchEvent(new Event("input")); input.dispatchEvent(new Event("change"));
-      expect(document.querySelector(`#${name}Value`)!.textContent).toBe("0");
+      expect(document.querySelector(`#${name}Value`)!.textContent).toBe("25");
     }
     const brightness = document.querySelector<HTMLInputElement>('[data-filter="brightness"]')!;
     brightness.value = "10"; brightness.dispatchEvent(new Event("input")); click("#resetFiltersButton");
+    expect(document.querySelector("#brightnessValue")!.textContent).toBe("0");
+    expect(document.querySelector("#contrastValue")!.textContent).toBe("0");
+    expect(document.querySelector("#saturationValue")!.textContent).toBe("0");
     const width = document.querySelector<HTMLInputElement>("#widthInput")!, height = document.querySelector<HTMLInputElement>("#heightInput")!;
     width.value = "320"; height.value = "240"; click("#resizeButton");
     expect(document.querySelector("#dimensions")!.textContent).toBe("320 × 240 px");
