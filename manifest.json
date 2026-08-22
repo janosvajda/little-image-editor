@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "Little Image Editor",
+  "version": "0.1.0",
+  "description": "A fast, private image editor with drawing, filters, conversion, and sprite sheets.",
+  "action": {
+    "default_title": "Open Little Image Editor"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "permissions": []
+}
