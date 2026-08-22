@@ -1,8 +1,11 @@
-import { element, elements } from "../helpers/domHelpers.js";
+import { element, elements } from "../helpers/domHelpers";
 
 type PanelLayout = Record<string, { x: number; y: number; collapsed: boolean }>;
 const LAYOUT_KEY = "little-editor.panel-layout.v2";
 const THEME_KEY = "little-editor.theme.v1";
+const PANEL_MARGIN = 14;
+const PANEL_GAP = 14;
+const LEFT_DOCK_PANELS = new Set(["tools"]);
 
 export class WorkspaceUi {
   readonly workspace = element<HTMLElement>(".workspace");
@@ -51,6 +54,7 @@ export class WorkspaceUi {
 
   private initializePanels(): void {
     const layout = this.readLayout();
+    const hasSavedLayout = Object.keys(layout).length > 0;
     this.panels.forEach(panel => {
       const saved = layout[panel.dataset.panel!];
       if (saved) {
@@ -66,6 +70,24 @@ export class WorkspaceUi {
         this.keepInView(panel, panel.offsetLeft, panel.offsetTop); this.saveLayout();
       });
     });
+    if (!hasSavedLayout) requestAnimationFrame(() => this.applyDefaultLayout());
+  }
+
+  private applyDefaultLayout(): void {
+    const columns = { left: [] as HTMLElement[], right: [] as HTMLElement[] };
+    this.panels.filter(panel => panel.offsetParent !== null).forEach(panel => {
+      const dock = LEFT_DOCK_PANELS.has(panel.dataset.panel ?? "") ? "left" : "right";
+      columns[dock].push(panel);
+    });
+    for (const [dock, panels] of Object.entries(columns) as Array<[keyof typeof columns, HTMLElement[]]>) {
+      let y = PANEL_MARGIN;
+      panels.forEach(panel => {
+        const x = dock === "left" ? PANEL_MARGIN : this.workspace.clientWidth - panel.offsetWidth - PANEL_MARGIN;
+        this.keepInView(panel, x, y);
+        y += panel.offsetHeight + PANEL_GAP;
+      });
+    }
+    this.saveLayout();
   }
 
   private startPanelDrag(panel: HTMLElement, header: HTMLElement, event: PointerEvent): void {
@@ -106,7 +128,7 @@ export class WorkspaceUi {
       panel.style.removeProperty("left"); panel.style.removeProperty("right"); panel.style.removeProperty("top"); panel.classList.remove("collapsed");
       element<HTMLButtonElement>(".collapse", panel).textContent = "−";
     });
-    requestAnimationFrame(() => this.saveLayout());
+    requestAnimationFrame(() => this.applyDefaultLayout());
   }
 
   private initializeMenus(): void {
@@ -129,7 +151,7 @@ export class WorkspaceUi {
   private openMenu(menu: HTMLDetailsElement, focusItem = false): void {
     this.menus.forEach(other => { if (other !== menu) this.closeMenu(other); });
     menu.open = true;
-    if (focusItem) requestAnimationFrame(() => this.menuItems(menu)[0]?.focus());
+    if (focusItem) this.menuItems(menu)[0]?.focus();
   }
 
   private closeMenu(menu: HTMLDetailsElement, restoreFocus = false): void {

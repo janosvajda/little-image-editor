@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canvasContext, element, elements } from "./domHelpers.js";
+import { canvasContext, element, elements } from "./domHelpers";
 
 describe("DOM helpers", () => {
   it("returns typed required elements and lists", () => {

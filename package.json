@@ -1,14 +1,17 @@
 {
   "name": "little-image-editor",
+  "title": "Little Image Editor",
   "version": "0.1.0",
+  "description": "A fast, private image editor with drawing, filters, conversion, and sprite sheets.",
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "tsc && node scripts/build.mjs",
+    "build": "npm run typecheck && node scripts/build.mjs",
+    "publish": "npm run build",
     "typecheck": "tsc --noEmit",
     "check": "npm run typecheck && npm run build",
-    "dev": "node scripts/dev.mjs",
-    "watch": "tsc --watch",
+    "dev": "npm run typecheck && node scripts/build.mjs --serve",
+    "watch": "node scripts/build.mjs --watch",
     "test": "vitest run --coverage",
     "test:unit": "vitest run src/app",
     "test:integration": "vitest run tests/integration",
@@ -18,6 +21,8 @@
   "devDependencies": {
     "@playwright/test": "^1.62.1",
     "@vitest/coverage-v8": "^4.1.11",
+    "esbuild": "^0.28.2",
+    "fake-indexeddb": "^6.2.5",
     "jsdom": "^30.0.1",
     "typescript": "^7.0.2",
     "vitest": "^4.1.11"

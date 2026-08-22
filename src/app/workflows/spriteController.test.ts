@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { CanvasDocument } from "../models/imageDocument.js";
-import { SpriteController } from "./spriteController.js";
+import { CanvasDocument } from "../models/imageDocument";
+import { SpriteController } from "./spriteController";
 
 describe("SpriteController", () => {
   it("handles empty and populated frame queues", async () => {

@@ -26,7 +26,7 @@ function contextFor(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
     globalCompositeOperation: "source-over", imageSmoothingEnabled: true, imageSmoothingQuality: "low",
     clearRect: vi.fn(() => { pixels = new Uint8ClampedArray(canvas.width * canvas.height * 4); }),
     fillRect: vi.fn(() => { pixels = new Uint8ClampedArray(canvas.width * canvas.height * 4).fill(255); }),
-    drawImage: vi.fn(), beginPath: vi.fn(), moveTo: vi.fn(), lineTo: vi.fn(), stroke: vi.fn(), fill: vi.fn(), rect: vi.fn(), ellipse: vi.fn(), setLineDash: vi.fn(),
+    drawImage: vi.fn(), beginPath: vi.fn(), moveTo: vi.fn(), lineTo: vi.fn(), quadraticCurveTo: vi.fn(), closePath: vi.fn(), stroke: vi.fn(), fill: vi.fn(), rect: vi.fn(), ellipse: vi.fn(), setLineDash: vi.fn(),
     save: vi.fn(), restore: vi.fn(), translate: vi.fn(), rotate: vi.fn(), scale: vi.fn(),
     getImageData: vi.fn((x: number, y: number, width: number, height: number) => new TestImageData(pixels.slice(0, width * height * 4), width, height)),
     putImageData: vi.fn((image: ImageData) => { pixels = new Uint8ClampedArray(image.data); })

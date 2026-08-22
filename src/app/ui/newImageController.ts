@@ -1,6 +1,8 @@
-import { clampDimension, linkedDimension } from "../helpers/geometryHelpers.js";
-import { element } from "../helpers/domHelpers.js";
-import { CanvasDocument } from "../models/imageDocument.js";
+import { clampDimension, linkedDimension } from "../helpers/geometryHelpers";
+import { element } from "../helpers/domHelpers";
+import { CanvasDocument } from "../models/imageDocument";
+import { imageFormat } from "../models/imageFormats";
+import { populateImageFormatSelect, transparencyWarning } from "./formatSelectHelpers";
 
 export class NewImageController {
   readonly dialog = element<HTMLDialogElement>("#newImageDialog");
@@ -8,6 +10,7 @@ export class NewImageController {
   readonly #aspect = element<HTMLSelectElement>("#newImageAspect");
   readonly #width = element<HTMLInputElement>("#newImageWidth");
   readonly #height = element<HTMLInputElement>("#newImageHeight");
+  #format!: HTMLSelectElement;
 
   constructor(readonly documentModel: CanvasDocument) {
     this.addDynamicControls();
@@ -22,6 +25,9 @@ export class NewImageController {
     const print = document.querySelector<HTMLOptGroupElement>('#newImagePreset optgroup[label="Print"]')!;
     print.insertBefore(new Option("3508 × 4961 — A3 at 300 DPI", "3508x4961"), print.firstChild);
     print.append(new Option("1748 × 2480 — A5 at 300 DPI", "1748x2480"));
+    element<HTMLInputElement>("#newImageName").closest("label")!.insertAdjacentHTML("afterend", '<label>File type<select id="newImageFormat"></select></label>');
+    this.#format = element<HTMLSelectElement>("#newImageFormat");
+    populateImageFormatSelect(this.#format);
   }
 
   private bindEvents(): void {
@@ -36,10 +42,11 @@ export class NewImageController {
     this.#width.addEventListener("input", () => this.updateLinkedDimension("width"));
     this.#height.addEventListener("input", () => this.updateLinkedDimension("height"));
     this.#aspect.addEventListener("change", () => this.updateLinkedDimension("width"));
+    this.#format.addEventListener("change", () => this.updateTransparencyWarning());
     element<HTMLInputElement>("#newImageTransparent").addEventListener("change", event => {
       const transparent = (event.currentTarget as HTMLInputElement).checked;
       element<HTMLInputElement>("#newImageColor").disabled = transparent;
-      element("#transparencyWarning").classList.toggle("hidden", !transparent);
+      this.updateTransparencyWarning();
     });
   }
 
@@ -57,8 +64,16 @@ export class NewImageController {
     this.documentModel.create({
       name: element<HTMLInputElement>("#newImageName").value.trim() || "untitled", width, height,
       transparent: element<HTMLInputElement>("#newImageTransparent").checked,
-      background: element<HTMLInputElement>("#newImageColor").value
+      background: element<HTMLInputElement>("#newImageColor").value,
+      format: imageFormat(this.#format.value).mimeType
     });
     this.dialog.close();
+  }
+
+  private updateTransparencyWarning(): void {
+    const warning = element("#transparencyWarning");
+    const transparent = element<HTMLInputElement>("#newImageTransparent").checked;
+    warning.textContent = transparencyWarning(this.#format.value);
+    warning.classList.toggle("hidden", !transparent);
   }
 }

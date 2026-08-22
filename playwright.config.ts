@@ -1,5 +1,8 @@
 import { defineConfig } from "@playwright/test";
 
+const port = Number(process.env.LITTLE_EDITOR_E2E_PORT ?? 5173);
+const baseURL = `http://127.0.0.1:${port}`;
+
 export default defineConfig({
   testDir: "tests/e2e",
   fullyParallel: true,
@@ -7,15 +10,15 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   reporter: "list",
   use: {
-    baseURL: "http://127.0.0.1:5173",
+    baseURL,
     browserName: "chromium",
     headless: true,
     screenshot: "only-on-failure",
     trace: "retain-on-failure"
   },
   webServer: {
-    command: "node scripts/dev.mjs",
-    url: "http://127.0.0.1:5173",
+    command: `LITTLE_EDITOR_PORT=${port} node scripts/build.mjs --serve`,
+    url: baseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 30_000
   }

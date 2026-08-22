@@ -1,11 +1,13 @@
-import { element } from "./app/helpers/domHelpers.js";
-import { CanvasDocument } from "./app/models/imageDocument.js";
-import { DrawingController } from "./app/ui/drawingController.js";
-import { ImageOperations } from "./app/ui/imageOperationsController.js";
-import { NewImageController } from "./app/ui/newImageController.js";
-import { WorkspaceUi } from "./app/ui/workspaceController.js";
-import { FileController } from "./app/workflows/fileController.js";
-import { SpriteController } from "./app/workflows/spriteController.js";
+import { element } from "./app/helpers/domHelpers";
+import { CanvasDocument } from "./app/models/imageDocument";
+import { DrawingController } from "./app/ui/drawingController";
+import { ImageOperations } from "./app/ui/imageOperationsController";
+import { NewImageController } from "./app/ui/newImageController";
+import { WorkspaceUi } from "./app/ui/workspaceController";
+import { FileController } from "./app/workflows/fileController";
+import { SpriteController } from "./app/workflows/spriteController";
+import { SessionPersistence } from "./app/workflows/sessionPersistence";
+import { ToolbarManager } from "./app/ui/genericToolbar";
 
 const documentModel = new CanvasDocument(element<HTMLCanvasElement>("#canvas"), element<HTMLCanvasElement>("#overlay"));
 const newImage = new NewImageController(documentModel);
@@ -14,6 +16,7 @@ const sprites = new SpriteController(documentModel);
 const workspaceUi = new WorkspaceUi([newImage.dialog, sprites.dialog]);
 const drawing = new DrawingController(documentModel);
 new ImageOperations(documentModel);
+const sessionPersistence = new SessionPersistence(documentModel);
 
 drawing.setInitialColor(workspaceUi.resolvedTheme);
 
@@ -25,6 +28,19 @@ documentModel.onDocumentChange(({ hasImage, width, height }) => {
   element("#canvasWrap").classList.toggle("hidden", !hasImage);
   if (hasImage) element<HTMLSelectElement>("#formatSelect").value = documentModel.savedType;
 });
+
+new ToolbarManager(documentModel);
+void finishStartup();
+
+async function finishStartup(): Promise<void> {
+  const splash = element<HTMLElement>("#startupSplash");
+  try {
+    await sessionPersistence.restore();
+  } finally {
+    splash.classList.add("is-hidden");
+    window.setTimeout(() => splash.remove(), 220);
+  }
+}
 
 const undoButtons = [element<HTMLButtonElement>("#undoButton"), element<HTMLButtonElement>("#menuUndoButton")];
 const redoButtons = [element<HTMLButtonElement>("#redoButton"), element<HTMLButtonElement>("#menuRedoButton")];
@@ -63,5 +79,5 @@ document.addEventListener("keydown", event => {
   const target = event.target as HTMLElement;
   if (event.key === "Tab" && !target.matches("input,select")) { event.preventDefault(); void workspaceUi.toggleFocus(); return; }
   if (event.key === "Escape" && document.body.classList.contains("focus-mode")) { void workspaceUi.toggleFocus(false); return; }
-  if (!target.matches("input,select")) drawing.selectFromShortcut(key);
+  if (!modifier && !target.matches("input,select")) drawing.selectFromShortcut(key);
 });
