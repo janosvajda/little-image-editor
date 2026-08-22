@@ -1,13 +1,13 @@
-import { CanvasDocument } from "./app/canvas-document.js";
-import { DrawingController } from "./app/drawing-controller.js";
-import { element } from "./app/dom.js";
-import { FileController } from "./app/file-controller.js";
-import { ImageOperations } from "./app/image-operations.js";
-import { NewImageController } from "./app/new-image-controller.js";
-import { SpriteController } from "./app/sprite-controller.js";
-import { WorkspaceUi } from "./app/workspace-ui.js";
+import { element } from "./app/helpers/domHelpers.js";
+import { CanvasDocument } from "./app/models/imageDocument.js";
+import { DrawingController } from "./app/ui/drawingController.js";
+import { ImageOperations } from "./app/ui/imageOperationsController.js";
+import { NewImageController } from "./app/ui/newImageController.js";
+import { WorkspaceUi } from "./app/ui/workspaceController.js";
+import { FileController } from "./app/workflows/fileController.js";
+import { SpriteController } from "./app/workflows/spriteController.js";
 
-const documentModel = new CanvasDocument();
+const documentModel = new CanvasDocument(element<HTMLCanvasElement>("#canvas"), element<HTMLCanvasElement>("#overlay"));
 const newImage = new NewImageController(documentModel);
 const files = new FileController(documentModel);
 const sprites = new SpriteController(documentModel);
@@ -16,6 +16,15 @@ const drawing = new DrawingController(documentModel);
 new ImageOperations(documentModel);
 
 drawing.setInitialColor(workspaceUi.resolvedTheme);
+
+documentModel.onDocumentChange(({ hasImage, width, height }) => {
+  element("#dimensions").textContent = hasImage ? `${width} × ${height} px` : "No image";
+  element<HTMLInputElement>("#widthInput").value = hasImage ? String(width) : "";
+  element<HTMLInputElement>("#heightInput").value = hasImage ? String(height) : "";
+  element("#emptyState").classList.toggle("hidden", hasImage);
+  element("#canvasWrap").classList.toggle("hidden", !hasImage);
+  if (hasImage) element<HTMLSelectElement>("#formatSelect").value = documentModel.savedType;
+});
 
 const undoButtons = [element<HTMLButtonElement>("#undoButton"), element<HTMLButtonElement>("#menuUndoButton")];
 const redoButtons = [element<HTMLButtonElement>("#redoButton"), element<HTMLButtonElement>("#menuRedoButton")];

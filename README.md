@@ -42,6 +42,8 @@ npm run test:all
 
 `npm test` runs unit and integration tests with coverage. The build fails below 95% line coverage; statement, function, and branch safety floors are also enforced. End-to-end tests use Playwright Chromium against the local development server.
 
+Pull requests run the same checks in GitHub Actions: strict TypeScript validation, the production extension build, unit and integration coverage, and Chromium E2E tests. Configure all three `Pull Request Quality Gate` jobs as required status checks in the repository branch-protection rules to prevent merging when a check fails.
+
 ## License
 
 MIT
