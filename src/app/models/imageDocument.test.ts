@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { CanvasDocument } from "./canvas-document.js";
+import { CanvasDocument } from "./imageDocument.js";
 
 describe("CanvasDocument", () => {
   let subject: CanvasDocument;
 
-  beforeEach(() => { subject = new CanvasDocument(); });
+  beforeEach(() => { subject = new CanvasDocument(document.querySelector("#canvas")!, document.querySelector("#overlay")!); });
 
   it("creates, commits, undoes, redoes, crops, resizes, and transforms a document", () => {
     const history = vi.fn();
@@ -15,7 +15,7 @@ describe("CanvasDocument", () => {
     expect(subject.hasImage).toBe(true);
     expect(subject.baseName).toBe("picture");
     expect([subject.width, subject.height]).toEqual([100, 50]);
-    expect(documents).toHaveBeenLastCalledWith(true);
+    expect(documents).toHaveBeenLastCalledWith({ hasImage: true, width: 100, height: 50 });
 
     subject.context.fillRect(0, 0, 5, 5);
     subject.commit();

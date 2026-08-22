@@ -1,6 +1,6 @@
-import { CanvasDocument } from "./canvas-document.js";
-import { element } from "./dom.js";
-import type { ImageFormat } from "./types.js";
+import { element } from "../helpers/domHelpers.js";
+import { CanvasDocument } from "../models/imageDocument.js";
+import type { ImageFormat } from "../models/appTypes.js";
 
 type PickerWindow = Window & { showSaveFilePicker?: (options: object) => Promise<FileSystemFileHandle> };
 
@@ -10,7 +10,7 @@ export class FileController {
   readonly #saveButtons = [element<HTMLButtonElement>("#saveButton"), element<HTMLButtonElement>("#saveAsButton"), element<HTMLButtonElement>("#quickSaveButton")];
 
   constructor(readonly documentModel: CanvasDocument) {
-    this.documentModel.onDocumentChange(hasImage => this.#saveButtons.forEach(button => { button.disabled = !hasImage; }));
+    this.documentModel.onDocumentChange(({ hasImage }) => this.#saveButtons.forEach(button => { button.disabled = !hasImage; }));
     this.bindEvents();
   }
 

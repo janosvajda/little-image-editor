@@ -1,4 +1,4 @@
-import { element, elements } from "./dom.js";
+import { element, elements } from "../helpers/domHelpers.js";
 
 type PanelLayout = Record<string, { x: number; y: number; collapsed: boolean }>;
 const LAYOUT_KEY = "little-editor.panel-layout.v2";

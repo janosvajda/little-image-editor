@@ -1,5 +1,5 @@
-import { CanvasDocument } from "./canvas-document.js";
-import { element } from "./dom.js";
+import { element } from "../helpers/domHelpers.js";
+import { CanvasDocument } from "../models/imageDocument.js";
 
 export class SpriteController {
   readonly dialog = element<HTMLDialogElement>("#functionsDialog");

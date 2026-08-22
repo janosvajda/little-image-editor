@@ -1,7 +1,6 @@
-import { CanvasDocument } from "./canvas-document.js";
-import { element } from "./dom.js";
-
-const MAX_DIMENSION = 16_384;
+import { clampDimension, linkedDimension } from "../helpers/geometryHelpers.js";
+import { element } from "../helpers/domHelpers.js";
+import { CanvasDocument } from "../models/imageDocument.js";
 
 export class NewImageController {
   readonly dialog = element<HTMLDialogElement>("#newImageDialog");
@@ -48,13 +47,12 @@ export class NewImageController {
     this.#preset.value = "custom";
     const ratio = this.#aspect.value === "free" ? null : Number(this.#aspect.value);
     if (!ratio || !Number.isFinite(ratio)) return;
-    if (source === "width" && Number(this.#width.value) > 0) this.#height.value = String(Math.max(1, Math.round(Number(this.#width.value) / ratio)));
-    if (source === "height" && Number(this.#height.value) > 0) this.#width.value = String(Math.max(1, Math.round(Number(this.#height.value) * ratio)));
+    if (source === "width" && Number(this.#width.value) > 0) this.#height.value = String(linkedDimension(this.#width.value, ratio, source));
+    if (source === "height" && Number(this.#height.value) > 0) this.#width.value = String(linkedDimension(this.#height.value, ratio, source));
   }
 
   private create(): void {
-    const clamp = (value: string) => Math.max(1, Math.min(MAX_DIMENSION, Math.round(Number(value))));
-    const width = clamp(this.#width.value), height = clamp(this.#height.value);
+    const width = clampDimension(this.#width.value), height = clampDimension(this.#height.value);
     if (!Number.isFinite(width) || !Number.isFinite(height)) return;
     this.documentModel.create({
       name: element<HTMLInputElement>("#newImageName").value.trim() || "untitled", width, height,

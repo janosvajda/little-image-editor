@@ -1,13 +1,12 @@
-import { canvasContext, element } from "./dom.js";
-import type { CropRect, ImageFormat, NewImageOptions } from "./types.js";
+import { copyCanvas, encodeCanvas, hasTransparency } from "../helpers/canvasHelpers.js";
+import { canvasContext } from "../helpers/domHelpers.js";
+import type { CropRect, ImageFormat, NewImageOptions } from "./appTypes.js";
 
 const HISTORY_LIMIT = 30;
 
 export class CanvasDocument {
-  readonly canvas = element<HTMLCanvasElement>("#canvas");
-  readonly overlay = element<HTMLCanvasElement>("#overlay");
-  readonly context = canvasContext(this.canvas, { willReadFrequently: true });
-  readonly overlayContext = canvasContext(this.overlay);
+  readonly context: CanvasRenderingContext2D;
+  readonly overlayContext: CanvasRenderingContext2D;
 
   hasImage = false;
   fileHandle: FileSystemFileHandle | null = null;
@@ -17,7 +16,12 @@ export class CanvasDocument {
   #history: ImageData[] = [];
   #historyIndex = -1;
   #historyListeners = new Set<(canUndo: boolean, canRedo: boolean) => void>();
-  #documentListeners = new Set<(hasImage: boolean) => void>();
+  #documentListeners = new Set<(snapshot: Readonly<{ hasImage: boolean; width: number; height: number }>) => void>();
+
+  constructor(readonly canvas: HTMLCanvasElement, readonly overlay: HTMLCanvasElement) {
+    this.context = canvasContext(canvas, { willReadFrequently: true });
+    this.overlayContext = canvasContext(overlay);
+  }
 
   get width(): number { return this.canvas.width; }
   get height(): number { return this.canvas.height; }
@@ -27,17 +31,15 @@ export class CanvasDocument {
     listener(this.#historyIndex > 0, this.#historyIndex < this.#history.length - 1);
   }
 
-  onDocumentChange(listener: (hasImage: boolean) => void): void {
+  onDocumentChange(listener: (snapshot: Readonly<{ hasImage: boolean; width: number; height: number }>) => void): void {
     this.#documentListeners.add(listener);
-    listener(this.hasImage);
+    listener(this.snapshot());
   }
 
   setSize(width: number, height: number): void {
     this.canvas.width = this.overlay.width = width;
     this.canvas.height = this.overlay.height = height;
-    element("#dimensions").textContent = `${width} × ${height} px`;
-    element<HTMLInputElement>("#widthInput").value = String(width);
-    element<HTMLInputElement>("#heightInput").value = String(height);
+    if (this.hasImage) this.#emitDocumentChange();
   }
 
   async load(file: File): Promise<void> {
@@ -58,7 +60,6 @@ export class CanvasDocument {
       this.context.fillRect(0, 0, options.width, options.height);
     }
     this.savedType = "image/png";
-    element<HTMLSelectElement>("#formatSelect").value = this.savedType;
     this.activate(options.name || "untitled");
   }
 
@@ -68,11 +69,9 @@ export class CanvasDocument {
     this.baseName = name;
     this.#history = [];
     this.#historyIndex = -1;
-    element("#emptyState").classList.add("hidden");
-    element("#canvasWrap").classList.remove("hidden");
     this.clearOverlay();
     this.commit();
-    this.#documentListeners.forEach(listener => listener(true));
+    this.#emitDocumentChange();
   }
 
   commit(): void {
@@ -124,26 +123,14 @@ export class CanvasDocument {
     this.commit();
   }
 
-  containsTransparency(): boolean {
-    const pixels = this.context.getImageData(0, 0, this.width, this.height).data;
-    for (let index = 3; index < pixels.length; index += 4) if (pixels[index]! < 255) return true;
-    return false;
-  }
+  containsTransparency(): boolean { return hasTransparency(this.context, this.width, this.height); }
 
   async toBlob(type: ImageFormat): Promise<Blob> {
-    const output = document.createElement("canvas");
-    output.width = this.width; output.height = this.height;
-    const context = canvasContext(output);
-    if (type === "image/jpeg") { context.fillStyle = "#ffffff"; context.fillRect(0, 0, output.width, output.height); }
-    context.drawImage(this.canvas, 0, 0);
-    return new Promise((resolve, reject) => output.toBlob(blob => blob ? resolve(blob) : reject(new Error("Image encoding failed")), type, .92));
+    return encodeCanvas(this.canvas, type);
   }
 
   private copyCanvas(): HTMLCanvasElement {
-    const copy = document.createElement("canvas");
-    copy.width = this.width; copy.height = this.height;
-    canvasContext(copy).drawImage(this.canvas, 0, 0);
-    return copy;
+    return copyCanvas(this.canvas);
   }
 
   #restore(index: number): void {
@@ -160,5 +147,14 @@ export class CanvasDocument {
     const canUndo = this.#historyIndex > 0;
     const canRedo = this.#historyIndex < this.#history.length - 1;
     this.#historyListeners.forEach(listener => listener(canUndo, canRedo));
+  }
+
+  private snapshot(): Readonly<{ hasImage: boolean; width: number; height: number }> {
+    return { hasImage: this.hasImage, width: this.width, height: this.height };
+  }
+
+  #emitDocumentChange(): void {
+    const snapshot = this.snapshot();
+    this.#documentListeners.forEach(listener => listener(snapshot));
   }
 }

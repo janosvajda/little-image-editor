@@ -1,6 +1,7 @@
-import { CanvasDocument } from "./canvas-document.js";
-import { element, elements } from "./dom.js";
-import type { CropRect, Point, Tool } from "./types.js";
+import { CanvasDocument } from "../models/imageDocument.js";
+import type { CropRect, Point, Tool } from "../models/appTypes.js";
+import { canvasPoint, configureStroke, drawShape } from "../helpers/drawingHelpers.js";
+import { element, elements } from "../helpers/domHelpers.js";
 
 const SHAPE_TOOLS: readonly Tool[] = ["line", "rectangle", "ellipse"];
 const TOOL_SHORTCUTS: Readonly<Record<string, Tool>> = { b: "brush", e: "eraser", l: "line", r: "rectangle", o: "ellipse", i: "picker", c: "crop" };
@@ -58,32 +59,16 @@ export class DrawingController {
   }
 
   private point(event: PointerEvent): Point {
-    const bounds = this.documentModel.overlay.getBoundingClientRect();
-    return {
-      x: Math.max(0, Math.min(this.documentModel.width, (event.clientX - bounds.left) * this.documentModel.width / bounds.width)),
-      y: Math.max(0, Math.min(this.documentModel.height, (event.clientY - bounds.top) * this.documentModel.height / bounds.height))
-    };
+    return canvasPoint(event, this.documentModel.overlay.getBoundingClientRect(), this.documentModel.width, this.documentModel.height);
   }
 
   private configure(context: CanvasRenderingContext2D): void {
-    context.lineCap = "round";
-    context.lineJoin = "round";
-    context.lineWidth = Number(this.#size.value);
-    context.strokeStyle = this.#color.value;
-    context.fillStyle = this.#color.value;
+    configureStroke(context, { color: this.#color.value, size: Number(this.#size.value) });
   }
 
   private drawShape(context: CanvasRenderingContext2D, from: Point, to: Point): void {
     this.configure(context);
-    context.beginPath();
-    if (this.#tool === "line") { context.moveTo(from.x, from.y); context.lineTo(to.x, to.y); }
-    else if (this.#tool === "rectangle" || this.#tool === "crop") context.rect(from.x, from.y, to.x - from.x, to.y - from.y);
-    else if (this.#tool === "ellipse") context.ellipse((from.x + to.x) / 2, (from.y + to.y) / 2, Math.abs(to.x - from.x) / 2, Math.abs(to.y - from.y) / 2, 0, 0, Math.PI * 2);
-
-    if (this.#tool === "crop") {
-      context.strokeStyle = "#ffffff"; context.lineWidth = 1; context.setLineDash([6, 4]); context.stroke(); context.setLineDash([]);
-    } else if (this.#fill.checked && this.#tool !== "line") context.fill();
-    else context.stroke();
+    drawShape(context, this.#tool, from, to, this.#fill.checked);
   }
 
   private onPointerDown(event: PointerEvent): void {
