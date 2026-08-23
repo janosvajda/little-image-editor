@@ -34,7 +34,10 @@ describe("editor integration", () => {
     expect(document.querySelector<HTMLSelectElement>("#formatSelect")!.value).toBe("image/webp");
     expect(document.querySelector<HTMLButtonElement>("#exportButton")!.disabled).toBe(false);
 
-    click('[data-effect="invert"]'); click('[data-effect="grayscale"]'); click('[data-effect="sepia"]'); click('[data-effect="sharpen"]');
+    const effect = document.querySelector<HTMLSelectElement>("#effectSelect")!;
+    for (const name of ["invert", "monochrome", "sepia", "sharpen"]) {
+      effect.value = name; effect.dispatchEvent(new Event("change")); click("#applyEffectButton");
+    }
     click("#rotateRightButton"); click("#rotateLeftButton"); click("#flipHButton"); click("#flipVButton");
     click("#undoButton"); click("#redoButton");
     click("#saveButton");
@@ -42,6 +45,7 @@ describe("editor integration", () => {
 
   it("supports presets, aspect ratios, transparency warnings, tools, menus, themes, panels, and dialogs", async () => {
     await boot();
+    expect(document.querySelector("#quickOpenButton")!.nextElementSibling?.id).toBe("quickSaveButton");
     const aspect = document.querySelector<HTMLSelectElement>("#newImageAspect")!;
     const width = document.querySelector<HTMLInputElement>("#newImageWidth")!;
     aspect.value = "1.6180339887"; aspect.dispatchEvent(new Event("change"));

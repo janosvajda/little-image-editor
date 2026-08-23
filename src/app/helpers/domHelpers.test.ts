@@ -4,7 +4,7 @@ import { canvasContext, element, elements } from "./domHelpers";
 describe("DOM helpers", () => {
   it("returns typed required elements and lists", () => {
     expect(element("#canvas")).toBeInstanceOf(HTMLCanvasElement);
-    expect(elements(".panel")).toHaveLength(3);
+    expect(elements(".panel")).toHaveLength(4);
     expect(canvasContext(element<HTMLCanvasElement>("#canvas"))).toBeTruthy();
   });
 

@@ -13,13 +13,14 @@ interface RecoveryRecord extends DocumentSessionSnapshot {
 
 export class SessionPersistence {
   #database: Promise<IDBDatabase> | null = null;
-  #pendingSnapshot: DocumentSessionSnapshot | null | undefined;
+  #pendingChange: boolean | undefined;
   #writeInProgress = false;
+  #flushScheduled = false;
 
   constructor(readonly documentModel: CanvasDocument) {
     if (!("indexedDB" in globalThis)) return;
     this.#database = this.openDatabase();
-    documentModel.onContentChange(snapshot => this.queueSave(snapshot));
+    documentModel.onContentChange(hasImage => this.queueSave(hasImage));
   }
 
   async restore(): Promise<boolean> {
@@ -38,18 +39,26 @@ export class SessionPersistence {
     return true;
   }
 
-  private queueSave(snapshot: DocumentSessionSnapshot | null): void {
-    this.#pendingSnapshot = snapshot;
-    if (!this.#writeInProgress) void this.flushLatestSnapshot();
+  private queueSave(hasImage: boolean): void {
+    this.#pendingChange = hasImage;
+    if (this.#writeInProgress || this.#flushScheduled) return;
+    this.#flushScheduled = true;
+    queueMicrotask(() => {
+      this.#flushScheduled = false;
+      if (!this.#writeInProgress) void this.flushLatestSnapshot();
+    });
   }
 
   private async flushLatestSnapshot(): Promise<void> {
     this.#writeInProgress = true;
     try {
       const database = await this.#database!;
-      while (this.#pendingSnapshot !== undefined) {
-        const snapshot = this.#pendingSnapshot;
-        this.#pendingSnapshot = undefined;
+      while (this.#pendingChange !== undefined) {
+        const hasImage = this.#pendingChange;
+        this.#pendingChange = undefined;
+        // Capture only when a write can begin. Changes arriving during an IDB
+        // transaction are represented by one later capture of the latest state.
+        const snapshot = hasImage && this.documentModel.hasImage ? this.documentModel.snapshotSession() : null;
         await new Promise<void>((resolve, reject) => {
           const transaction = database.transaction(STORE_NAME, "readwrite");
           const store = transaction.objectStore(STORE_NAME);
@@ -64,7 +73,7 @@ export class SessionPersistence {
       console.error("Unable to persist recovery session", error);
     } finally {
       this.#writeInProgress = false;
-      if (this.#pendingSnapshot !== undefined) void this.flushLatestSnapshot();
+      if (this.#pendingChange !== undefined) void this.flushLatestSnapshot();
     }
   }
 

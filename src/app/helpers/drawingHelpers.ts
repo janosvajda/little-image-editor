@@ -3,6 +3,7 @@ import type { PaintTool, Point, Tool } from "../models/appTypes";
 export interface StrokeOptions { color: string; size: number; opacity: number; hardness: number; }
 
 export function canvasPoint(event: PointerEvent, bounds: DOMRect, width: number, height: number): Point {
+  if (bounds.width <= 0 || bounds.height <= 0 || width <= 0 || height <= 0) return { x: 0, y: 0 };
   return {
     x: Math.max(0, Math.min(width, (event.clientX - bounds.left) * width / bounds.width)),
     y: Math.max(0, Math.min(height, (event.clientY - bounds.top) * height / bounds.height))
@@ -16,7 +17,7 @@ export function configureStroke(context: CanvasRenderingContext2D, options: Stro
 
 export function drawFreehandStroke(context: CanvasRenderingContext2D, tool: PaintTool, from: Point, to: Point, options: StrokeOptions, pressure = 1, random: () => number = Math.random): void {
   const pressureSize = options.size * (.35 + .65 * Math.max(0, Math.min(1, pressure)));
-  context.save(); configureStroke(context, { ...options, size: pressureSize });
+  context.save(); configureStroke(context, options); context.lineWidth = pressureSize;
   context.globalCompositeOperation = tool === "eraser" ? "destination-out" : "source-over";
   if (tool === "spray") drawSpray(context, to, pressureSize, options.hardness, random);
   else if (tool === "calligraphy") drawCalligraphy(context, from, to, pressureSize);

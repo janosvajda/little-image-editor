@@ -1,10 +1,9 @@
 import { element, elements } from "../helpers/domHelpers";
-import { applyColorEffect, applySharpen, applyToneAdjustments } from "../helpers/imageFilterHelpers";
+import { applyToneAdjustments } from "../helpers/imageFilterHelpers";
 import type { HistorySnapshot } from "../models/appTypes";
 import { CanvasDocument } from "../models/imageDocument";
 import { PersistentDocumentToolbar } from "./genericToolbar";
 
-type Effect = "grayscale" | "sepia" | "invert" | "sharpen";
 interface AdjustmentState { base: HistorySnapshot; }
 
 export class ImageOperations {
@@ -29,7 +28,6 @@ export class ImageOperations {
       input.addEventListener("input", () => { this.updateLabel(input); this.previewAdjustments(); });
       input.addEventListener("change", () => this.commitAdjustments());
     });
-    elements<HTMLElement>("[data-effect]").forEach(button => button.addEventListener("click", () => this.applyEffect(button.dataset.effect as Effect)));
     element("#resetFiltersButton").addEventListener("click", () => this.resetAdjustments());
     element("#rotateLeftButton").addEventListener("click", () => this.documentModel.transform(-90));
     element("#rotateRightButton").addEventListener("click", () => this.documentModel.transform(90));
@@ -80,22 +78,6 @@ export class ImageOperations {
     this.#toolbar.reset();
   }
 
-  private applyEffect(effect: Effect): void {
-    if (!this.documentModel.hasImage) return;
-    const { context, width, height } = this.documentModel;
-    const image = this.#adjustmentBase
-      ? new ImageData(new Uint8ClampedArray(this.#adjustmentBase.data), this.#adjustmentBase.width, this.#adjustmentBase.height)
-      : context.getImageData(0, 0, width, height);
-    if (effect === "sharpen") applySharpen(image);
-    else applyColorEffect(image, effect);
-    if (this.#adjustmentBase) {
-      this.#adjustmentBase = image;
-      this.previewAdjustments();
-      this.commitAdjustments();
-    } else {
-      context.putImageData(image, 0, 0); this.documentModel.commit();
-    }
-  }
 }
 
 function snapshot(image: ImageData): HistorySnapshot {

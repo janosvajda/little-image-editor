@@ -15,6 +15,14 @@ describe("drawingHelpers", () => {
     const bounds = { left: 10, top: 20, width: 100, height: 50 } as DOMRect;
     expect(canvasPoint({ clientX: 60, clientY: 45 } as PointerEvent, bounds, 200, 100)).toEqual({ x: 100, y: 50 });
     expect(canvasPoint({ clientX: -20, clientY: 200 } as PointerEvent, bounds, 200, 100)).toEqual({ x: 0, y: 100 });
+    expect(canvasPoint({ clientX: 20, clientY: 20 } as PointerEvent, { ...bounds, width: 0 } as DOMRect, 200, 100)).toEqual({ x: 0, y: 0 });
+  });
+
+  it.each([.1, .25, .5, 1, 1.25, 2, 3, 4, 8])("maps the same image pixel at %sx zoom", zoom => {
+    const image = { width: 800, height: 600 };
+    const bounds = { left: 37, top: 53, width: image.width * zoom, height: image.height * zoom } as DOMRect;
+    const event = { clientX: bounds.left + 320 * zoom, clientY: bounds.top + 240 * zoom } as PointerEvent;
+    expect(canvasPoint(event, bounds, image.width, image.height)).toEqual({ x: 320, y: 240 });
   });
 
   it("configures color, size, opacity, and rounded strokes", () => {

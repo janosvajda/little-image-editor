@@ -18,7 +18,7 @@ export class CanvasDocument {
   #historyIndex = -1;
   #historyListeners = new Set<(canUndo: boolean, canRedo: boolean) => void>();
   #documentListeners = new Set<(snapshot: Readonly<{ hasImage: boolean; width: number; height: number }>) => void>();
-  #contentListeners = new Set<(snapshot: DocumentSessionSnapshot | null) => void>();
+  #contentListeners = new Set<(hasImage: boolean) => void>();
   #toolbarStates: Record<string, unknown> = {};
 
   constructor(readonly canvas: HTMLCanvasElement, readonly overlay: HTMLCanvasElement) {
@@ -39,13 +39,16 @@ export class CanvasDocument {
     listener(this.snapshot());
   }
 
-  onContentChange(listener: (snapshot: DocumentSessionSnapshot | null) => void): void { this.#contentListeners.add(listener); }
+  /** Signals that recovery data is stale without eagerly copying the canvas. */
+  onContentChange(listener: (hasImage: boolean) => void): void { this.#contentListeners.add(listener); }
 
   snapshotPixels(): ImageSnapshot {
     return {
       width: this.width,
       height: this.height,
-      pixels: new Uint8ClampedArray(this.context.getImageData(0, 0, this.width, this.height).data),
+      // getImageData already returns an isolated pixel buffer; copying it again
+      // doubles peak memory and traversal time for no additional safety.
+      pixels: this.context.getImageData(0, 0, this.width, this.height).data,
       baseName: this.baseName,
       savedType: this.savedType
     };
@@ -134,7 +137,7 @@ export class CanvasDocument {
     this.clearOverlay();
     this.#emitHistory();
     this.#emitDocumentChange();
-    this.#contentListeners.forEach(listener => listener(null));
+    this.#emitContentChange();
   }
 
   commit(): void {
@@ -144,10 +147,7 @@ export class CanvasDocument {
     if (this.#history.length > HISTORY_LIMIT) this.#history.shift();
     this.#historyIndex = this.#history.length - 1;
     this.#emitHistory();
-    if (this.hasImage) {
-      const snapshot = this.snapshotSession();
-      this.#contentListeners.forEach(listener => listener(snapshot));
-    }
+    if (this.hasImage) this.#emitContentChange();
   }
 
   undo(): void { this.#restore(this.#historyIndex - 1); }
@@ -158,7 +158,7 @@ export class CanvasDocument {
   setToolbarState(key: string, state: unknown): void {
     if (!this.hasImage) return;
     this.#toolbarStates[key] = structuredClone(state);
-    this.#contentListeners.forEach(listener => listener(this.snapshotSession()));
+    this.#emitContentChange();
   }
 
   clearOverlay(): void {
@@ -216,7 +216,7 @@ export class CanvasDocument {
     this.#historyIndex = index;
     this.clearOverlay();
     this.#emitHistory();
-    this.#contentListeners.forEach(listener => listener(this.snapshotSession()));
+    this.#emitContentChange();
   }
 
   #snapshotImageData(state: ImageData): HistorySnapshot {
@@ -236,5 +236,9 @@ export class CanvasDocument {
   #emitDocumentChange(): void {
     const snapshot = this.snapshot();
     this.#documentListeners.forEach(listener => listener(snapshot));
+  }
+
+  #emitContentChange(): void {
+    this.#contentListeners.forEach(listener => listener(this.hasImage));
   }
 }

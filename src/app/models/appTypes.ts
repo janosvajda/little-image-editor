@@ -1,6 +1,6 @@
 export type PaintTool = "pencil" | "brush" | "marker" | "highlighter" | "calligraphy" | "spray" | "eraser";
 export type ShapeTool = "line" | "arrow" | "rectangle" | "roundedRectangle" | "ellipse" | "triangle" | "diamond" | "star";
-export type UtilityTool = "picker" | "crop";
+export type UtilityTool = "picker" | "crop" | "zoom" | "fill";
 export type Tool = PaintTool | ShapeTool | UtilityTool;
 export type Point = Readonly<{ x: number; y: number }>;
 export type CropRect = Readonly<{ x: number; y: number; width: number; height: number }>;

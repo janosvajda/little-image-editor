@@ -51,6 +51,19 @@ describe("CanvasDocument", () => {
     expect(subject.toolbarState("adjustments")).toEqual({ brightness: 25 });
   });
 
+  it("notifies recovery listeners without synchronously copying pixels", () => {
+    subject.create({ name: "fast", width: 4, height: 4, transparent: true, background: "#fff" });
+    const getImageData = vi.spyOn(subject.context, "getImageData");
+    getImageData.mockClear();
+    const listener = vi.fn();
+    subject.onContentChange(listener);
+
+    subject.setToolbarState("drawing", { activeTool: "brush" });
+
+    expect(listener).toHaveBeenCalledWith(true);
+    expect(getImageData).not.toHaveBeenCalled();
+  });
+
   it("restores live pixels and toolbar values from the same session moment", () => {
     subject.create({ name: "adjusted", width: 2, height: 2, transparent: false, background: "#ffffff" });
     const session = subject.snapshotSession();
