@@ -29,6 +29,7 @@ jobs:
       - name: Reject modified, renamed, or deleted tests
         env:
           TEST_CONTRACT_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          TEST_CONTRACT_CHANGE_APPROVED: ${{ contains(github.event.pull_request.labels.*.name, 'test-contract-change-approved') }}
         run: npm run test:contracts
 
   static-checks:

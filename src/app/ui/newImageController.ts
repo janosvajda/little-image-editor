@@ -10,7 +10,9 @@ export class NewImageController {
   readonly #aspect = element<HTMLSelectElement>("#newImageAspect");
   readonly #width = element<HTMLInputElement>("#newImageWidth");
   readonly #height = element<HTMLInputElement>("#newImageHeight");
-  readonly #resolution = document.createElement("input");
+  readonly #name = element<HTMLInputElement>("#newImageName");
+  readonly #nameError = element<HTMLElement>("#newImageNameError");
+  readonly #resolution = document.createElement("select");
   #format!: HTMLSelectElement;
 
   constructor(readonly documentModel: CanvasDocument) {
@@ -26,14 +28,14 @@ export class NewImageController {
     const print = document.querySelector<HTMLOptGroupElement>('#newImagePreset optgroup[label="Print"]')!;
     print.insertBefore(new Option("3508 × 4961 — A3 at 300 DPI", "3508x4961"), print.firstChild);
     print.append(new Option("1748 × 2480 — A5 at 300 DPI", "1748x2480"));
-    element<HTMLInputElement>("#newImageName").closest("label")!.insertAdjacentHTML("afterend", '<label>File type<select id="newImageFormat"></select></label>');
+    this.#nameError.insertAdjacentHTML("afterend", '<label>File type<select id="newImageFormat"></select></label>');
     this.#format = element<HTMLSelectElement>("#newImageFormat");
     populateImageFormatSelect(this.#format);
     this.#resolution.id = "newImageResolution";
-    this.#resolution.type = "number";
-    this.#resolution.min = "1";
-    this.#resolution.max = "2400";
-    this.#resolution.value = "96";
+    this.#resolution.setAttribute("aria-label", "Resolution (PPI)");
+    for (const ppi of [72, 96, 144, 150, 240, 300, 600, 1200]) {
+      this.#resolution.append(new Option(`${ppi} PPI`, String(ppi), false, ppi === 96));
+    }
     this.#format.closest("label")!.insertAdjacentElement("afterend", this.resolutionField());
     print.querySelectorAll("option").forEach(option => { option.dataset.resolution = "300"; });
   }
@@ -42,6 +44,7 @@ export class NewImageController {
     element("#newImageButton").addEventListener("click", () => this.open());
     element("#quickNewButton").addEventListener("click", () => this.open());
     element("#createImageButton").addEventListener("click", () => this.create());
+    this.#name.addEventListener("input", () => this.setNameValidity(true));
     this.#preset.addEventListener("change", () => {
       if (this.#preset.value === "custom") return;
       const [width, height] = this.#preset.value.split("x");
@@ -68,16 +71,27 @@ export class NewImageController {
   }
 
   private create(): void {
+    const name = this.#name.value.trim();
+    if (!name) {
+      this.setNameValidity(false);
+      this.#name.focus();
+      return;
+    }
     const width = clampDimension(this.#width.value), height = clampDimension(this.#height.value);
     if (!Number.isFinite(width) || !Number.isFinite(height)) return;
     this.documentModel.create({
-      name: element<HTMLInputElement>("#newImageName").value.trim() || "untitled", width, height,
+      name, width, height,
       transparent: element<HTMLInputElement>("#newImageTransparent").checked,
       background: element<HTMLInputElement>("#newImageColor").value,
       format: imageFormat(this.#format.value).mimeType,
-      resolution: Math.min(2400, Math.max(1, Number(this.#resolution.value) || 96))
+      resolution: Number(this.#resolution.value)
     });
     this.dialog.close();
+  }
+
+  private setNameValidity(valid: boolean): void {
+    this.#name.toggleAttribute("aria-invalid", !valid);
+    this.#nameError.classList.toggle("hidden", valid);
   }
 
   private updateTransparencyWarning(): void {

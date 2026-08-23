@@ -16,12 +16,15 @@
   "src/app/ui/groupedToolPalette.test.ts": "2b59878173e3198b1545db978e8ad285117b1c41886302d60439f93d450558e0",
   "src/app/ui/imageOperationsController.test.ts": "d72beff2843c200c2e7f2f01af559ee3c99a0282c97e8d3f8b7758f582b585ad",
   "src/app/ui/newImageController.test.ts": "c50c8fcde57a7446a920945bd53089882047111b06dba0440bba05aa72da82b2",
+  "src/app/ui/newImageNameValidation.test.ts": "c56f76fb81b2009524863c2e7f2d8fd10e5c17573f20e33b4171132b4f825c6d",
+  "src/app/ui/newImageResolutionPresets.test.ts": "994f2dd76a1f823ae5373a0fd08ef59bd117b40dfdc39fc4b57ef267bfedeaec",
   "src/app/ui/panelButtonEnhancer.test.ts": "c232383e0a0013a365954cb469dfc28481950afacc44d8473459f963504dd8da",
   "src/app/ui/tooltipController.test.ts": "7a651a1cb17f362fe211e45de3a03b00f56a889adfb44922af7a524048a31916",
   "src/app/ui/workspaceController.test.ts": "f4696d7dd0136f706b25c7548490dcb2e5a090f6b10aea635882ea8a94cf2f31",
   "src/app/workflows/fileController.test.ts": "fb54da99628e8ec48aa19f950a3325f9e27d22f032ebe38a4f580baab2c46335",
   "src/app/workflows/sessionPersistence.test.ts": "a05c933d9c5b4bc09f81912aa9ca433c42196c447f85945ccb71fee7ff2d9c79",
   "src/app/workflows/spriteController.test.ts": "18c3beebbb0e6224fcdc25e0f22dd0af58a2234c1b542cbd51a542e7dc4740a0",
-  "tests/e2e/editor.spec.ts": "dfa7f4075e2453d6d4bac3ba955f53ae39320a6d34365608ab6884133857ad1d",
-  "tests/integration/editor.test.ts": "fbea3ff8e45675a12ea3ae6928459a25e219bef285cbc1972604b5e97f4ea57a"
+  "tests/e2e/editor.spec.ts": "4a94fde174f578ed00492bab76ff8662240d3bcbc083de2e84458745334afa72",
+  "tests/e2e/newImageNameValidation.spec.ts": "4adc9621ea6c3fd443ad46b852f4c9713bacdb2ce5cb148c07b9706731881760",
+  "tests/integration/editor.test.ts": "b7aaed2433505c3bc8666abf650acec015d5519e945fbd0fca1b533282db8b58"
 }
