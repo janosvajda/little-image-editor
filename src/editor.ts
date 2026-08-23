@@ -8,15 +8,23 @@ import { FileController } from "./app/workflows/fileController";
 import { SpriteController } from "./app/workflows/spriteController";
 import { SessionPersistence } from "./app/workflows/sessionPersistence";
 import { ToolbarManager } from "./app/ui/genericToolbar";
+import { CanvasViewportController } from "./app/ui/canvasViewportController";
+import { TooltipController } from "./app/ui/tooltipController";
+import { EffectsController } from "./app/ui/effectsController";
+
+element("#quickOpenButton").after(element("#quickSaveButton"));
 
 const documentModel = new CanvasDocument(element<HTMLCanvasElement>("#canvas"), element<HTMLCanvasElement>("#overlay"));
 const newImage = new NewImageController(documentModel);
 const files = new FileController(documentModel);
 const sprites = new SpriteController(documentModel);
 const workspaceUi = new WorkspaceUi([newImage.dialog, sprites.dialog]);
-const drawing = new DrawingController(documentModel);
+const viewport = new CanvasViewportController(documentModel);
+const drawing = new DrawingController(documentModel, viewport);
 new ImageOperations(documentModel);
+new EffectsController(documentModel);
 const sessionPersistence = new SessionPersistence(documentModel);
+new TooltipController();
 
 drawing.setInitialColor(workspaceUi.resolvedTheme);
 

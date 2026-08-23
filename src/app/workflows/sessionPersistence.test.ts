@@ -53,6 +53,7 @@ describe("SessionPersistence", () => {
 
   it("coalesces rapid updates and persists the newest complete snapshot", async () => {
     const source = model();
+    const snapshots = vi.spyOn(source, "snapshotSession");
     new SessionPersistence(source);
     source.create({ name: "adjusted", width: 2, height: 2, transparent: false, background: "#fff" });
     for (let brightness = -1; brightness >= -69; brightness--) {
@@ -65,6 +66,7 @@ describe("SessionPersistence", () => {
     await expect.poll(recoveryRecord).toMatchObject({ toolbarStates: { adjustments: { controls: { brightnessInput: "-69" } } } });
     const record = await recoveryRecord() as DocumentSessionSnapshot;
     expect(record.pixels[0]).toBe(31);
+    expect(snapshots).toHaveBeenCalledTimes(1);
   });
 
   it("does not restore when no record exists or a document is already active", async () => {

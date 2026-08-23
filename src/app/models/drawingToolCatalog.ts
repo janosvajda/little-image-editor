@@ -30,7 +30,9 @@ export const SHAPE_TOOL_DEFINITIONS = [
 
 export const UTILITY_TOOL_DEFINITIONS = [
   { id: "picker", label: "Picker", icon: "⌾", title: "Color picker (I)" },
-  { id: "crop", label: "Crop", icon: "⌗", title: "Crop (C)" }
+  { id: "crop", label: "Crop", icon: "⌗", title: "Crop (C)" },
+  { id: "zoom", label: "Zoom", icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10" cy="10" r="6"></circle><path d="m15 15 5 5M7 10h6M10 7v6"></path></svg>', title: "Zoom (Z); Alt/Option-click to zoom out" },
+  { id: "fill", label: "Fill", icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 11 7-7 7 7-7 7zM8 8l8 8M18 17c0 2 1 3 2 3s2-1 2-3c0-1-2-3-2-3s-2 2-2 3Z"></path></svg>', title: "Fill contiguous area (F)" }
 ] as const satisfies readonly ToolDefinition<UtilityTool>[];
 
 export const DRAWING_TOOL_DEFINITIONS: readonly ToolDefinition<Tool>[] = [

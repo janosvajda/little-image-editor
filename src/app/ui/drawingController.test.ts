@@ -1,7 +1,8 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { CanvasDocument } from "../models/imageDocument";
+import type { CanvasViewportController } from "./canvasViewportController";
 import { DrawingController } from "./drawingController";
 
 function setupController(): { model: CanvasDocument; controller: DrawingController } {
@@ -55,5 +56,94 @@ describe("DrawingController preferences", () => {
     subject.model.create({ name: "second", width: 4, height: 4, transparent: true, background: "#fff" });
     expect(document.querySelector<HTMLSelectElement>("#paintToolSelect")!.value).toBe("brush");
     expect(color.value).toBe("#000000");
+  });
+
+  it("uses the shared viewport when the zoom tool clicks the canvas", () => {
+    const model = new CanvasDocument(document.querySelector("#canvas")!, document.querySelector("#overlay")!);
+    const zoomAt = vi.fn();
+    const controller = new DrawingController(model, { zoomAt } as unknown as CanvasViewportController);
+    model.create({ name: "zoomable", width: 100, height: 50, transparent: true, background: "#fff" });
+    controller.select("zoom");
+    model.overlay.dispatchEvent(new MouseEvent("pointerdown", { clientX: 30, clientY: 20, bubbles: true }) as unknown as PointerEvent);
+    model.overlay.dispatchEvent(new MouseEvent("pointerdown", { clientX: 40, clientY: 25, altKey: true, bubbles: true }) as unknown as PointerEvent);
+
+    expect(zoomAt).toHaveBeenNthCalledWith(1, 30, 20, 1);
+    expect(zoomAt).toHaveBeenNthCalledWith(2, 40, 25, -1);
+    expect(document.querySelector('[data-tool="zoom"]')).not.toBeNull();
+    expect(model.overlay.style.cursor).toBe("zoom-out");
+    document.dispatchEvent(new KeyboardEvent("keyup", { key: "Alt", bubbles: true }));
+    expect(model.overlay.style.cursor).toBe("zoom-in");
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Alt", altKey: true, bubbles: true }));
+    expect(model.overlay.style.cursor).toBe("zoom-out");
+    document.dispatchEvent(new KeyboardEvent("keyup", { key: "Alt", bubbles: true }));
+    expect(model.overlay.style.cursor).toBe("zoom-in");
+    expect(document.querySelector(".zoom-tool-hint")!.classList).not.toContain("hidden");
+    expect(document.querySelector(".zoom-tool-options")!.classList).not.toContain("hidden");
+    expect(document.querySelector("#colorInput")!.closest("label")!.classList).toContain("hidden");
+  });
+
+  it("shows contextual options and copies a repeatedly sampled paint colour to fill", () => {
+    const { model, controller } = setupController();
+    model.create({ name: "sample", width: 2, height: 2, transparent: true, background: "#fff" });
+    vi.mocked(model.context.getImageData).mockReturnValueOnce(new ImageData(new Uint8ClampedArray([18, 52, 86, 255]), 1, 1));
+    controller.select("picker");
+    model.overlay.dispatchEvent(new MouseEvent("pointerdown", { clientX: 0, clientY: 0, bubbles: true }) as unknown as PointerEvent);
+
+    expect(document.querySelector(".picker-tool-options")!.classList).not.toContain("hidden");
+    expect(document.querySelector(".fill-tool-options")!.classList).toContain("hidden");
+    expect(document.querySelector(".sampled-color code")!.textContent).toBe("#123456");
+    document.querySelector<HTMLButtonElement>("[data-use-color=fill]")!.click();
+    expect(document.querySelector<HTMLInputElement>("#fillColorInput")!.value).toBe("#123456");
+
+    controller.select("fill");
+    expect(document.querySelector(".picker-tool-options")!.classList).toContain("hidden");
+    expect(document.querySelector(".fill-tool-options")!.classList).not.toContain("hidden");
+    expect(document.querySelector("#opacityInput")!.closest("label")!.classList).not.toContain("hidden");
+  });
+
+  it("maps shapes, picker pixels, and crops to image coordinates at 200% zoom", () => {
+    const model = new CanvasDocument(document.querySelector("#canvas")!, document.querySelector("#overlay")!);
+    const controller = new DrawingController(model);
+    model.create({ name: "scaled", width: 200, height: 100, transparent: true, background: "#fff" });
+    Object.defineProperty(model.overlay, "getBoundingClientRect", { configurable: true, value: () => ({ left: 10, top: 20, width: 400, height: 200, right: 410, bottom: 220, x: 10, y: 20, toJSON: () => ({}) }) });
+    const pointer = (type: string, x: number, y: number) => model.overlay.dispatchEvent(new MouseEvent(type, { clientX: x, clientY: y, bubbles: true }) as unknown as PointerEvent);
+
+    controller.select("line");
+    pointer("pointerdown", 110, 70); pointer("pointerup", 310, 170);
+    expect(vi.mocked(model.context.moveTo)).toHaveBeenCalledWith(50, 25);
+    expect(vi.mocked(model.context.lineTo)).toHaveBeenCalledWith(150, 75);
+
+    controller.select("picker");
+    pointer("pointerdown", 410, 220);
+    expect(vi.mocked(model.context.getImageData)).toHaveBeenCalledWith(199, 99, 1, 1);
+
+    controller.select("crop");
+    pointer("pointerdown", 110, 70); pointer("pointerup", 310, 170);
+    document.querySelector<HTMLButtonElement>("#applyCropButton")!.click();
+    expect([model.width, model.height]).toEqual([100, 50]);
+  });
+
+  it("fills a zoomed contiguous region and records undo and persistent tolerance", async () => {
+    const model = new CanvasDocument(document.querySelector("#canvas")!, document.querySelector("#overlay")!);
+    const controller = new DrawingController(model);
+    model.create({ name: "fillable", width: 4, height: 2, transparent: true, background: "#fff" });
+    Object.defineProperty(model.overlay, "getBoundingClientRect", { configurable: true, value: () => ({ left: 10, top: 20, width: 8, height: 4, right: 18, bottom: 24, x: 10, y: 20, toJSON: () => ({}) }) });
+    const drawingColor = document.querySelector<HTMLInputElement>("#colorInput")!;
+    drawingColor.value = "#123456"; drawingColor.dispatchEvent(new Event("input", { bubbles: true }));
+    const fillColor = document.querySelector<HTMLInputElement>("#fillColorInput")!;
+    fillColor.value = "#ff0000"; fillColor.dispatchEvent(new Event("input", { bubbles: true }));
+    const tolerance = document.querySelector<HTMLInputElement>("#fillToleranceInput")!;
+    tolerance.value = "12"; tolerance.dispatchEvent(new Event("input", { bubbles: true }));
+    controller.select("fill");
+    expect(model.overlay.classList).toContain("fill-cursor");
+    model.overlay.dispatchEvent(new MouseEvent("pointerdown", { clientX: 14, clientY: 22, bubbles: true }) as unknown as PointerEvent);
+    await Promise.resolve();
+
+    expect([...model.context.getImageData(0, 0, 1, 1).data]).toEqual([255, 0, 0, 255]);
+    expect(model.toolbarState("drawing")).toMatchObject({ controls: { colorInput: "#123456", fillColorInput: "#ff0000", fillToleranceInput: "12" }, activeTool: "fill" });
+    controller.select("brush");
+    expect(drawingColor.value).toBe("#123456");
+    model.undo();
+    expect(model.context.getImageData(0, 0, 1, 1).data[3]).toBe(0);
   });
 });

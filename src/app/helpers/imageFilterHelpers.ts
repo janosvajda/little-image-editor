@@ -1,4 +1,4 @@
-export type ColorEffect = "grayscale" | "sepia" | "invert";
+export type ColorEffect = "monochrome" | "sepia" | "invert";
 
 export interface ToneAdjustments {
   brightness: number;
@@ -26,21 +26,27 @@ export function applyToneAdjustments(image: ImageData, adjustments: ToneAdjustme
   return result;
 }
 
-export function applyColorEffect(image: ImageData, effect: ColorEffect): void {
+export function applyColorEffect(image: ImageData, effect: ColorEffect, amount = 1): void {
   const { data } = image;
+  const mix = Math.max(0, Math.min(1, amount));
   for (let index = 0; index < data.length; index += 4) {
     const red = data[index]!, green = data[index + 1]!, blue = data[index + 2]!;
-    if (effect === "grayscale") data[index] = data[index + 1] = data[index + 2] = .299 * red + .587 * green + .114 * blue;
-    if (effect === "invert") { data[index] = 255 - red; data[index + 1] = 255 - green; data[index + 2] = 255 - blue; }
-    if (effect === "sepia") { data[index] = .393*red+.769*green+.189*blue; data[index+1] = .349*red+.686*green+.168*blue; data[index+2] = .272*red+.534*green+.131*blue; }
+    let outputRed = red, outputGreen = green, outputBlue = blue;
+    if (effect === "monochrome") outputRed = outputGreen = outputBlue = .299 * red + .587 * green + .114 * blue;
+    if (effect === "invert") { outputRed = 255 - red; outputGreen = 255 - green; outputBlue = 255 - blue; }
+    if (effect === "sepia") { outputRed = .393*red+.769*green+.189*blue; outputGreen = .349*red+.686*green+.168*blue; outputBlue = .272*red+.534*green+.131*blue; }
+    data[index] = red + (outputRed - red) * mix;
+    data[index + 1] = green + (outputGreen - green) * mix;
+    data[index + 2] = blue + (outputBlue - blue) * mix;
   }
 }
 
-export function applySharpen(image: ImageData): void {
+export function applySharpen(image: ImageData, strength = 1): void {
   const { data, width, height } = image;
   const source = new Uint8ClampedArray(data);
+  const amount = Math.max(0, strength);
   for (let y = 1; y < height - 1; y++) for (let x = 1; x < width - 1; x++) for (let channel = 0; channel < 3; channel++) {
     const index = (y * width + x) * 4 + channel;
-    data[index] = 5 * source[index]! - source[index - 4]! - source[index + 4]! - source[index - width * 4]! - source[index + width * 4]!;
+    data[index] = (1 + 4 * amount) * source[index]! - amount * (source[index - 4]! + source[index + 4]! + source[index - width * 4]! + source[index + width * 4]!);
   }
 }
