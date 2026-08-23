@@ -16,7 +16,11 @@ function selectTool(tool: string): void {
 }
 
 describe("editor integration", () => {
-  beforeEach(() => { vi.spyOn(window, "confirm").mockReturnValue(true); vi.spyOn(window, "prompt").mockReturnValue("saved.png"); });
+  beforeEach(() => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    vi.spyOn(window, "prompt").mockReturnValue("saved.png");
+    document.querySelector<HTMLInputElement>("#newImageName")!.value = "integration-image";
+  });
 
   it("creates a new image and exercises editing, history, transforms, and saving", async () => {
     await boot();

@@ -3,6 +3,15 @@ import { readFileSync } from "node:fs";
 
 const validPng = readFileSync("src/assets/images/extensionIcon.png");
 
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    document.addEventListener("DOMContentLoaded", () => {
+      const name = document.querySelector<HTMLInputElement>("#newImageName");
+      if (name) name.value = "e2e-image";
+    });
+  });
+});
+
 test("loads the official splash and application icon", async ({ page }) => {
   await page.goto("/");
 
