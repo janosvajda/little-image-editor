@@ -37,12 +37,19 @@ Then open `http://127.0.0.1:5173`. TypeScript, HTML, and CSS changes are watched
 npm run test:unit
 npm run test:integration
 npm run test:e2e
+npm run test:contracts
 npm run test:all
 ```
 
 `npm test` runs unit and integration tests with coverage. The build fails below 95% line coverage; statement, function, and branch safety floors are also enforced. End-to-end tests use Playwright Chromium against the local development server.
 
-Pull requests run the same checks in GitHub Actions: strict TypeScript validation, the production extension build, unit and integration coverage, and Chromium E2E tests. Configure all three `Pull Request Quality Gate` jobs as required status checks in the repository branch-protection rules to prevent merging when a check fails.
+### Immutable test contracts
+
+Passing tests are treated as product-behaviour contracts. `npm run test:contracts` verifies every registered test against its SHA-256 hash in `.github/test-contracts.json`. It fails when a protected test is edited, renamed, or deleted, and when a new test file has not been registered.
+
+When implementing new behaviour, add a new `*.test.ts` or `*.spec.ts` file and register its hash in `.github/test-contracts.json`. After that change is merged, the new test is protected too. If an existing test fails, first investigate the application regression and fix the product code; do not weaken or rewrite the test simply to make CI pass. A genuinely incorrect existing contract may only be corrected deliberately, with explicit owner approval, in a dedicated reviewed change. See [TESTING_POLICY.md](TESTING_POLICY.md) for the complete policy.
+
+Pull requests run the same checks in GitHub Actions: immutable test contracts, strict TypeScript validation, the production extension build, unit and integration coverage, and Chromium E2E tests. Configure all four `Pull Request Quality Gate` jobs as required status checks in the repository branch-protection rules to prevent merging when a check fails.
 
 ## License
 
