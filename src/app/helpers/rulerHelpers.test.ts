@@ -19,4 +19,10 @@ describe("rulerHelpers", () => {
     ]);
     expect(rulerTicks(0, 1, "px")).toEqual([]);
   });
+
+  it("uses the document resolution for physical document units", () => {
+    expect(pixelsToUnit(300, "in", 300)).toBe(1);
+    expect(pixelsToUnit(2480, "cm", 300)).toBeCloseTo(21, 1);
+    expect(unitToPixels(21, "cm", 300)).toBeCloseTo(2480.31, 1);
+  });
 });

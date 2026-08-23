@@ -13,6 +13,7 @@ export class CanvasDocument {
   fileHandle: FileSystemFileHandle | null = null;
   baseName = "little-image";
   savedType: ImageFormat = DEFAULT_IMAGE_FORMAT.mimeType;
+  resolution = 96;
 
   #history: ImageData[] = [];
   #historyIndex = -1;
@@ -50,7 +51,8 @@ export class CanvasDocument {
       // doubles peak memory and traversal time for no additional safety.
       pixels: this.context.getImageData(0, 0, this.width, this.height).data,
       baseName: this.baseName,
-      savedType: this.savedType
+      savedType: this.savedType,
+      resolution: this.resolution
     };
   }
 
@@ -67,6 +69,7 @@ export class CanvasDocument {
     this.setSize(snapshot.width, snapshot.height);
     this.context.putImageData(new ImageData(new Uint8ClampedArray(snapshot.pixels), snapshot.width, snapshot.height), 0, 0);
     this.savedType = snapshot.savedType;
+    this.resolution = snapshot.resolution ?? 96;
     this.activate(snapshot.baseName);
   }
 
@@ -79,6 +82,7 @@ export class CanvasDocument {
     if (this.#historyIndex >= 0) this.#history[this.#historyIndex] = current;
     else { this.#history = [current]; this.#historyIndex = 0; }
     this.savedType = snapshot.savedType;
+    this.resolution = snapshot.resolution ?? 96;
     this.hasImage = true;
     this.fileHandle = null;
     this.baseName = snapshot.baseName;
@@ -100,6 +104,7 @@ export class CanvasDocument {
     this.setSize(bitmap.width, bitmap.height);
     this.context.clearRect(0, 0, this.width, this.height);
     this.context.drawImage(bitmap, 0, 0);
+    this.resolution = 96;
     bitmap.close();
     this.activate(file.name.replace(/\.[^.]+$/, "") || "little-image");
   }
@@ -112,6 +117,7 @@ export class CanvasDocument {
       this.context.fillRect(0, 0, options.width, options.height);
     }
     this.savedType = options.format ?? DEFAULT_IMAGE_FORMAT.mimeType;
+    this.resolution = options.resolution ?? 96;
     this.activate(options.name || "untitled");
   }
 

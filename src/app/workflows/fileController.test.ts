@@ -61,7 +61,9 @@ describe("FileController", () => {
   it("loads selected files", async () => {
     const { model } = subject();
     const input = document.querySelector<HTMLInputElement>("#fileInput")!;
+    expect(input.accept).toBe("image/png,image/jpeg,image/webp");
     Object.defineProperty(input, "files", { configurable: true, value: [new File(["x"], "open.png", { type: "image/png" })] });
     input.dispatchEvent(new Event("change")); await vi.waitFor(() => expect(model.hasImage).toBe(true));
+    expect(input.value).toBe("");
   });
 });

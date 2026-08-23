@@ -26,14 +26,14 @@ describe("EffectsController", () => {
     const preview = document.querySelector<HTMLButtonElement>("#previewEffectButton")!;
     const clear = document.querySelector<HTMLButtonElement>("#clearEffectButton")!;
     preview.click();
-    expect(preview.textContent).toBe("Cancel preview");
+    expect(preview.getAttribute("aria-label")).toBe("Cancel preview");
     expect(clear.disabled).toBe(true);
     expect(vi.mocked(model.context.getImageData)).toHaveBeenCalledTimes(1);
     expect(vi.mocked(model.context.putImageData)).toHaveBeenCalledTimes(1);
     amount.value = "75"; amount.dispatchEvent(new Event("input", { bubbles: true }));
     expect(vi.mocked(model.context.putImageData)).toHaveBeenCalledTimes(2);
     preview.click();
-    expect(preview.textContent).toBe("Preview");
+    expect(preview.getAttribute("aria-label")).toBe("Preview");
     expect(vi.mocked(model.context.putImageData)).toHaveBeenCalledTimes(3);
 
     effect.value = "sepia"; effect.dispatchEvent(new Event("change", { bubbles: true }));

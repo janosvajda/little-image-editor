@@ -10,6 +10,7 @@ export class NewImageController {
   readonly #aspect = element<HTMLSelectElement>("#newImageAspect");
   readonly #width = element<HTMLInputElement>("#newImageWidth");
   readonly #height = element<HTMLInputElement>("#newImageHeight");
+  readonly #resolution = document.createElement("input");
   #format!: HTMLSelectElement;
 
   constructor(readonly documentModel: CanvasDocument) {
@@ -28,6 +29,13 @@ export class NewImageController {
     element<HTMLInputElement>("#newImageName").closest("label")!.insertAdjacentHTML("afterend", '<label>File type<select id="newImageFormat"></select></label>');
     this.#format = element<HTMLSelectElement>("#newImageFormat");
     populateImageFormatSelect(this.#format);
+    this.#resolution.id = "newImageResolution";
+    this.#resolution.type = "number";
+    this.#resolution.min = "1";
+    this.#resolution.max = "2400";
+    this.#resolution.value = "96";
+    this.#format.closest("label")!.insertAdjacentElement("afterend", this.resolutionField());
+    print.querySelectorAll("option").forEach(option => { option.dataset.resolution = "300"; });
   }
 
   private bindEvents(): void {
@@ -38,6 +46,7 @@ export class NewImageController {
       if (this.#preset.value === "custom") return;
       const [width, height] = this.#preset.value.split("x");
       this.#width.value = width!; this.#height.value = height!; this.#aspect.value = "free";
+      this.#resolution.value = this.#preset.selectedOptions[0]?.dataset.resolution ?? "96";
     });
     this.#width.addEventListener("input", () => this.updateLinkedDimension("width"));
     this.#height.addEventListener("input", () => this.updateLinkedDimension("height"));
@@ -65,7 +74,8 @@ export class NewImageController {
       name: element<HTMLInputElement>("#newImageName").value.trim() || "untitled", width, height,
       transparent: element<HTMLInputElement>("#newImageTransparent").checked,
       background: element<HTMLInputElement>("#newImageColor").value,
-      format: imageFormat(this.#format.value).mimeType
+      format: imageFormat(this.#format.value).mimeType,
+      resolution: Math.min(2400, Math.max(1, Number(this.#resolution.value) || 96))
     });
     this.dialog.close();
   }
@@ -75,5 +85,11 @@ export class NewImageController {
     const transparent = element<HTMLInputElement>("#newImageTransparent").checked;
     warning.textContent = transparencyWarning(this.#format.value);
     warning.classList.toggle("hidden", !transparent);
+  }
+
+  private resolutionField(): HTMLLabelElement {
+    const label = document.createElement("label");
+    label.append("Resolution (PPI)", this.#resolution);
+    return label;
   }
 }

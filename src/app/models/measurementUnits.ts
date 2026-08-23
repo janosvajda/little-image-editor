@@ -16,3 +16,9 @@ export const MEASUREMENT_UNIT_LABELS: Readonly<Record<MeasurementUnit, string>> 
   cm: "Centimetres",
   in: "Inches"
 };
+
+export function pixelsPerUnit(unit: MeasurementUnit, pixelsPerInch = PIXELS_PER_INCH): number {
+  if (unit === "px") return 1;
+  if (unit === "in") return pixelsPerInch;
+  return pixelsPerInch / (unit === "cm" ? 2.54 : 25.4);
+}

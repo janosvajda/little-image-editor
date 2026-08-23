@@ -4,19 +4,26 @@ import { CanvasDocument } from "../models/imageDocument";
 export class SpriteController {
   readonly dialog = element<HTMLDialogElement>("#functionsDialog");
   readonly #input = element<HTMLInputElement>("#spriteInput");
+  readonly #buildButton = element<HTMLButtonElement>("#buildSpriteButton");
   #frames: ImageBitmap[] = [];
 
   constructor(readonly documentModel: CanvasDocument) {
+    this.#input.accept = "image/png,image/jpeg,image/webp";
+    this.#buildButton.disabled = true;
     element("#functionsButton").addEventListener("click", () => this.dialog.showModal());
     element("#addSpriteButton").addEventListener("click", () => this.#input.click());
-    this.#input.addEventListener("change", () => { if (this.#input.files) void this.queue(this.#input.files); });
-    element("#buildSpriteButton").addEventListener("click", () => this.build());
+    this.#input.addEventListener("change", () => {
+      if (this.#input.files) void this.queue(this.#input.files).finally(() => { this.#input.value = ""; });
+    });
+    this.#buildButton.addEventListener("click", () => this.build());
   }
 
   private async queue(files: FileList): Promise<void> {
-    const frames = await Promise.all([...files].filter(file => file.type.startsWith("image/")).map(file => createImageBitmap(file)));
+    const supportedTypes = new Set(["image/png", "image/jpeg", "image/webp"]);
+    const frames = await Promise.all([...files].filter(file => supportedTypes.has(file.type)).map(file => createImageBitmap(file)));
     this.#frames.push(...frames);
     element("#spriteCount").textContent = String(this.#frames.length);
+    this.#buildButton.disabled = this.#frames.length === 0;
   }
 
   private build(): void {
@@ -30,6 +37,10 @@ export class SpriteController {
     this.documentModel.context.clearRect(0, 0, this.documentModel.width, this.documentModel.height);
     this.#frames.forEach((frame, index) => this.documentModel.context.drawImage(frame, (index % columns) * (cellWidth + padding), Math.floor(index / columns) * (cellHeight + padding)));
     this.documentModel.activate("sprite-sheet");
+    this.#frames.forEach(frame => frame.close());
+    this.#frames = [];
+    element("#spriteCount").textContent = "0";
+    this.#buildButton.disabled = true;
     this.dialog.close();
   }
 }

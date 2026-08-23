@@ -13,10 +13,11 @@
     "dev": "npm run typecheck && node scripts/build.mjs --serve",
     "watch": "node scripts/build.mjs --watch",
     "test": "vitest run --coverage",
+    "test:contracts": "node scripts/checkTestContracts.mjs",
     "test:unit": "vitest run src/app",
     "test:integration": "vitest run tests/integration",
     "test:e2e": "playwright test",
-    "test:all": "npm run test && npm run test:e2e"
+    "test:all": "npm run test:contracts && npm run test && npm run test:e2e"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",

@@ -11,6 +11,7 @@ import { ToolbarManager } from "./app/ui/genericToolbar";
 import { CanvasViewportController } from "./app/ui/canvasViewportController";
 import { TooltipController } from "./app/ui/tooltipController";
 import { EffectsController } from "./app/ui/effectsController";
+import { enhancePanelButtons } from "./app/ui/panelButtonEnhancer";
 
 element("#quickOpenButton").after(element("#quickSaveButton"));
 
@@ -23,6 +24,7 @@ const viewport = new CanvasViewportController(documentModel);
 const drawing = new DrawingController(documentModel, viewport);
 new ImageOperations(documentModel);
 new EffectsController(documentModel);
+enhancePanelButtons();
 const sessionPersistence = new SessionPersistence(documentModel);
 new TooltipController();
 

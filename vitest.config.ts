@@ -10,7 +10,10 @@ export default defineConfig({
       include: ["src/app/**/*.ts"],
       exclude: ["src/app/models/appTypes.ts"],
       reporter: ["text", "html", "lcov"],
-      thresholds: { statements: 85, branches: 70, functions: 85, lines: 95 }
+      thresholds: {
+        statements: 90, branches: 80, functions: 90, lines: 95,
+        "src/app/ui/**.ts": { lines: 95, perFile: true }
+      }
     }
   }
 });
