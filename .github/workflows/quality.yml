@@ -13,6 +13,24 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  test-contracts:
+    name: Existing tests are immutable
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Check out repository with history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Reject modified, renamed, or deleted tests
+        env:
+          TEST_CONTRACT_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: npm run test:contracts
+
   static-checks:
     name: TypeScript and production build
     runs-on: ubuntu-latest
@@ -59,7 +77,7 @@ jobs:
 
   end-to-end:
     name: Chromium end-to-end tests
-    needs: [static-checks, unit-and-integration]
+    needs: [test-contracts, static-checks, unit-and-integration]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

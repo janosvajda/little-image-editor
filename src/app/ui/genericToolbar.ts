@@ -67,7 +67,8 @@ export class GenericToolbar<TTool extends string> {
     this.options.buttonContainer.replaceChildren(...this.options.buttonTools.map(tool => {
       const button = document.createElement("button");
       button.className = "tool utility-tool"; button.dataset.tool = tool.id; button.title = tool.title;
-      button.innerHTML = `<span>${tool.icon}</span>${tool.label}`;
+      button.setAttribute("aria-label", tool.label);
+      button.innerHTML = `<span>${tool.icon}</span><small class="tool-label">${tool.label}</small>`;
       return button;
     }));
   }

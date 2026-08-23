@@ -66,4 +66,33 @@ describe("CanvasViewportController", () => {
     viewport.zoomAt(60, 45, -1);
     expect(viewport.zoom).toBe(1);
   });
+
+  it("keeps rulers pinned to the visible viewport while the zoomed canvas scrolls", () => {
+    const wrap = document.querySelector<HTMLElement>("#canvasWrap")!;
+    const model = new CanvasDocument(document.querySelector("#canvas")!, document.querySelector("#overlay")!);
+    new CanvasViewportController(model);
+    model.create({ name: "scrollable", width: 1000, height: 800, transparent: true, background: "#fff" });
+
+    wrap.scrollLeft = 240;
+    wrap.scrollTop = 175;
+    wrap.dispatchEvent(new Event("scroll"));
+
+    expect(document.querySelector<HTMLElement>(".horizontal-ruler")!.style.transform).toBe("");
+    expect(document.querySelector<HTMLElement>(".vertical-ruler")!.style.transform).toBe("");
+    expect(document.querySelector<HTMLElement>(".ruler-corner")!.style.transform).toBe("");
+    expect(document.querySelector<HTMLElement>(".horizontal-ruler")!.style.getPropertyValue("--ruler-scroll")).toBe("240px");
+    expect(document.querySelector<HTMLElement>(".vertical-ruler")!.style.getPropertyValue("--ruler-scroll")).toBe("175px");
+  });
+
+  it("does not size rulers from a restored canvas while it is initially hidden", () => {
+    const wrap = document.querySelector<HTMLElement>("#canvasWrap")!;
+    Object.defineProperty(wrap, "clientWidth", { configurable: true, value: 0 });
+    Object.defineProperty(wrap, "clientHeight", { configurable: true, value: 0 });
+    const model = new CanvasDocument(document.querySelector("#canvas")!, document.querySelector("#overlay")!);
+    new CanvasViewportController(model);
+    model.create({ name: "restored", width: 800, height: 600, transparent: true, background: "#fff" });
+
+    expect(document.querySelector<HTMLElement>(".horizontal-ruler")!.style.width).toBe("");
+    expect(document.querySelector<HTMLElement>(".vertical-ruler")!.style.height).toBe("");
+  });
 });

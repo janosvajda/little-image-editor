@@ -10,6 +10,7 @@ const RULER_SIZE = 32;
 export class CanvasViewportController {
   readonly #wrap = element<HTMLElement>("#canvasWrap");
   readonly #viewport = document.createElement("div");
+  readonly #rulerLayer = document.createElement("div");
   readonly #stage = document.createElement("div");
   readonly #horizontalRuler = document.createElement("div");
   readonly #verticalRuler = document.createElement("div");
@@ -61,13 +62,16 @@ export class CanvasViewportController {
 
   private createViewport(): void {
     this.#viewport.className = "canvas-viewport";
+    this.#rulerLayer.className = "canvas-ruler-layer";
     this.#stage.className = "canvas-stage";
     this.#horizontalRuler.className = "canvas-ruler horizontal-ruler";
     this.#verticalRuler.className = "canvas-ruler vertical-ruler";
     this.#corner.className = "ruler-corner";
     this.#stage.append(this.documentModel.canvas, this.documentModel.overlay);
-    this.#viewport.append(this.#corner, this.#horizontalRuler, this.#verticalRuler, this.#stage);
+    this.#viewport.append(this.#stage);
+    this.#rulerLayer.append(this.#corner, this.#horizontalRuler, this.#verticalRuler);
     this.#wrap.append(this.#viewport);
+    this.#wrap.parentElement!.append(this.#rulerLayer);
   }
 
   private createControls(): void {
@@ -112,6 +116,7 @@ export class CanvasViewportController {
       this.#rulerButton.classList.toggle("active", visible);
       this.applyView(); this.#toolbar.persist();
     });
+    this.#wrap.addEventListener("scroll", () => this.pinRulersToViewport(), { passive: true });
     window.addEventListener("resize", () => this.applyView());
     document.addEventListener("keydown", event => {
       if (!(event.ctrlKey || event.metaKey)) return;
@@ -147,23 +152,35 @@ export class CanvasViewportController {
       canvas.style.width = `${width}px`; canvas.style.height = `${height}px`;
     }
     this.#viewport.classList.toggle("rulers-hidden", !this.rulersVisible);
+    this.#rulerLayer.classList.toggle("hidden", !this.rulersVisible || !this.documentModel.hasImage);
     this.#rulerButton.setAttribute("aria-pressed", String(this.rulersVisible));
     this.#rulerButton.classList.toggle("active", this.rulersVisible);
     element("#zoomLabel").textContent = `${Math.round(zoom * 100)}%`;
+    this.pinRulersToViewport();
     this.renderRulers();
+  }
+
+  private pinRulersToViewport(): void {
+    const x = Math.max(0, this.#wrap.scrollLeft);
+    const y = Math.max(0, this.#wrap.scrollTop);
+    this.#horizontalRuler.style.setProperty("--ruler-scroll", `${x}px`);
+    this.#verticalRuler.style.setProperty("--ruler-scroll", `${y}px`);
   }
 
   private renderRulers(): void {
     if (!this.rulersVisible) return;
-    this.#horizontalRuler.replaceChildren(...rulerTicks(this.documentModel.width, this.zoom, this.unit, 72).map(tick => this.tick(tick.pixelPosition, tick.label, false)));
-    this.#verticalRuler.replaceChildren(...rulerTicks(this.documentModel.height, this.zoom, this.unit, 72).map(tick => this.tick(tick.pixelPosition, tick.label, true)));
+    const resolution = this.documentModel.resolution;
+    this.#unitSelect.title = this.unit === "px" ? "Ruler measurement unit" : `Document measurement at ${resolution} PPI (not physical screen size)`;
+    this.#horizontalRuler.replaceChildren(...rulerTicks(this.documentModel.width, this.zoom, this.unit, 72, resolution).map(tick => this.tick(tick.pixelPosition, tick.label, false)));
+    this.#verticalRuler.replaceChildren(...rulerTicks(this.documentModel.height, this.zoom, this.unit, 72, resolution).map(tick => this.tick(tick.pixelPosition, tick.label, true)));
     this.#corner.textContent = this.unit;
+    this.#corner.title = this.unit === "px" ? "Pixels" : `${MEASUREMENT_UNIT_LABELS[this.unit]} at ${resolution} PPI`;
   }
 
   private tick(position: number, label: string, vertical: boolean): HTMLElement {
     const tick = document.createElement("span");
     tick.className = "ruler-tick"; tick.textContent = label;
-    tick.style[vertical ? "top" : "left"] = `${position}px`;
+    tick.style[vertical ? "top" : "left"] = `calc(${position}px - var(--ruler-scroll, 0px))`;
     return tick;
   }
 }

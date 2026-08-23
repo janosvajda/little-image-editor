@@ -13,6 +13,7 @@ export class FileController {
   readonly #saveButtons: HTMLButtonElement[];
 
   constructor(readonly documentModel: CanvasDocument) {
+    this.fileInput.accept = "image/png,image/jpeg,image/webp";
     element("#saveAsButton").insertAdjacentHTML("afterend", '<div class="menu-rule"></div><button id="exportButton" role="menuitem" disabled><span>Export…</span></button>');
     element("#exportButton").insertAdjacentHTML("afterend", '<div class="menu-rule"></div><button id="closeImageButton" role="menuitem" disabled><span>Close image</span></button>');
     populateImageFormatSelect(this.#format);
@@ -69,7 +70,11 @@ export class FileController {
 
   private bindEvents(): void {
     ["#openButton", "#quickOpenButton", "#emptyOpenButton"].forEach(selector => element(selector).addEventListener("click", () => this.open()));
-    this.fileInput.addEventListener("change", () => { const file = this.fileInput.files?.[0]; if (file) void this.documentModel.load(file); });
+    this.fileInput.addEventListener("change", () => {
+      const file = this.fileInput.files?.[0];
+      if (!file) return;
+      void this.documentModel.load(file).finally(() => { this.fileInput.value = ""; });
+    });
     element("#saveButton").addEventListener("click", () => void this.save());
     element("#saveAsButton").addEventListener("click", () => void this.saveAs());
     element("#exportButton").addEventListener("click", () => void this.exportImage());

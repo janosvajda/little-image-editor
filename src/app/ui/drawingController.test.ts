@@ -82,8 +82,13 @@ describe("DrawingController preferences", () => {
     expect(document.querySelector("#colorInput")!.closest("label")!.classList).toContain("hidden");
   });
 
-  it("shows contextual options and copies a repeatedly sampled paint colour to fill", () => {
+  it("keeps sampled, paint, and fill colours independent until explicitly copied", () => {
     const { model, controller } = setupController();
+    expect(document.querySelector('[data-tool="eraser"] .eraser-icon path')).not.toBeNull();
+    const pickerIcon = document.querySelector('[data-tool="picker"] svg');
+    expect(pickerIcon).not.toBeNull();
+    expect(pickerIcon!.querySelector("path")).not.toBeNull();
+    expect(pickerIcon!.querySelector("circle")).toBeNull();
     model.create({ name: "sample", width: 2, height: 2, transparent: true, background: "#fff" });
     vi.mocked(model.context.getImageData).mockReturnValueOnce(new ImageData(new Uint8ClampedArray([18, 52, 86, 255]), 1, 1));
     controller.select("picker");
@@ -92,8 +97,19 @@ describe("DrawingController preferences", () => {
     expect(document.querySelector(".picker-tool-options")!.classList).not.toContain("hidden");
     expect(document.querySelector(".fill-tool-options")!.classList).toContain("hidden");
     expect(document.querySelector(".sampled-color code")!.textContent).toBe("#123456");
+    expect(document.querySelector<HTMLInputElement>("#colorInput")!.value).not.toBe("#123456");
+    expect(document.querySelector<HTMLInputElement>("#fillColorInput")!.value).not.toBe("#123456");
+    expect(document.querySelector("#colorInput")!.closest("label")!.classList).toContain("hidden");
+    const paintColor = document.querySelector<HTMLInputElement>("#colorInput")!;
+    paintColor.value = "#abcdef";
+    paintColor.dispatchEvent(new Event("input", { bubbles: true }));
+    controller.select("brush");
+    controller.select("picker");
+    expect(document.querySelector(".sampled-color code")!.textContent).toBe("#123456");
     document.querySelector<HTMLButtonElement>("[data-use-color=fill]")!.click();
     expect(document.querySelector<HTMLInputElement>("#fillColorInput")!.value).toBe("#123456");
+    document.querySelector<HTMLButtonElement>("[data-use-color=paint]")!.click();
+    expect(document.querySelector<HTMLInputElement>("#colorInput")!.value).toBe("#123456");
 
     controller.select("fill");
     expect(document.querySelector(".picker-tool-options")!.classList).toContain("hidden");

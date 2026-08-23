@@ -30,6 +30,33 @@ describe("WorkspaceUi", () => {
     expect(JSON.parse(localStorage.getItem("little-editor.panel-layout.v2")!)).toMatchObject({ adjust: { visible: true }, transform: { visible: false } });
   });
 
+  it("supports keyboard navigation in the toolbar checklist and synchronizes reset state", async () => {
+    new WorkspaceUi([]);
+    const trigger = document.querySelector<HTMLButtonElement>("#toolbarPickerButton")!;
+    trigger.focus();
+    trigger.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true, cancelable: true }));
+    const options = document.querySelectorAll<HTMLInputElement>(".toolbar-visibility input");
+    expect(document.querySelector(".toolbar-visibility")!.classList).not.toContain("hidden");
+    expect(document.activeElement).toBe(options[0]);
+    options[0]!.dispatchEvent(new KeyboardEvent("keydown", { key: "End", bubbles: true, cancelable: true }));
+    expect(document.activeElement).toBe(options[options.length - 1]);
+    options[options.length - 1]!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+    expect(document.querySelector(".toolbar-visibility")!.classList).toContain("hidden");
+    expect(document.activeElement).toBe(trigger);
+
+    options[1]!.click();
+    document.querySelector<HTMLButtonElement>("#resetLayoutButton")!.click();
+    await new Promise(requestAnimationFrame);
+    expect([...options].map(option => [option.checked, option.getAttribute("aria-selected")])).toEqual([
+      [true, "true"], [false, "false"], [true, "true"], [false, "false"]
+    ]);
+    const collapse = document.querySelector<HTMLButtonElement>('[data-panel="tools"] .collapse')!;
+    expect(collapse.getAttribute("aria-expanded")).toBe("true");
+    collapse.click();
+    expect(collapse.getAttribute("aria-expanded")).toBe("false");
+    expect(collapse.getAttribute("aria-label")).toBe("Expand Tools");
+  });
+
   it("stacks default panels without overlap and saves their initial layout", async () => {
     const workspace = document.querySelector<HTMLElement>(".workspace")!;
     Object.defineProperty(workspace, "clientWidth", { configurable: true, value: 1200 });
@@ -82,5 +109,24 @@ describe("WorkspaceUi", () => {
     const transform = document.querySelector<HTMLElement>('[data-panel="transform"]')!;
     expect(transform.style.top).toBe("14px");
     expect(Number.parseInt(transform.style.left)).toBeLessThan(Number.parseInt(effects.style.left));
+  });
+
+  it("drags panels, persists the result, and ignores drag starts on collapse buttons", () => {
+    new WorkspaceUi([]);
+    const panel = document.querySelector<HTMLElement>('[data-panel="tools"]')!;
+    const header = panel.querySelector<HTMLElement>(".panel-header")!;
+    Object.defineProperty(panel, "offsetParent", { configurable: true, value: document.querySelector(".workspace") });
+    Object.defineProperty(panel, "offsetLeft", { configurable: true, get: () => Number.parseInt(panel.style.left) || 0 });
+    Object.defineProperty(panel, "offsetTop", { configurable: true, get: () => Number.parseInt(panel.style.top) || 0 });
+    Object.defineProperty(panel, "offsetWidth", { configurable: true, value: 200 });
+    Object.defineProperty(panel, "offsetHeight", { configurable: true, value: 200 });
+    header.dispatchEvent(new PointerEvent("pointerdown", { pointerId: 1, clientX: 10, clientY: 10, bubbles: true }));
+    header.dispatchEvent(new PointerEvent("pointermove", { pointerId: 1, clientX: 80, clientY: 90, bubbles: true }));
+    expect(panel.classList).toContain("dragging-panel");
+    header.dispatchEvent(new PointerEvent("pointerup", { pointerId: 1, bubbles: true }));
+    expect(panel.classList).not.toContain("dragging-panel");
+    expect(JSON.parse(localStorage.getItem("little-editor.panel-layout.v2")!)).toHaveProperty("tools");
+    panel.querySelector<HTMLButtonElement>(".collapse")!.dispatchEvent(new PointerEvent("pointerdown", { pointerId: 2, bubbles: true }));
+    expect(panel.classList).not.toContain("dragging-panel");
   });
 });

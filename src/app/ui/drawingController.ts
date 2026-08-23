@@ -2,9 +2,10 @@ import { canvasPoint, configureStroke, drawFreehandStroke, drawShape, type Strok
 import { floodFill } from "../helpers/floodFillHelpers";
 import { element } from "../helpers/domHelpers";
 import type { CropRect, PaintTool, Point, Tool } from "../models/appTypes";
-import { DRAWING_TOOL_DEFINITIONS, PAINT_TOOL_DEFINITIONS, PAINT_TOOLS, SHAPE_TOOL_DEFINITIONS, SHAPE_TOOLS, UTILITY_TOOL_DEFINITIONS } from "../models/drawingToolCatalog";
+import { BRUSH_TOOL_DEFINITIONS, DRAWING_TOOL_DEFINITIONS, ERASER_TOOL_DEFINITION, PAINT_TOOLS, SHAPE_TOOL_DEFINITIONS, SHAPE_TOOLS, UTILITY_TOOL_DEFINITIONS } from "../models/drawingToolCatalog";
 import { CanvasDocument } from "../models/imageDocument";
 import { GenericToolbar } from "./genericToolbar";
+import { GroupedToolPalette } from "./groupedToolPalette";
 import type { CanvasViewportController } from "./canvasViewportController";
 
 const TOOL_SHORTCUTS: Readonly<Record<string, Tool>> = {
@@ -13,6 +14,7 @@ const TOOL_SHORTCUTS: Readonly<Record<string, Tool>> = {
 };
 export class DrawingController {
   readonly #toolsPanel = element<HTMLElement>('[data-panel="tools"]');
+  readonly #canvasWrap = element<HTMLElement>("#canvasWrap");
   readonly #color = element<HTMLInputElement>("#colorInput");
   readonly #size = element<HTMLInputElement>("#sizeInput");
   readonly #opacity = element<HTMLInputElement>("#opacityInput");
@@ -22,12 +24,14 @@ export class DrawingController {
   readonly #paintSelect = element<HTMLSelectElement>("#paintToolSelect");
   readonly #shapeSelect = element<HTMLSelectElement>("#shapeToolSelect");
   readonly #toolbar: GenericToolbar<Tool>;
+  readonly #palette: GroupedToolPalette<Tool>;
   readonly #zoomOptions: HTMLElement | null;
   readonly #fillOptions: HTMLElement;
   readonly #fillColor: HTMLInputElement;
   readonly #fillTolerance: HTMLInputElement;
   readonly #pickerOptions: HTMLElement;
   readonly #pickerSwatch: HTMLElement;
+  readonly #sampledColor: HTMLInputElement;
   readonly #cropOptions: HTMLElement;
   readonly #contextHint: HTMLElement;
   #tool: Tool = "brush";
@@ -37,6 +41,7 @@ export class DrawingController {
   #crop: CropRect | null = null;
   #restoredColor = false;
   #activeStrokeOptions: StrokeOptions | null = null;
+  #lockedScroll: Point | null = null;
 
   constructor(readonly documentModel: CanvasDocument, readonly viewport?: CanvasViewportController) {
     const fillControls = this.createFillOptions();
@@ -46,22 +51,28 @@ export class DrawingController {
     const pickerControls = this.createPickerOptions();
     this.#pickerOptions = pickerControls.root;
     this.#pickerSwatch = pickerControls.swatch;
+    this.#sampledColor = pickerControls.color;
     this.#cropOptions = this.createCropOptions();
     this.#contextHint = this.createContextHint();
     this.#toolbar = new GenericToolbar<Tool>({
       root: this.#toolsPanel,
       tools: DRAWING_TOOL_DEFINITIONS,
       selectGroups: [
-        { control: element("#paintToolControl"), icon: element(".tool-select-icon", element("#paintToolControl")), select: this.#paintSelect, tools: PAINT_TOOL_DEFINITIONS, defaultTool: "brush" },
+        { control: element("#paintToolControl"), icon: element(".tool-select-icon", element("#paintToolControl")), select: this.#paintSelect, tools: BRUSH_TOOL_DEFINITIONS, defaultTool: "brush" },
         { control: element("#shapeToolControl"), icon: element(".tool-select-icon", element("#shapeToolControl")), select: this.#shapeSelect, tools: SHAPE_TOOL_DEFINITIONS, defaultTool: "rectangle" }
       ],
-      buttonContainer: element(".utility-tools"), buttonTools: UTILITY_TOOL_DEFINITIONS, defaultTool: "brush",
+      buttonContainer: element(".utility-tools"), buttonTools: [ERASER_TOOL_DEFINITION, ...UTILITY_TOOL_DEFINITIONS], defaultTool: "brush",
       documentModel, stateKey: "drawing"
     });
+    element(".tool-choosers").classList.add("hidden");
+    this.#palette = new GroupedToolPalette<Tool>(element(".utility-tools"), [
+      { label: "Brush tools", select: this.#paintSelect, tools: BRUSH_TOOL_DEFINITIONS },
+      { label: "Shape tools", select: this.#shapeSelect, tools: SHAPE_TOOL_DEFINITIONS }
+    ], this.#toolbar.activeTool, tool => this.#toolbar.select(tool));
     this.#zoomOptions = viewport ? this.createViewOptions(viewport) : null;
     this.#restoredColor = this.#toolbar.restoredControlIds.has("colorInput");
     this.syncRangeLabels();
-    this.#toolbar.onSelection(tool => this.activateTool(tool));
+    this.#toolbar.onSelection(tool => { this.#palette.update(tool); this.activateTool(tool); });
     this.bindEvents(); this.activateTool(this.#toolbar.activeTool);
   }
 
@@ -93,7 +104,7 @@ export class DrawingController {
 
   private bindEvents(): void {
     const overlay = this.documentModel.overlay;
-    overlay.addEventListener("pointerdown", event => this.onPointerDown(event));
+    overlay.addEventListener("pointerdown", event => { event.preventDefault(); this.onPointerDown(event); });
     overlay.addEventListener("pointermove", event => { this.updateZoomCursor(event.altKey); this.onPointerMove(event); });
     overlay.addEventListener("pointerenter", event => this.updateZoomCursor(event.altKey));
     overlay.addEventListener("pointerup", event => this.onPointerUp(event));
@@ -123,17 +134,17 @@ export class DrawingController {
   }
 
   private updateToolOptions(): void {
-    const paints = PAINT_TOOLS.has(this.#tool), shapes = SHAPE_TOOLS.has(this.#tool);
+    const paints = PAINT_TOOLS.has(this.#tool), colourPaint = paints && this.#tool !== "eraser", shapes = SHAPE_TOOLS.has(this.#tool);
     element(".shape-option").classList.toggle("hidden", !shapes);
     this.#hardness.closest("label")!.classList.toggle("hidden", !paints);
     this.#size.closest("label")!.classList.toggle("hidden", !(paints || shapes));
-    this.#color.closest("label")!.classList.toggle("hidden", !(paints || shapes));
+    this.#color.closest("label")!.classList.toggle("hidden", !(colourPaint || shapes));
     this.#opacity.closest("label")!.classList.toggle("hidden", !(paints || shapes || this.#tool === "fill"));
     this.#fillOptions.classList.toggle("hidden", this.#tool !== "fill");
     this.#pickerOptions.classList.toggle("hidden", this.#tool !== "picker");
     this.#cropOptions.classList.toggle("hidden", this.#tool !== "crop");
     this.#contextHint.classList.toggle("hidden", this.#tool !== "zoom");
-    if (this.#tool === "picker") this.updatePickerSwatch(this.#color.value);
+    if (this.#tool === "picker") this.updatePickerSwatch(this.#sampledColor.value);
   }
 
   private createFillOptions(): { root: HTMLElement; color: HTMLInputElement; tolerance: HTMLInputElement } {
@@ -144,18 +155,19 @@ export class DrawingController {
     return { root, color: element<HTMLInputElement>("#fillColorInput", root), tolerance: element<HTMLInputElement>("#fillToleranceInput", root) };
   }
 
-  private createPickerOptions(): { root: HTMLElement; swatch: HTMLElement } {
+  private createPickerOptions(): { root: HTMLElement; swatch: HTMLElement; color: HTMLInputElement } {
     const root = document.createElement("div");
     root.className = "picker-tool-options hidden";
-    root.innerHTML = '<p class="tool-hint">Click pixels repeatedly to sample colours. Paint uses the latest sample automatically.</p><div class="sampled-color"><span>Sampled colour</span><i aria-hidden="true"></i><code>#000000</code></div><div class="context-actions"><button type="button" data-use-color="fill">Copy to fill colour</button></div>';
+    root.innerHTML = '<input id="sampledColorInput" type="hidden" value="#000000"><p class="tool-hint">Click pixels repeatedly to sample colours without changing paint or fill.</p><div class="sampled-color"><span>Last sampled colour</span><i aria-hidden="true"></i><code>#000000</code></div><div class="context-actions"><button type="button" data-use-color="paint">Use for paint</button><button type="button" data-use-color="fill">Use for fill</button></div>';
     root.addEventListener("click", event => {
       const target = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-use-color]");
       if (!target) return;
-      this.#fillColor.value = this.#color.value;
+      if (target.dataset.useColor === "paint") this.#color.value = this.#sampledColor.value;
+      else this.#fillColor.value = this.#sampledColor.value;
       this.#toolbar.persist();
     });
     element(".tool-options", this.#toolsPanel).prepend(root);
-    return { root, swatch: element<HTMLElement>(".sampled-color", root) };
+    return { root, swatch: element<HTMLElement>(".sampled-color", root), color: element<HTMLInputElement>("#sampledColorInput", root) };
   }
 
   private createCropOptions(): HTMLElement {
@@ -220,8 +232,8 @@ export class DrawingController {
       const x = Math.max(0, Math.min(this.documentModel.width - 1, Math.floor(point.x)));
       const y = Math.max(0, Math.min(this.documentModel.height - 1, Math.floor(point.y)));
       const pixel = this.documentModel.context.getImageData(x, y, 1, 1).data;
-      this.#color.value = `#${[pixel[0], pixel[1], pixel[2]].map(value => value!.toString(16).padStart(2, "0")).join("")}`;
-      this.updatePickerSwatch(this.#color.value);
+      this.#sampledColor.value = `#${[pixel[0], pixel[1], pixel[2]].map(value => value!.toString(16).padStart(2, "0")).join("")}`;
+      this.updatePickerSwatch(this.#sampledColor.value);
       this.#toolbar.persist();
       return;
     }
@@ -239,6 +251,7 @@ export class DrawingController {
       return;
     }
     this.#drawing = true; this.#start = this.#last = point;
+    this.#lockedScroll = { x: this.#canvasWrap.scrollLeft, y: this.#canvasWrap.scrollTop };
     this.#activeStrokeOptions = this.strokeOptions();
     this.documentModel.overlay.setPointerCapture(event.pointerId);
     if (isPaintTool(this.#tool)) this.paint(point, { x: point.x + .01, y: point.y + .01 }, event.pressure);
@@ -246,6 +259,8 @@ export class DrawingController {
 
   private onPointerMove(event: PointerEvent): void {
     if (!this.#drawing) return;
+    event.preventDefault();
+    this.restoreLockedScroll();
     const point = this.point(event);
     if (isPaintTool(this.#tool)) {
       const samples = event.getCoalescedEvents?.() ?? [];
@@ -265,6 +280,7 @@ export class DrawingController {
 
   private onPointerUp(event: PointerEvent): void {
     if (!this.#drawing) return;
+    this.restoreLockedScroll();
     this.#drawing = false;
     this.#activeStrokeOptions ??= this.strokeOptions();
     const point = this.point(event);
@@ -278,6 +294,13 @@ export class DrawingController {
       this.#applyCrop.classList.toggle("hidden", this.#crop.width < 1 || this.#crop.height < 1);
     } else this.documentModel.commit();
     this.#activeStrokeOptions = null;
+    this.#lockedScroll = null;
+  }
+
+  private restoreLockedScroll(): void {
+    if (!this.#lockedScroll) return;
+    this.#canvasWrap.scrollLeft = this.#lockedScroll.x;
+    this.#canvasWrap.scrollTop = this.#lockedScroll.y;
   }
 
   private paint(from: Point, to: Point, pressure: number): void {

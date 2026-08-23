@@ -13,6 +13,7 @@ export interface NewImageOptions {
   transparent: boolean;
   background: string;
   format?: ImageFormat;
+  resolution?: number;
 }
 
 export interface ImageSnapshot {
@@ -21,6 +22,7 @@ export interface ImageSnapshot {
   pixels: Uint8ClampedArray;
   baseName: string;
   savedType: ImageFormat;
+  resolution?: number;
 }
 
 export type HistorySnapshot = Pick<ImageSnapshot, "width" | "height" | "pixels">;

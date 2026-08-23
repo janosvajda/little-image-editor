@@ -76,9 +76,19 @@ export class WorkspaceUi {
       }
       const header = element<HTMLElement>(".panel-header", panel);
       header.addEventListener("pointerdown", event => this.startPanelDrag(panel, header, event));
-      element<HTMLButtonElement>(".collapse", panel).addEventListener("click", event => {
+      const collapse = element<HTMLButtonElement>(".collapse", panel);
+      const panelName = element<HTMLElement>(".panel-header span", panel).textContent?.trim() || "toolbar";
+      collapse.title = `Collapse ${panelName}`;
+      collapse.setAttribute("aria-label", `Collapse ${panelName}`);
+      collapse.setAttribute("aria-expanded", String(!panel.classList.contains("collapsed")));
+      collapse.addEventListener("click", event => {
         panel.classList.toggle("collapsed");
-        (event.currentTarget as HTMLButtonElement).textContent = panel.classList.contains("collapsed") ? "+" : "−";
+        const collapsed = panel.classList.contains("collapsed");
+        const button = event.currentTarget as HTMLButtonElement;
+        button.textContent = collapsed ? "+" : "−";
+        button.title = `${collapsed ? "Expand" : "Collapse"} ${panelName}`;
+        button.setAttribute("aria-label", button.title);
+        button.setAttribute("aria-expanded", String(!collapsed));
         this.keepInView(panel, panel.offsetLeft, panel.offsetTop); this.saveLayout();
       });
     });
@@ -95,7 +105,6 @@ export class WorkspaceUi {
     fieldset.className = "toolbar-visibility hidden";
     fieldset.setAttribute("role", "listbox");
     fieldset.setAttribute("aria-label", "Toolbars");
-    const legend = document.createElement("legend"); legend.textContent = "Toolbars"; fieldset.append(legend);
     this.panels.forEach(panel => {
       const key = panel.dataset.panel!;
       const label = document.createElement("label");
@@ -113,6 +122,21 @@ export class WorkspaceUi {
     });
     const setOpen = (open: boolean) => { fieldset.classList.toggle("hidden", !open); trigger.setAttribute("aria-expanded", String(open)); };
     trigger.addEventListener("click", event => { event.stopPropagation(); setOpen(fieldset.classList.contains("hidden")); });
+    trigger.addEventListener("keydown", event => {
+      if (event.key === "ArrowDown") { event.preventDefault(); setOpen(true); fieldset.querySelector<HTMLInputElement>("input")?.focus(); }
+      else if (event.key === "Escape") { event.preventDefault(); setOpen(false); }
+    });
+    fieldset.addEventListener("keydown", event => {
+      const options = [...fieldset.querySelectorAll<HTMLInputElement>("input")];
+      const index = options.indexOf(event.target as HTMLInputElement);
+      if (event.key === "Escape") { event.preventDefault(); setOpen(false); trigger.focus(); return; }
+      if (event.key === "Tab") { setOpen(false); return; }
+      if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+      event.preventDefault();
+      if (event.key === "Home") options[0]?.focus();
+      else if (event.key === "End") options.at(-1)?.focus();
+      else options[(index + (event.key === "ArrowDown" ? 1 : -1) + options.length) % options.length]?.focus();
+    });
     document.addEventListener("click", event => { if (!picker.contains(event.target as Node)) setOpen(false); });
     picker.append(trigger, fieldset);
     element(".toolbar").append(picker);
@@ -203,8 +227,11 @@ export class WorkspaceUi {
     this.panels.forEach(panel => {
       panel.style.removeProperty("left"); panel.style.removeProperty("right"); panel.style.removeProperty("top"); panel.classList.remove("collapsed");
       panel.hidden = !DEFAULT_VISIBLE_PANELS.has(panel.dataset.panel ?? "");
-      const toggle = document.querySelector<HTMLInputElement>(`[data-panel-toggle="${panel.dataset.panel}"]`); if (toggle) toggle.checked = !panel.hidden;
-      element<HTMLButtonElement>(".collapse", panel).textContent = "−";
+      const toggle = document.querySelector<HTMLInputElement>(`[data-panel-toggle="${panel.dataset.panel}"]`);
+      if (toggle) { toggle.checked = !panel.hidden; toggle.setAttribute("aria-selected", String(toggle.checked)); }
+      const collapse = element<HTMLButtonElement>(".collapse", panel);
+      const panelName = element<HTMLElement>(".panel-header span", panel).textContent?.trim() || "toolbar";
+      collapse.textContent = "−"; collapse.title = `Collapse ${panelName}`; collapse.setAttribute("aria-label", collapse.title); collapse.setAttribute("aria-expanded", "true");
     });
     requestAnimationFrame(() => this.applyDefaultLayout());
   }
