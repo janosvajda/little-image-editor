@@ -9,7 +9,8 @@
     "build": "npm run typecheck && node scripts/build.mjs",
     "publish": "npm run build",
     "typecheck": "tsc --noEmit",
-    "check": "npm run typecheck && npm run build",
+    "lint": "biome lint .",
+    "check": "npm run lint && npm run typecheck && npm run build",
     "dev": "npm run typecheck && node scripts/build.mjs --serve",
     "watch": "node scripts/build.mjs --watch",
     "test": "vitest run --coverage",
@@ -20,6 +21,7 @@
     "test:all": "npm run test:contracts && npm run test && npm run test:e2e"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.5.10",
     "@playwright/test": "^1.62.1",
     "@vitest/coverage-v8": "^4.1.11",
     "esbuild": "^0.28.2",

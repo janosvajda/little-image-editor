@@ -7,6 +7,7 @@
     <title>Little Image Editor</title>
     <link rel="stylesheet" href="editor.css">
     <link rel="stylesheet" href="drawingTools.css">
+    <link rel="stylesheet" href="annotationTools.css">
 </head>
 
 <body>
@@ -27,7 +28,8 @@
                             <option value="image/webp">WebP</option>
                         </select></label><button id="saveButton" role="menuitem"
                         disabled><span>Save</span><kbd>Ctrl/⌘+S</kbd></button><button id="saveAsButton" role="menuitem"
-                        disabled><span>Save As…</span><kbd>⇧ Ctrl/⌘+S</kbd></button>
+                        disabled><span>Save As…</span><kbd>⇧ Ctrl/⌘+S</kbd></button><button id="copyImageButton"
+                        role="menuitem" disabled><span>Copy image</span><kbd>Ctrl/⌘+C</kbd></button>
                 </div>
             </details>
             <details class="menu" id="editMenu">
@@ -67,9 +69,12 @@
                     viewBox="0 0 24 24">
                     <path d="M8 3H3v5m13-5h5v5M8 21H3v-5m13 5h5v-5" />
                 </svg></button><button class="icon-button accent-icon" id="quickSaveButton"
-                title="Save image (Ctrl/⌘ S)" disabled><svg viewBox="0 0 24 24">
-                    <path d="M5 3h12l2 2v16H5zM8 3v6h8V3M8 21v-7h8v7" />
-                </svg></button></div><input id="fileInput" type="file" accept="image/*" hidden><input id="spriteInput"
+                title="Save image (Ctrl/⌘ S)" disabled><svg class="filled-icon" viewBox="0 0 24 24">
+                    <path fill-rule="evenodd" d="M3 2h14.5L22 6.5V22H3V2Zm3 3v14h2v-7h9v7h2V8l-3-3v5H7V5H6Zm4 0v3h4V5h-4Zm0 10v4h5v-4h-5Z" />
+                </svg></button><button class="icon-button" id="quickCopyButton" title="Copy image (Ctrl/⌘ C)"
+                disabled><svg viewBox="0 0 24 24"><rect x="8" y="8" width="11" height="11" rx="1"/><path
+                    d="M16 8V5H5v11h3"/></svg></button><button class="icon-button" id="quickCloseImageButton"
+                title="Close image" aria-label="Discard current image" disabled><svg viewBox="0 0 24 24"><path d="M3 7h6l2 2h10v10H3zM8 12l8 6m0-6-8 6"/></svg></button></div><input id="fileInput" type="file" accept="image/*" hidden><input id="spriteInput"
             type="file" accept="image/*" multiple hidden>
     </header>
     <main class="workspace">
@@ -83,7 +88,7 @@
         </div>
         <div id="dropHint" class="drop-hint">Drop to open</div><button id="exitFocusButton"
             class="exit-focus hidden">Show controls</button>
-        <section class="panel drawing-panel" data-panel="tools" data-ui>
+        <section class="panel drawing-panel" data-panel="tools" data-default-visible data-default-dock="left" data-ui>
             <header class="panel-header"><span>Tools</span><button class="collapse">−</button></header>
             <div class="panel-body">
                 <div class="tool-choosers"><label id="paintToolControl" class="tool-select active"><span
@@ -139,7 +144,7 @@
                         min="-100" max="100" value="0"></label><button id="resetFiltersButton" class="wide">Reset
                     adjustments</button></div>
         </section>
-        <section class="panel effects-panel" data-panel="effects" data-ui>
+        <section class="panel effects-panel" data-panel="effects" data-default-visible data-ui>
             <header class="panel-header"><span>Effects</span><button class="collapse">−</button></header>
             <div class="panel-body"><label>Effect<select id="effectSelect">
                         <option value="monochrome">Monochrome</option>
@@ -165,6 +170,7 @@
                         placeholder="H"><button id="resizeButton">Resize</button></div>
             </div>
         </section>
+        <div id="clipboardStatus" class="clipboard-status" role="status" aria-live="polite"></div>
         <footer id="statusBar" data-ui><span id="dimensions">No image</span><span class="status-help">Drag panels to
                 arrange · Tab for focus mode</span><span id="zoomLabel">100%</span></footer>
     </main>
@@ -246,6 +252,23 @@
                     class="dialog-action confirm" aria-label="Create image"><svg viewBox="0 0 16 16" aria-hidden="true">
                         <path d="m3 8 3 3 7-7"></path>
                     </svg><span>Create</span></button></footer>
+        </form>
+    </dialog>
+    <dialog id="closeImageDialog" aria-labelledby="closeImageDialogTitle">
+        <form method="dialog" class="dialog-shell confirmation-dialog">
+            <header>
+                <div><strong id="closeImageDialogTitle">Close image?</strong><small>Unsaved changes will be lost</small></div><button
+                    class="dialog-close" value="cancel" aria-label="Close">×</button>
+            </header>
+            <div class="confirmation-content">
+                <svg class="confirmation-icon" viewBox="0 0 32 32" aria-hidden="true"><path
+                    d="M3 9h8l3 3h15v15H3zM11 16l10 9m0-9-10 9"/></svg>
+                <p>Are you sure you want to close this image without saving?</p>
+            </div>
+            <footer><button value="cancel" class="dialog-action"><svg viewBox="0 0 16 16" aria-hidden="true"><path
+                        d="m4 4 8 8m0-8-8 8"></path></svg><span>Cancel</span></button><button
+                    id="confirmCloseImageButton" value="confirm" class="dialog-action danger"><svg viewBox="0 0 16 16"
+                        aria-hidden="true"><path d="M3 5h4l2 2h5v7H3zM7 9l3 3m0-3-3 3"></path></svg><span>Close without saving</span></button></footer>
         </form>
     </dialog>
     <script type="module" src="editor.js"></script>

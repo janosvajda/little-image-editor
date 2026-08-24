@@ -4,21 +4,35 @@
   "version": "0.1.0",
   "description": "A fast, private image editor with drawing, filters, conversion, and sprite sheets.",
   "icons": {
-    "16": "assets/images/extensionIcon.png",
-    "32": "assets/images/extensionIcon.png",
-    "48": "assets/images/extensionIcon.png",
-    "128": "assets/images/extensionIcon.png"
+    "16": "assets/images/extensionIcon-16.png",
+    "32": "assets/images/extensionIcon-32.png",
+    "48": "assets/images/extensionIcon-48.png",
+    "128": "assets/images/extensionIcon-128.png"
   },
   "action": {
     "default_title": "Open Little Image Editor",
     "default_icon": {
-      "16": "assets/images/extensionIcon.png",
-      "32": "assets/images/extensionIcon.png"
+      "16": "assets/images/extensionIcon-16.png",
+      "32": "assets/images/extensionIcon-32.png"
     }
   },
   "background": {
     "service_worker": "background.js",
     "type": "module"
   },
-  "permissions": []
+  "permissions": [
+    "activeTab",
+    "clipboardWrite",
+    "contextMenus",
+    "scripting"
+  ],
+  "commands": {
+    "capture-selected-region": {
+      "suggested_key": {
+        "default": "Alt+Shift+E",
+        "mac": "MacCtrl+Shift+E"
+      },
+      "description": "Capture a selected region in Little Image Editor"
+    }
+  }
 }

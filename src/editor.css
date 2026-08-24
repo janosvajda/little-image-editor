@@ -780,12 +780,132 @@ dialog::backdrop {
     stroke-linejoin: round
 }
 
+.icon-button svg.filled-icon {
+    fill: currentColor;
+    stroke: none
+}
+
+.menu-popover .menu-action-copy {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px
+}
+
+.menu-action-copy svg {
+    width: 16px;
+    height: 16px;
+    flex: 0 0 16px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round
+}
+
+#closeImageDialog {
+    width: min(420px, calc(100vw - 32px))
+}
+
+.confirmation-content {
+    display: grid;
+    grid-template-columns: 34px 1fr;
+    align-items: center;
+    gap: 12px;
+    padding: 18px
+}
+
+.confirmation-content p {
+    margin: 0;
+    line-height: 1.45
+}
+
+.confirmation-icon {
+    width: 30px;
+    height: 30px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2.5;
+    stroke-linecap: round;
+    stroke-linejoin: round
+}
+
+.confirmation-dialog>footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 7px;
+    padding: 11px 16px;
+    border-top: 1px solid var(--border)
+}
+
+.confirmation-dialog>footer .dialog-action {
+    display: inline-flex;
+    width: auto;
+    min-height: 30px;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    padding: 5px 9px;
+    background: var(--surface2);
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap
+}
+
+.confirmation-dialog>footer .dialog-action svg {
+    width: 13px;
+    height: 13px;
+    flex: 0 0 13px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round
+}
+
+.dialog-action.danger {
+    border-color: #b42318;
+    color: #b42318
+}
+
+.dialog-action.danger:hover {
+    background: color-mix(in srgb, #b42318 10%, transparent)
+}
+
 .icon-button:hover:not(:disabled) {
     background: var(--surface2)
 }
 
 .accent-icon {
     color: var(--accent)
+}
+
+.clipboard-status {
+    position: fixed;
+    z-index: 5000;
+    left: 50%;
+    bottom: 38px;
+    max-width: min(420px, calc(100vw - 32px));
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: 0 8px 24px var(--shadow);
+    font-size: 12px;
+    opacity: 0;
+    pointer-events: none;
+    transform: translate(-50%, 6px);
+    transition: opacity .14s ease, transform .14s ease
+}
+
+.clipboard-status.visible {
+    opacity: 1;
+    transform: translate(-50%, 0)
+}
+
+.clipboard-status.error {
+    color: #c62828
 }
 
 .toolbar .separator {

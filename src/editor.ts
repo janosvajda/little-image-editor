@@ -1,29 +1,76 @@
-import { element } from "./app/helpers/domHelpers";
-import { CanvasDocument } from "./app/models/imageDocument";
-import { DrawingController } from "./app/ui/drawingController";
-import { ImageOperations } from "./app/ui/imageOperationsController";
-import { NewImageController } from "./app/ui/newImageController";
-import { WorkspaceUi } from "./app/ui/workspaceController";
-import { FileController } from "./app/workflows/fileController";
-import { SpriteController } from "./app/workflows/spriteController";
-import { SessionPersistence } from "./app/workflows/sessionPersistence";
-import { ToolbarManager } from "./app/ui/genericToolbar";
-import { CanvasViewportController } from "./app/ui/canvasViewportController";
-import { TooltipController } from "./app/ui/tooltipController";
-import { EffectsController } from "./app/ui/effectsController";
-import { enhancePanelButtons } from "./app/ui/panelButtonEnhancer";
+import { element } from './app/shared/dom/domHelpers';
+import { CanvasDocument } from './app/core/document/imageDocument';
+import { DrawingController } from './app/features/drawing/drawingController';
+import { ImageOperations } from './app/features/effects/imageOperationsController';
+import { NewImageController } from './app/features/files/newImageController';
+import { WorkspaceUi } from './app/features/workspace/workspaceController';
+import { FileController } from './app/features/files/fileController';
+import { SpriteController } from './app/features/files/spriteController';
+import { SessionPersistence } from './app/features/files/sessionPersistence';
+import { ToolbarManager } from './app/features/workspace/genericToolbar';
+import { CanvasViewportController } from './app/features/workspace/canvasViewportController';
+import { TooltipController } from './app/features/workspace/tooltipController';
+import { EffectsController } from './app/features/effects/effectsController';
+import { enhancePanelButtons } from './app/features/workspace/panelButtonEnhancer';
+import { BrowserCaptureImporter } from './app/features/capture/browserCaptureImporter';
+import { ClipboardController } from './app/features/files/clipboardController';
+import { AnnotationController } from './app/features/annotations/annotationController';
+import { AnnotationPanel } from './app/features/annotations/annotationPanel';
+import type { AnnotationTool } from './app/features/annotations/annotationTypes';
+import { AnnotationDocument } from './app/features/annotations/annotationDocument';
+import { CanvasToolCoordinator } from './app/features/workspace/canvasToolCoordinator';
+import {
+	ToolbarId,
+	toolbarSelector,
+} from './app/features/workspace/toolbarTypes';
+import { KeyboardKey, ShortcutKey } from './app/shared/input/keyboardKeys';
 
-element("#quickOpenButton").after(element("#quickSaveButton"));
+const SPLASH_EXIT_TRANSITION_MS = 220;
+const STARTUP_MODE_PARAMETER = 'mode';
 
-const documentModel = new CanvasDocument(element<HTMLCanvasElement>("#canvas"), element<HTMLCanvasElement>("#overlay"));
+element('#quickOpenButton').after(element('#quickSaveButton'));
+element('#quickSaveButton').after(element('#quickCloseImageButton'));
+
+const documentModel = new CanvasDocument(
+	element<HTMLCanvasElement>('#canvas'),
+	element<HTMLCanvasElement>('#overlay'),
+);
 const newImage = new NewImageController(documentModel);
 const files = new FileController(documentModel);
+const clipboard = new ClipboardController(documentModel);
 const sprites = new SpriteController(documentModel);
-const workspaceUi = new WorkspaceUi([newImage.dialog, sprites.dialog]);
+const annotationPanel = new AnnotationPanel();
+element<HTMLElement>(toolbarSelector(ToolbarId.Transform)).before(
+	annotationPanel.element,
+);
+const workspaceUi = new WorkspaceUi([
+	newImage.dialog,
+	sprites.dialog,
+	files.closeDialog,
+]);
 const viewport = new CanvasViewportController(documentModel);
-const drawing = new DrawingController(documentModel, viewport);
+const vectorShapes = new AnnotationDocument();
+const drawing = new DrawingController(documentModel, viewport, vectorShapes);
 new ImageOperations(documentModel);
 new EffectsController(documentModel);
+const toolbarManager = new ToolbarManager(documentModel);
+const annotationPreferences = toolbarManager.get<{
+	tool: AnnotationTool;
+	reportEdited: boolean;
+}>('annotationToolbar');
+if (!annotationPreferences)
+	throw new Error(
+		'The annotations panel was not registered by ToolbarManager.',
+	);
+const annotations = new AnnotationController(
+	documentModel,
+	viewport,
+	annotationPanel,
+	annotationPreferences,
+	vectorShapes,
+);
+new CanvasToolCoordinator([drawing, annotations]);
+files.onBeforeSave(() => annotations.flattenShapes());
 enhancePanelButtons();
 const sessionPersistence = new SessionPersistence(documentModel);
 new TooltipController();
@@ -31,63 +78,186 @@ new TooltipController();
 drawing.setInitialColor(workspaceUi.resolvedTheme);
 
 documentModel.onDocumentChange(({ hasImage, width, height }) => {
-  element("#dimensions").textContent = hasImage ? `${width} × ${height} px` : "No image";
-  element<HTMLInputElement>("#widthInput").value = hasImage ? String(width) : "";
-  element<HTMLInputElement>("#heightInput").value = hasImage ? String(height) : "";
-  element("#emptyState").classList.toggle("hidden", hasImage);
-  element("#canvasWrap").classList.toggle("hidden", !hasImage);
-  if (hasImage) element<HTMLSelectElement>("#formatSelect").value = documentModel.savedType;
+	element('#dimensions').textContent = hasImage
+		? `${width} × ${height} px`
+		: 'No image';
+	element<HTMLInputElement>('#widthInput').value = hasImage
+		? String(width)
+		: '';
+	element<HTMLInputElement>('#heightInput').value = hasImage
+		? String(height)
+		: '';
+	element('#emptyState').classList.toggle('hidden', hasImage);
+	element('#canvasWrap').classList.toggle('hidden', !hasImage);
+	if (hasImage)
+		element<HTMLSelectElement>('#formatSelect').value = documentModel.savedType;
 });
 
-new ToolbarManager(documentModel);
 void finishStartup();
 
 async function finishStartup(): Promise<void> {
-  const splash = element<HTMLElement>("#startupSplash");
-  try {
-    await sessionPersistence.restore();
-  } finally {
-    splash.classList.add("is-hidden");
-    window.setTimeout(() => splash.remove(), 220);
-  }
+	const splash = element<HTMLElement>('#startupSplash');
+	try {
+		const importedCapture = await new BrowserCaptureImporter(
+			documentModel,
+		).importFromLocation();
+		if (!importedCapture) await sessionPersistence.restore();
+		const startupMode = new URLSearchParams(location.search).get(
+			STARTUP_MODE_PARAMETER,
+		);
+		if (startupMode && workspaceUi.autoOpenToolbar(startupMode)) {
+			consumeStartupMode();
+		}
+	} finally {
+		splash.classList.add('is-hidden');
+		window.setTimeout(() => splash.remove(), SPLASH_EXIT_TRANSITION_MS);
+	}
 }
 
-const undoButtons = [element<HTMLButtonElement>("#undoButton"), element<HTMLButtonElement>("#menuUndoButton")];
-const redoButtons = [element<HTMLButtonElement>("#redoButton"), element<HTMLButtonElement>("#menuRedoButton")];
+function consumeStartupMode(): void {
+	const url = new URL(location.href);
+	url.searchParams.delete(STARTUP_MODE_PARAMETER);
+	history.replaceState(
+		history.state,
+		'',
+		`${url.pathname}${url.search}${url.hash}`,
+	);
+}
+
+const undoButtons = [
+	element<HTMLButtonElement>('#undoButton'),
+	element<HTMLButtonElement>('#menuUndoButton'),
+];
+const redoButtons = [
+	element<HTMLButtonElement>('#redoButton'),
+	element<HTMLButtonElement>('#menuRedoButton'),
+];
+let documentCanUndo = false;
+let documentCanRedo = false;
+let historyDomain: 'document' | 'annotation' = 'document';
+const updateHistoryButtons = () => {
+	const useAnnotations = annotations.active && historyDomain === 'annotation';
+	const canUndo = useAnnotations ? annotations.canUndo : documentCanUndo;
+	const canRedo = useAnnotations ? annotations.canRedo : documentCanRedo;
+	undoButtons.forEach((button) => {
+		button.disabled = !canUndo;
+	});
+	redoButtons.forEach((button) => {
+		button.disabled = !canRedo;
+	});
+};
 documentModel.onHistoryChange((canUndo, canRedo) => {
-  undoButtons.forEach(button => { button.disabled = !canUndo; });
-  redoButtons.forEach(button => { button.disabled = !canRedo; });
+	documentCanUndo = canUndo;
+	documentCanRedo = canRedo;
+	historyDomain = 'document';
+	updateHistoryButtons();
 });
-undoButtons.forEach(button => button.addEventListener("click", () => documentModel.undo()));
-redoButtons.forEach(button => button.addEventListener("click", () => documentModel.redo()));
+annotations.onHistoryChange(() => {
+	historyDomain = annotations.active ? 'annotation' : 'document';
+	updateHistoryButtons();
+});
+const undo = () =>
+	annotations.active && historyDomain === 'annotation'
+		? annotations.undo()
+		: documentModel.undo();
+const redo = () =>
+	annotations.active && historyDomain === 'annotation'
+		? annotations.redo()
+		: documentModel.redo();
+undoButtons.forEach((button) => button.addEventListener('click', undo));
+redoButtons.forEach((button) => button.addEventListener('click', redo));
 
-const workspace = element<HTMLElement>(".workspace");
-for (const eventName of ["dragenter", "dragover"]) {
-  workspace.addEventListener(eventName, event => { event.preventDefault(); workspace.classList.add("dragging"); });
+const workspace = element<HTMLElement>('.workspace');
+for (const eventName of ['dragenter', 'dragover']) {
+	workspace.addEventListener(eventName, (event) => {
+		event.preventDefault();
+		workspace.classList.add('dragging');
+	});
 }
-for (const eventName of ["dragleave", "drop"]) {
-  workspace.addEventListener(eventName, event => { event.preventDefault(); workspace.classList.remove("dragging"); });
+for (const eventName of ['dragleave', 'drop']) {
+	workspace.addEventListener(eventName, (event) => {
+		event.preventDefault();
+		workspace.classList.remove('dragging');
+	});
 }
-workspace.addEventListener("drop", event => {
-  const file = (event as DragEvent).dataTransfer?.files[0];
-  if (file) void documentModel.load(file);
+workspace.addEventListener('drop', (event) => {
+	const file = (event as DragEvent).dataTransfer?.files[0];
+	if (file) void documentModel.load(file);
 });
-document.addEventListener("paste", event => {
-  const file = [...(event.clipboardData?.files ?? [])].find(candidate => candidate.type.startsWith("image/"));
-  if (file) void documentModel.load(file);
+document.addEventListener('paste', (event) => {
+	const file = [...(event.clipboardData?.files ?? [])].find((candidate) =>
+		candidate.type.startsWith('image/'),
+	);
+	if (file) void documentModel.load(file);
 });
 
-document.addEventListener("keydown", event => {
-  const modifier = event.ctrlKey || event.metaKey;
-  const key = event.key.toLowerCase();
-  if (modifier && key === "f") { event.preventDefault(); workspaceUi.openFileMenu(); return; }
-  if (modifier && key === "n") { event.preventDefault(); newImage.open(); return; }
-  if (modifier && key === "o") { event.preventDefault(); files.open(); return; }
-  if (modifier && key === "s") { event.preventDefault(); event.shiftKey ? void files.saveAs() : void files.save(); return; }
-  if (modifier && key === "z") { event.preventDefault(); event.shiftKey ? documentModel.redo() : documentModel.undo(); return; }
-  if (modifier && key === "y") { event.preventDefault(); documentModel.redo(); return; }
-  const target = event.target as HTMLElement;
-  if (event.key === "Tab" && !target.matches("input,select")) { event.preventDefault(); void workspaceUi.toggleFocus(); return; }
-  if (event.key === "Escape" && document.body.classList.contains("focus-mode")) { void workspaceUi.toggleFocus(false); return; }
-  if (!modifier && !target.matches("input,select")) drawing.selectFromShortcut(key);
-});
+document.addEventListener('keydown', handleKeyboardShortcut);
+
+function handleKeyboardShortcut(event: KeyboardEvent): void {
+	if (event.defaultPrevented) return;
+	const modifier = event.ctrlKey || event.metaKey;
+	const key = event.key.toLowerCase();
+	const target = event.target as HTMLElement;
+	if (modifier && handleModifiedShortcut(event, key, target)) return;
+	if (handleWorkspaceShortcut(event, target)) return;
+	if (!modifier && !target.matches('input,select'))
+		drawing.selectFromShortcut(key);
+}
+
+function handleModifiedShortcut(
+	event: KeyboardEvent,
+	key: string,
+	target: HTMLElement,
+): boolean {
+	const commands: Readonly<Record<string, () => void>> = {
+		[ShortcutKey.FileMenu]: () => workspaceUi.openFileMenu(),
+		[ShortcutKey.NewImage]: () => newImage.open(),
+		[ShortcutKey.OpenImage]: () => files.open(),
+		[ShortcutKey.Redo]: redo,
+	};
+	const command = commands[key];
+	if (command) {
+		event.preventDefault();
+		command();
+		return true;
+	}
+	if (key === ShortcutKey.Save) {
+		event.preventDefault();
+		event.shiftKey ? void files.saveAs() : void files.save();
+		return true;
+	}
+	if (key === ShortcutKey.Undo) {
+		event.preventDefault();
+		event.shiftKey ? redo() : undo();
+		return true;
+	}
+	if (
+		key === ShortcutKey.Copy &&
+		!event.shiftKey &&
+		!target.matches('input,textarea,select,[contenteditable=true]')
+	) {
+		event.preventDefault();
+		void clipboard.copy();
+		return true;
+	}
+	return false;
+}
+
+function handleWorkspaceShortcut(
+	event: KeyboardEvent,
+	target: HTMLElement,
+): boolean {
+	if (event.key === KeyboardKey.Tab && !target.matches('input,select')) {
+		event.preventDefault();
+		void workspaceUi.toggleFocus();
+		return true;
+	}
+	if (
+		event.key === KeyboardKey.Escape &&
+		document.body.classList.contains('focus-mode')
+	) {
+		void workspaceUi.toggleFocus(false);
+		return true;
+	}
+	return false;
+}

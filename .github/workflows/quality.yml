@@ -46,6 +46,8 @@ jobs:
           cache: npm
       - name: Install locked dependencies
         run: npm ci
+      - name: Lint production TypeScript
+        run: npm run lint
       - name: Type-check TypeScript
         run: npm run typecheck
       - name: Build Chrome extension

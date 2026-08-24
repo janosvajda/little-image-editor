@@ -10,6 +10,9 @@ A small, private Chrome image editor written in TypeScript. All image processing
 - PNG, JPEG, and WebP export
 - Sprite-sheet builder with configurable columns and padding
 - Drag/drop and clipboard paste
+- Right-click a webpage image to open its visible rendering in the editor
+- Capture the visible page or select a region directly from the browser
+- Copy the edited canvas back to the clipboard as PNG
 - Draggable, collapsible panels with layouts saved in local storage
 - Distraction-free fullscreen canvas mode
 - Automatic, light, dark, and high-contrast color themes
@@ -22,6 +25,15 @@ npm run build
 ```
 
 Open `chrome://extensions`, enable **Developer mode**, choose **Load unpacked**, and select the `dist` folder.
+
+### Browser capture workflow
+
+- Right-click an image and choose **Edit in Little Image Editor**.
+- Right-click a page and choose **Capture visible area** or **Capture selected region**.
+- Press `Alt+Shift+E` (`Control+Shift+E` on macOS) to select a region. Chrome shortcuts can be changed at `chrome://extensions/shortcuts`.
+- In the editor, use the copy icon, **File → Copy image**, or `Ctrl/Command+C` while focus is outside a form control.
+
+Editing a webpage image captures its currently visible rendering. It intentionally does not request permission to download arbitrary files from every website.
 
 ## Local development
 
@@ -39,9 +51,10 @@ npm run test:integration
 npm run test:e2e
 npm run test:contracts
 npm run test:all
+npm run lint
 ```
 
-`npm test` runs unit and integration tests with coverage. The build fails below 95% line coverage; statement, function, and branch safety floors are also enforced. End-to-end tests use Playwright Chromium against the local development server.
+`npm test` runs unit and integration tests with coverage. The build fails below 95% line coverage; statement, function, and branch safety floors are also enforced. `npm run lint` rejects magic numbers in production TypeScript, so domain values must have meaningful names. End-to-end tests use Playwright Chromium against the local development server.
 
 ### Immutable test contracts
 
@@ -49,7 +62,7 @@ Passing tests are treated as product-behaviour contracts. `npm run test:contract
 
 When implementing new behaviour, add a new `*.test.ts` or `*.spec.ts` file and register its hash in `.github/test-contracts.json`. After that change is merged, the new test is protected too. If an existing test fails, first investigate the application regression and fix the product code; do not weaken or rewrite the test simply to make CI pass. A genuinely incorrect existing contract may only be corrected deliberately, with explicit owner approval, in a dedicated reviewed change carrying the `test-contract-change-approved` label. See [TESTING_POLICY.md](TESTING_POLICY.md) for the complete policy.
 
-Pull requests run the same checks in GitHub Actions: immutable test contracts, strict TypeScript validation, the production extension build, unit and integration coverage, and Chromium E2E tests. Configure all four `Pull Request Quality Gate` jobs as required status checks in the repository branch-protection rules to prevent merging when a check fails.
+Pull requests run the same checks in GitHub Actions: immutable test contracts, magic-number linting, strict TypeScript validation, the production extension build, unit and integration coverage, and Chromium E2E tests. Configure all four `Pull Request Quality Gate` jobs as required status checks in the repository branch-protection rules to prevent merging when a check fails.
 
 ## License
 
