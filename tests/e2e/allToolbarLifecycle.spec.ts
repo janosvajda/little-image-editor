@@ -1,0 +1,159 @@
+import { expect, test, type Page } from "@playwright/test";
+
+const TOOLBAR_KEYS = ["tools", "adjust", "effects", "transform", "annotations"] as const;
+
+test.beforeEach(async ({ page }) => {
+  await page.goto("/");
+  await page.evaluate(() => localStorage.removeItem("little-editor.panel-layout.v2"));
+  await page.reload();
+});
+
+test("every toolbar opens, performs its primary function, and uses the shared controls", async ({ page }) => {
+  await createImage(page, "toolbar-functions", 240, 160);
+  await showEveryToolbar(page);
+
+  await page.getByRole("button", { name: "Brush tools: Brush", exact: true }).evaluate(button => (button as HTMLButtonElement).click());
+  await dragOnCanvas(page, .65, .4, .8, .55);
+  expect(await hasNonWhitePixel(page)).toBe(true);
+
+  await page.locator("#brightnessInput").evaluate(input => {
+    (input as HTMLInputElement).value = "-40";
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  await expect(page.locator("#brightnessValue")).toHaveText("-40");
+
+  await page.locator("#effectSelect").selectOption("sepia");
+  await page.locator("#effectAmountInput").evaluate(input => {
+    (input as HTMLInputElement).value = "35";
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  await expect(page.locator("#effectAmountValue")).toHaveText("35%");
+  await page.locator("#applyEffectButton").evaluate(button => (button as HTMLButtonElement).click());
+
+  await page.locator("#widthInput").fill("180");
+  await page.locator("#heightInput").fill("120");
+  await page.locator("#resizeButton").evaluate(button => (button as HTMLButtonElement).click());
+  await expect(page.locator("#dimensions")).toHaveText("180 × 120 px");
+
+  const numberTool = page.getByRole("button", { name: "Number", exact: true });
+  await numberTool.evaluate(button => (button as HTMLButtonElement).click());
+  await expect(numberTool).toHaveClass(/active/);
+  await clickCanvas(page, .5, .5);
+  await expect(page.locator(".annotation-next-step")).toHaveText("Next marker: 2");
+
+  for (const key of TOOLBAR_KEYS) {
+    const panel = page.locator(`[data-panel="${key}"]`);
+    await expect(panel).toHaveAttribute("data-toolbar-panel", "managed");
+    await expect(panel.locator(":scope > .panel-header > .collapse")).toHaveCount(1);
+  }
+});
+
+test("every toolbar restores open, closed, collapsed, and positioned state after reload", async ({ page }) => {
+  await showEveryToolbar(page);
+  const expectedPositions: Record<string, { left: number; top: number }> = {};
+
+  for (const [index, key] of TOOLBAR_KEYS.entries()) {
+    const panel = page.locator(`[data-panel="${key}"]`);
+    const left = 24 + index * 38;
+    const top = 24 + index * 42;
+    await panel.evaluate((element, position) => {
+      const panelElement = element as HTMLElement;
+      panelElement.style.left = `${position.left}px`;
+      panelElement.style.top = `${position.top}px`;
+      panelElement.style.right = "auto";
+      const collapse = panelElement.querySelector<HTMLButtonElement>(".collapse")!;
+      collapse.click();
+    }, { left, top });
+    expectedPositions[key] = { left, top };
+  }
+
+  await page.reload();
+  for (const key of TOOLBAR_KEYS) {
+    const panel = page.locator(`[data-panel="${key}"]`);
+    await expect(panel).toBeVisible();
+    await expect(panel).toHaveClass(/collapsed/);
+    const position = await panel.evaluate(element => ({ left: (element as HTMLElement).offsetLeft, top: (element as HTMLElement).offsetTop }));
+    expect(Math.abs(position.left - expectedPositions[key]!.left)).toBeLessThanOrEqual(2);
+    expect(Math.abs(position.top - expectedPositions[key]!.top)).toBeLessThanOrEqual(2);
+  }
+
+  await page.locator("#toolbarPickerButton").click();
+  for (const key of ["adjust", "transform", "annotations"] as const) await page.locator(`[data-panel-toggle="${key}"]`).uncheck();
+  await page.reload();
+
+  for (const key of TOOLBAR_KEYS) {
+    const shouldBeVisible = key === "tools" || key === "effects";
+    if (shouldBeVisible) await expect(page.locator(`[data-panel="${key}"]`)).toBeVisible();
+    else await expect(page.locator(`[data-panel="${key}"]`)).toBeHidden();
+  }
+});
+
+test("a toolbar auto-open mode uses generic metadata and becomes normal persisted visibility", async ({ page }) => {
+  await createImage(page, "auto-open-toolbar", 200, 120);
+  await page.waitForTimeout(500);
+  await page.goto("/?mode=annotate");
+
+  const annotations = page.locator('[data-panel="annotations"]');
+  await expect(annotations).toHaveAttribute("data-auto-open-mode", "annotate");
+  await expect(annotations).toBeVisible();
+  await expect(page.locator("body")).toHaveClass(/annotation-mode/);
+  await expect(page).not.toHaveURL(/(?:\?|&)mode=annotate(?:&|$)/);
+
+  await page.locator("#toolbarPickerButton").click();
+  await page.locator('[data-panel-toggle="tools"]').check();
+  await page.reload();
+  await expect(annotations).toBeVisible();
+  await expect(page.locator('[data-panel="tools"]')).toBeVisible();
+});
+
+async function showEveryToolbar(page: Page): Promise<void> {
+  await page.locator("#toolbarPickerButton").click();
+  for (const key of TOOLBAR_KEYS) {
+    const toggle = page.locator(`[data-panel-toggle="${key}"]`);
+    if (!(await toggle.isChecked())) await toggle.check();
+  }
+}
+
+async function createImage(page: Page, name: string, width: number, height: number): Promise<void> {
+  await page.locator("#quickNewButton").click();
+  await page.locator("#newImageName").fill(name);
+  await page.locator("#newImageWidth").fill(String(width));
+  await page.locator("#newImageHeight").fill(String(height));
+  await page.locator("#createImageButton").click();
+}
+
+async function dragOnCanvas(page: Page, fromX: number, fromY: number, toX: number, toY: number): Promise<void> {
+  await page.locator("#overlay").evaluate((overlay, points) => {
+    const bounds = overlay.getBoundingClientRect();
+    const dispatch = (type: string, x: number, y: number) => overlay.dispatchEvent(new PointerEvent(type, {
+      bubbles: true, cancelable: true, button: 0, buttons: type === "pointerup" ? 0 : 1, pointerId: 1,
+      clientX: bounds.left + bounds.width * x, clientY: bounds.top + bounds.height * y
+    }));
+    dispatch("pointerdown", points.fromX, points.fromY);
+    dispatch("pointermove", points.toX, points.toY);
+    dispatch("pointerup", points.toX, points.toY);
+  }, { fromX, fromY, toX, toY });
+}
+
+async function clickCanvas(page: Page, x: number, y: number): Promise<void> {
+  await page.locator("#overlay").evaluate((overlay, point) => {
+    const canvas = overlay as HTMLCanvasElement;
+    const bounds = canvas.getBoundingClientRect();
+    canvas.setPointerCapture = () => undefined;
+    const options = { bubbles: true, cancelable: true, button: 0, pointerId: 2, clientX: bounds.left + bounds.width * point.x, clientY: bounds.top + bounds.height * point.y };
+    canvas.dispatchEvent(new PointerEvent("pointerdown", { ...options, buttons: 1 }));
+    canvas.dispatchEvent(new PointerEvent("pointerup", { ...options, buttons: 0 }));
+  }, { x, y });
+}
+
+async function hasNonWhitePixel(page: Page): Promise<boolean> {
+  return page.locator("#canvas").evaluate(canvas => {
+    const context = (canvas as HTMLCanvasElement).getContext("2d")!;
+    const pixels = context.getImageData(0, 0, (canvas as HTMLCanvasElement).width, (canvas as HTMLCanvasElement).height).data;
+    for (let index = 0; index < pixels.length; index += 4) {
+      if (pixels[index] !== 255 || pixels[index + 1] !== 255 || pixels[index + 2] !== 255) return true;
+    }
+    return false;
+  });
+}

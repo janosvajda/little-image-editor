@@ -1,0 +1,96 @@
+{
+	"$schema": "https://biomejs.dev/schemas/2.5.10/schema.json",
+	"vcs": {
+		"enabled": true,
+		"clientKind": "git",
+		"useIgnoreFile": true
+	},
+	"files": {
+		"includes": ["src/**/*.ts", "tests/**/*.ts", "!!**/dist"]
+	},
+	"formatter": {
+		"enabled": true,
+		"indentStyle": "tab"
+	},
+	"linter": {
+		"enabled": true,
+		"rules": {
+			"preset": "none",
+			"complexity": {
+				"noExcessiveCognitiveComplexity": "error",
+				"noUselessCatch": "error",
+				"noUselessConstructor": "error",
+				"noUselessContinue": "error",
+				"noUselessEmptyExport": "error",
+				"noUselessReturn": "error",
+				"noUselessStringConcat": "error",
+				"noUselessSwitchCase": "error",
+				"noUselessTernary": "error",
+				"noUselessUndefined": "error",
+				"useArrowFunction": "error",
+				"useFlatMap": "error",
+				"useOptionalChain": "error"
+			},
+			"correctness": {
+				"noConstAssign": "error",
+				"noConstructorReturn": "error",
+				"noUnreachableSuper": "error",
+				"noUnsafeFinally": "error",
+				"noUnusedPrivateClassMembers": "error",
+				"noUnusedVariables": "error"
+			},
+			"security": {
+				"noBlankTarget": "error",
+				"noDangerouslySetInnerHtml": "error",
+				"noDangerouslySetInnerHtmlWithChildren": "error",
+				"noGlobalEval": "error",
+				"noScriptUrl": "error",
+				"noSecrets": {
+					"level": "error",
+					"options": {
+						"entropyThreshold": 80
+					}
+				}
+			},
+			"style": {
+				"noMagicNumbers": "error"
+			},
+			"suspicious": {
+				"noDoubleEquals": "error",
+				"noDuplicateParameters": "error",
+				"noImportCycles": "error",
+				"noMisleadingInstantiator": "error",
+				"noSkippedTests": "error",
+				"useAwait": "error"
+			}
+		}
+	},
+	"javascript": {
+		"formatter": {
+			"quoteStyle": "single"
+		}
+	},
+	"assist": {
+		"enabled": true,
+		"actions": {
+			"source": {
+				"organizeImports": "on"
+			}
+		}
+	},
+	"overrides": [
+		{
+			"includes": ["**/*.test.ts", "**/*.spec.ts"],
+			"linter": {
+				"rules": {
+					"complexity": {
+						"noExcessiveCognitiveComplexity": "off"
+					},
+					"style": {
+						"noMagicNumbers": "off"
+					}
+				}
+			}
+		}
+	]
+}

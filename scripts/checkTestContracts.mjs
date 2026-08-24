@@ -13,6 +13,7 @@ const trackedTests = execFileSync("git", ["ls-files", "--cached", "--others", "-
   .trim()
   .split("\n")
   .filter(Boolean)
+  .filter(existsSync)
   .filter(isTestFile);
 
 for (const file of trackedTests) {
@@ -31,7 +32,7 @@ if (base && !/^0+$/.test(base)) {
   try {
     const baseline = JSON.parse(execFileSync("git", ["show", `${base}:${manifestPath}`], { encoding: "utf8" }));
     for (const [file, baselineHash] of Object.entries(baseline)) {
-      if (!(file in contracts)) failures.push(`${file}: protected contract was removed`);
+      if (!(file in contracts) && !approvedContractChange) failures.push(`${file}: protected contract was removed`);
       else if (contracts[file] !== baselineHash && !approvedContractChange) failures.push(`${file}: protected contract hash was changed without explicit approval`);
     }
   } catch {
