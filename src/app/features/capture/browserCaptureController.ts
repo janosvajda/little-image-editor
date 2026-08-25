@@ -41,7 +41,7 @@ const CORE_CONTEXT_MENUS: BrowserContextMenu[] = [
 ];
 const BUG_REPORT_MENU: BrowserContextMenu = {
 	id: BROWSER_CAPTURE_MENU_IDS.bugReport,
-	title: 'Bug-report screenshot',
+	title: 'Capture & annotate',
 	contexts: ['page', 'image'],
 };
 

@@ -1,8 +1,10 @@
-import { AnnotationToolId, type AnnotationTool } from './annotationTypes';
 import { createManagedPanel } from '../workspace/managedPanel';
+import { ToolbarDock } from '../workspace/managedToolbarPanel';
 import { ToolbarAutoOpenMode, ToolbarId } from '../workspace/toolbarTypes';
+import { type AnnotationTool, AnnotationToolId } from './annotationTypes';
 
 const BUG_REPORT_VISIBLE_ROWS = 7;
+
 import { ColorPalette } from '../../core/document/colorPalette';
 
 const TOOLS: ReadonlyArray<
@@ -57,6 +59,7 @@ export class AnnotationPanel {
 			{
 				className: 'annotation-panel',
 				autoOpenMode: ToolbarAutoOpenMode.Annotate,
+				defaultDock: ToolbarDock.Left,
 			},
 		);
 		this.element = panel.element;

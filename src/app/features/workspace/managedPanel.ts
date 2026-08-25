@@ -1,6 +1,6 @@
 export interface ManagedPanelShell {
 	readonly element: HTMLElement;
-	readonly body: HTMLElement;
+	readonly body: HTMLFieldSetElement;
 }
 
 export interface ManagedPanelOptions {
@@ -37,7 +37,7 @@ export function createManagedPanel(
 	collapse.textContent = '−';
 	header.append(heading, collapse);
 
-	const body = document.createElement('div');
+	const body = document.createElement('fieldset');
 	body.className = 'panel-body';
 	element.append(header, body);
 	return { element, body };

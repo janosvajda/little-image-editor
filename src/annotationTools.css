@@ -20,7 +20,7 @@
 
 .annotation-panel {
     width: min(320px, calc(100vw - 36px));
-    right: 14px;
+    left: 14px;
     top: 14px
 }
 

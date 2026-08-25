@@ -1,28 +1,28 @@
-import { element } from './app/shared/dom/domHelpers';
 import { CanvasDocument } from './app/core/document/imageDocument';
-import { DrawingController } from './app/features/drawing/drawingController';
-import { ImageOperations } from './app/features/effects/imageOperationsController';
-import { NewImageController } from './app/features/files/newImageController';
-import { WorkspaceUi } from './app/features/workspace/workspaceController';
-import { FileController } from './app/features/files/fileController';
-import { SpriteController } from './app/features/files/spriteController';
-import { SessionPersistence } from './app/features/files/sessionPersistence';
-import { ToolbarManager } from './app/features/workspace/genericToolbar';
-import { CanvasViewportController } from './app/features/workspace/canvasViewportController';
-import { TooltipController } from './app/features/workspace/tooltipController';
-import { EffectsController } from './app/features/effects/effectsController';
-import { enhancePanelButtons } from './app/features/workspace/panelButtonEnhancer';
-import { BrowserCaptureImporter } from './app/features/capture/browserCaptureImporter';
-import { ClipboardController } from './app/features/files/clipboardController';
 import { AnnotationController } from './app/features/annotations/annotationController';
+import { AnnotationDocument } from './app/features/annotations/annotationDocument';
 import { AnnotationPanel } from './app/features/annotations/annotationPanel';
 import type { AnnotationTool } from './app/features/annotations/annotationTypes';
-import { AnnotationDocument } from './app/features/annotations/annotationDocument';
+import { BrowserCaptureImporter } from './app/features/capture/browserCaptureImporter';
+import { DrawingController } from './app/features/drawing/drawingController';
+import { EffectsController } from './app/features/effects/effectsController';
+import { ImageOperations } from './app/features/effects/imageOperationsController';
+import { ClipboardController } from './app/features/files/clipboardController';
+import { FileController } from './app/features/files/fileController';
+import { NewImageController } from './app/features/files/newImageController';
+import { SessionPersistence } from './app/features/files/sessionPersistence';
+import { SpriteController } from './app/features/files/spriteController';
 import { CanvasToolCoordinator } from './app/features/workspace/canvasToolCoordinator';
+import { CanvasViewportController } from './app/features/workspace/canvasViewportController';
+import { ToolbarManager } from './app/features/workspace/genericToolbar';
+import { enhancePanelButtons } from './app/features/workspace/panelButtonEnhancer';
 import {
 	ToolbarId,
 	toolbarSelector,
 } from './app/features/workspace/toolbarTypes';
+import { TooltipController } from './app/features/workspace/tooltipController';
+import { WorkspaceUi } from './app/features/workspace/workspaceController';
+import { element } from './app/shared/dom/domHelpers';
 import { KeyboardKey, ShortcutKey } from './app/shared/input/keyboardKeys';
 
 const SPLASH_EXIT_TRANSITION_MS = 220;
@@ -48,6 +48,7 @@ const workspaceUi = new WorkspaceUi([
 	sprites.dialog,
 	files.closeDialog,
 ]);
+workspaceUi.bindToolbarAvailability(documentModel);
 const viewport = new CanvasViewportController(documentModel);
 const vectorShapes = new AnnotationDocument();
 const drawing = new DrawingController(documentModel, viewport, vectorShapes);
