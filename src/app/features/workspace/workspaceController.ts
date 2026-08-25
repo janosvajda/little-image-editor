@@ -1,11 +1,13 @@
 import { element, elements } from '../../shared/dom/domHelpers';
 import { KeyboardKey } from '../../shared/input/keyboardKeys';
 import {
+	type ManagedToolbarPanel,
 	ManagedToolbarRegistry,
 	TOOLBAR_AUTO_OPEN_EVENT,
-	ToolbarDock,
-	type ManagedToolbarPanel,
+	type ToolbarAvailabilitySource,
 } from './managedToolbarPanel';
+import { ToolbarLayoutCoordinator } from './toolbarLayoutCoordinator';
+import { ToolbarLayoutEngine } from './toolbarLayoutEngine';
 import { ToolbarLayoutStore } from './toolbarLayoutStore';
 import { ToolbarVisibilityPicker } from './toolbarVisibilityPicker';
 
@@ -19,6 +21,18 @@ export class WorkspaceUi {
 	readonly toolbarRegistry = new ManagedToolbarRegistry();
 	readonly toolbarPanels = this.toolbarRegistry.panels;
 	readonly panels = this.toolbarPanels.map((panel) => panel.element);
+	readonly toolbarLayout = new ToolbarLayoutCoordinator(
+		this.toolbarPanels,
+		new ToolbarLayoutEngine({ margin: PANEL_MARGIN, gap: PANEL_GAP }),
+		{
+			getBounds: () => ({
+				width: this.workspaceWidth(),
+				height: this.workspaceHeight(),
+				bottomInset: STATUS_BAR_HEIGHT,
+			}),
+			isLayoutSuspended: () => document.body.classList.contains('focus-mode'),
+		},
+	);
 	readonly menus = elements<HTMLDetailsElement>('.menu');
 	readonly themeSelect = element<HTMLSelectElement>('#themeSelect');
 	readonly toolbarPicker: ToolbarVisibilityPicker;
@@ -42,6 +56,10 @@ export class WorkspaceUi {
 
 	get resolvedTheme(): string {
 		return this.resolveTheme(this.themeSelect.value);
+	}
+
+	bindToolbarAvailability(source: ToolbarAvailabilitySource): void {
+		this.toolbarRegistry.bindAvailability(source);
 	}
 
 	setPanelVisible(key: string, visible: boolean): void {
@@ -77,8 +95,7 @@ export class WorkspaceUi {
 	autoOpenToolbar(mode: string): boolean {
 		const panel = this.toolbarRegistry.findByAutoOpenMode(mode);
 		if (!panel) return false;
-		this.beginPanelPreset([panel.key]);
-		this.commitPanelPreset();
+		this.applyPanelVisibility(panel, true, true);
 		panel.element.dispatchEvent(new CustomEvent(TOOLBAR_AUTO_OPEN_EVENT));
 		return true;
 	}
@@ -98,12 +115,13 @@ export class WorkspaceUi {
 		visible: boolean,
 		persist: boolean,
 	): void {
+		const preservePosition = panel.positioned;
 		if (!panel.setVisible(visible)) return;
 		this.toolbarPicker.sync(panel);
 		if (persist) this.saveLayout();
 		if (visible)
 			requestAnimationFrame(() => {
-				this.placeVisiblePanel(panel.element);
+				this.toolbarLayout.placeNew(panel, preservePosition);
 				if (persist) this.saveLayout();
 			});
 	}
@@ -172,154 +190,65 @@ export class WorkspaceUi {
 		this.toolbarPanels.forEach((panel) => {
 			const saved = layout[panel.key];
 			panel.restore(saved);
-			if (saved) {
-				this.keepInView(panel.element, saved.x, saved.y);
-			}
 			panel.header.addEventListener('pointerdown', (event) =>
-				this.startPanelDrag(panel.element, panel.header, event),
+				this.startPanelDrag(panel, event),
 			);
-			panel.onCollapseChange(() => {
-				this.keepInView(
-					panel.element,
-					panel.element.offsetLeft,
-					panel.element.offsetTop,
-				);
+			panel.onCloseRequest(() => this.setPanelVisible(panel.key, false));
+			panel.onCollapseChange((collapsed) => {
+				if (collapsed)
+					this.toolbarLayout.constrain(
+						panel,
+						panel.position.x,
+						panel.position.y,
+					);
+				else this.toolbarLayout.resolve(panel);
 				this.saveLayout();
 			});
 		});
-		if (!hasSavedLayout) requestAnimationFrame(() => this.applyDefaultLayout());
-	}
-
-	private placeVisiblePanel(panel: HTMLElement): void {
-		const hasPosition =
-			panel.style.left !== '' &&
-			panel.style.top !== '' &&
-			(panel.offsetLeft !== 0 || panel.offsetTop !== 0);
-		if (hasPosition) {
-			this.keepInView(panel, panel.offsetLeft, panel.offsetTop);
-			return;
-		}
-		const dock =
-			this.toolbarRegistry.get(panel.dataset.panel ?? '')?.defaultDock ??
-			ToolbarDock.Right;
-		const others = this.panels.filter(
-			(candidate) =>
-				candidate !== panel &&
-				!candidate.hidden &&
-				candidate.offsetParent !== null,
-		);
-		let x =
-			dock === ToolbarDock.Left
-				? PANEL_MARGIN
-				: this.workspaceWidth() - panel.offsetWidth - PANEL_MARGIN;
-		const maximumBottom =
-			this.workspaceHeight() - STATUS_BAR_HEIGHT - PANEL_MARGIN;
-		for (let column = 0; column < this.panels.length; column += 1) {
-			let y = PANEL_MARGIN;
-			while (y + panel.offsetHeight <= maximumBottom) {
-				const collision = others.find(
-					(candidate) =>
-						x < candidate.offsetLeft + candidate.offsetWidth &&
-						x + panel.offsetWidth > candidate.offsetLeft &&
-						y < candidate.offsetTop + candidate.offsetHeight &&
-						y + panel.offsetHeight > candidate.offsetTop,
+		requestAnimationFrame(() => {
+			if (hasSavedLayout)
+				this.toolbarPanels.forEach((panel) =>
+					this.toolbarLayout.constrain(
+						panel,
+						panel.position.x,
+						panel.position.y,
+					),
 				);
-				if (!collision) {
-					this.keepInView(panel, x, y);
-					return;
-				}
-				y = collision.offsetTop + collision.offsetHeight + PANEL_GAP;
-			}
-			x +=
-				dock === ToolbarDock.Left
-					? panel.offsetWidth + PANEL_GAP
-					: -(panel.offsetWidth + PANEL_GAP);
-		}
-		this.keepInView(panel, x, PANEL_MARGIN);
-	}
-
-	private applyDefaultLayout(): void {
-		const columns = { left: [] as HTMLElement[], right: [] as HTMLElement[] };
-		this.panels
-			.filter((panel) => panel.offsetParent !== null)
-			.forEach((panel) => {
-				const dock =
-					this.toolbarRegistry.get(panel.dataset.panel ?? '')?.defaultDock ??
-					ToolbarDock.Right;
-				columns[dock].push(panel);
-			});
-		for (const [dock, panels] of Object.entries(columns) as Array<
-			[keyof typeof columns, HTMLElement[]]
-		>) {
-			if (panels.length === 0) continue;
-			let y = PANEL_MARGIN;
-			let columnWidth = 0;
-			let x =
-				dock === ToolbarDock.Left
-					? PANEL_MARGIN
-					: this.workspaceWidth() - panels[0]!.offsetWidth - PANEL_MARGIN;
-			panels.forEach((panel) => {
-				const maximumBottom =
-					this.workspaceHeight() - STATUS_BAR_HEIGHT - PANEL_MARGIN;
-				if (y > PANEL_MARGIN && y + panel.offsetHeight > maximumBottom) {
-					y = PANEL_MARGIN;
-					x +=
-						dock === ToolbarDock.Left
-							? columnWidth + PANEL_GAP
-							: -(panel.offsetWidth + PANEL_GAP);
-					columnWidth = 0;
-				}
-				this.keepInView(panel, x, y);
-				columnWidth = Math.max(columnWidth, panel.offsetWidth);
-				y += panel.offsetHeight + PANEL_GAP;
-			});
-		}
-		this.saveLayout();
+			else this.toolbarLayout.arrangeDefault();
+			this.saveLayout();
+		});
 	}
 
 	private startPanelDrag(
-		panel: HTMLElement,
-		header: HTMLElement,
+		panel: ManagedToolbarPanel,
 		event: PointerEvent,
 	): void {
 		if ((event.target as HTMLElement).closest('button')) return;
-		const origin = { x: panel.offsetLeft, y: panel.offsetTop };
+		const origin = panel.position;
 		const pointer = { x: event.clientX, y: event.clientY };
-		panel.classList.add('dragging-panel');
-		header.setPointerCapture(event.pointerId);
+		panel.element.classList.add('dragging-panel');
+		panel.header.setPointerCapture(event.pointerId);
 		const move = (next: PointerEvent) =>
-			this.keepInView(
+			this.toolbarLayout.move(
 				panel,
 				origin.x + next.clientX - pointer.x,
 				origin.y + next.clientY - pointer.y,
 			);
 		const end = () => {
-			panel.classList.remove('dragging-panel');
-			header.removeEventListener('pointermove', move);
-			header.removeEventListener('pointerup', end);
-			header.removeEventListener('pointercancel', end);
+			panel.element.classList.remove('dragging-panel');
+			panel.header.removeEventListener('pointermove', move);
+			panel.header.removeEventListener('pointerup', end);
+			panel.header.removeEventListener('pointercancel', end);
+			this.toolbarLayout.resolve(panel);
 			this.saveLayout();
 		};
-		header.addEventListener('pointermove', move);
-		header.addEventListener('pointerup', end);
-		header.addEventListener('pointercancel', end);
-	}
-
-	private keepInView(panel: HTMLElement, x: number, y: number): void {
-		if (
-			document.body.classList.contains('focus-mode') ||
-			panel.offsetParent === null
-		)
-			return;
-		panel.style.left = `${Math.max(0, Math.min(x, this.workspaceWidth() - panel.offsetWidth))}px`;
-		panel.style.top = `${Math.max(0, Math.min(y, this.workspaceHeight() - panel.offsetHeight - STATUS_BAR_HEIGHT))}px`;
-		panel.style.right = 'auto';
+		panel.header.addEventListener('pointermove', move);
+		panel.header.addEventListener('pointerup', end);
+		panel.header.addEventListener('pointercancel', end);
 	}
 
 	private clampAllPanels(): void {
-		this.panels.forEach((panel) =>
-			this.keepInView(panel, panel.offsetLeft, panel.offsetTop),
-		);
+		this.toolbarLayout.resolveAll();
 	}
 
 	private workspaceWidth(): number {
@@ -351,7 +280,10 @@ export class WorkspaceUi {
 			panel.reset();
 			this.toolbarPicker.sync(panel);
 		});
-		requestAnimationFrame(() => this.applyDefaultLayout());
+		requestAnimationFrame(() => {
+			this.toolbarLayout.arrangeDefault();
+			this.saveLayout();
+		});
 	}
 
 	private initializeMenus(): void {
