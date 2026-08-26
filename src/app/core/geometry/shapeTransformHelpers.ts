@@ -14,7 +14,10 @@ export interface TransformableGeometry {
 	rotation?: number;
 }
 
-const HANDLE_OFFSET = 24;
+export const ShapeHandleMetrics = {
+	Offset: 24,
+	HitTolerance: 10,
+} as const;
 
 export function shapeCenter(shape: TransformableGeometry): Point {
 	return {
@@ -25,6 +28,7 @@ export function shapeCenter(shape: TransformableGeometry): Point {
 
 export function shapeHandles(
 	shape: TransformableGeometry,
+	offset: number = ShapeHandleMetrics.Offset,
 ): Readonly<Record<ShapeHandle, Point>> {
 	const { x, y, width, height } = shape.rect;
 	const center = shapeCenter(shape);
@@ -35,16 +39,20 @@ export function shapeHandles(
 		[ShapeHandleId.NorthEast]: rotate({ x: x + width, y }),
 		[ShapeHandleId.SouthEast]: rotate({ x: x + width, y: y + height }),
 		[ShapeHandleId.SouthWest]: rotate({ x, y: y + height }),
-		[ShapeHandleId.Rotate]: rotate({ x: center.x, y: y - HANDLE_OFFSET }),
+		[ShapeHandleId.Rotate]: rotate({
+			x: center.x,
+			y: y - offset,
+		}),
 	};
 }
 
 export function hitShapeHandle(
 	shape: TransformableGeometry,
 	point: Point,
-	tolerance = 10,
+	tolerance: number = ShapeHandleMetrics.HitTolerance,
+	offset: number = ShapeHandleMetrics.Offset,
 ): ShapeHandle | null {
-	const handles = shapeHandles(shape);
+	const handles = shapeHandles(shape, offset);
 	return (
 		(Object.keys(handles) as ShapeHandle[]).find(
 			(key) => distance(handles[key], point) <= tolerance,

@@ -1446,3 +1446,75 @@ body.focus-mode .canvas-ruler-layer {
 .app-tooltip[hidden] {
     display: none
 }
+.layer-list {
+	display: grid;
+	gap: 6px;
+}
+
+.layer-row {
+	display: grid;
+	grid-template-columns: 30px minmax(0, 1fr) 30px 30px;
+	align-items: center;
+	border: 1px solid var(--border);
+	border-radius: 8px;
+	background: var(--surface2);
+}
+
+.layer-object-row {
+	grid-template-columns: 30px minmax(0, 1fr) 30px 30px 30px;
+	margin-left: 12px;
+	background: var(--surface);
+}
+
+.layer-row.active {
+	border-color: var(--accent);
+}
+
+.layer-row button {
+	min-height: 34px;
+	border: 0;
+	background: transparent;
+}
+
+.layer-name {
+	text-align: left;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.layer-row button:disabled {
+	opacity: 0.45;
+}
+
+.performance-warning-dialog {
+	max-width: 30rem;
+}
+
+.performance-warning-dialog .dialog-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 0.5rem;
+	margin-top: 1rem;
+}
+.selected-object-options {
+	display: grid;
+	gap: 12px;
+	padding-bottom: 16px;
+	border-bottom: 1px solid var(--border);
+}
+
+.selected-object-options > label {
+	display: grid;
+	grid-template-columns: 1fr auto;
+	align-items: center;
+	gap: 8px;
+}
+
+.selected-object-options > label > input[type='range'] {
+	grid-column: 1 / -1;
+}
+
+.tool-options.editing-selected-object > :not(.selected-object-options) {
+	display: none;
+}

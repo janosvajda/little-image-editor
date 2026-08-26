@@ -59,16 +59,16 @@ export class ToolbarLayoutCoordinator {
 		}
 	}
 
-	resolve(panel: ManagedToolbarPanel): void {
+	resolve(panel: ManagedToolbarPanel, commitPosition = false): void {
 		if (!panel.rendered || this.workspace.isLayoutSuspended()) return;
-		panel.setResolvedPosition(
-			this.engine.resolveNearest(
-				panel.position,
-				panel.size,
-				this.obstaclesFor(panel),
-				this.workspace.getBounds(),
-			),
+		const resolved = this.engine.resolveNearest(
+			panel.position,
+			panel.size,
+			this.obstaclesFor(panel),
+			this.workspace.getBounds(),
 		);
+		if (commitPosition) panel.setPosition(resolved);
+		else panel.setResolvedPosition(resolved);
 	}
 
 	constrain(panel: ManagedToolbarPanel, x: number, y: number): void {

@@ -6,6 +6,7 @@ import {
 } from './fileNameHelpers';
 import { CanvasDocument } from '../../core/document/imageDocument';
 import type { ImageFormat } from '../../core/document/appTypes';
+import { DocumentType } from '../../core/document/appTypes';
 import { imageFormat } from '../../core/document/imageFormats';
 import { populateImageFormatSelect } from './formatSelectHelpers';
 
@@ -20,6 +21,7 @@ export class FileController {
 	readonly #format = element<HTMLSelectElement>('#formatSelect');
 	readonly #saveButtons: HTMLButtonElement[];
 	readonly #beforeSaveListeners = new Set<() => void>();
+	#projectSave: ((saveAs: boolean) => Promise<void>) | null = null;
 
 	constructor(readonly documentModel: CanvasDocument) {
 		this.fileInput.accept = 'image/png,image/jpeg,image/webp';
@@ -54,9 +56,16 @@ export class FileController {
 	onBeforeSave(listener: () => void): void {
 		this.#beforeSaveListeners.add(listener);
 	}
+	setProjectSaveHandler(handler: (saveAs: boolean) => Promise<void>): void {
+		this.#projectSave = handler;
+	}
 
 	async save(): Promise<void> {
 		if (!this.documentModel.hasImage) return;
+		if (this.documentModel.documentType === DocumentType.Project) {
+			await this.#projectSave?.(false);
+			return;
+		}
 		if (!this.documentModel.fileHandle) {
 			await this.saveAs();
 			return;
@@ -70,6 +79,10 @@ export class FileController {
 	}
 
 	async saveAs(): Promise<void> {
+		if (this.documentModel.documentType === DocumentType.Project) {
+			await this.#projectSave?.(true);
+			return;
+		}
 		await this.saveCopy(true);
 	}
 

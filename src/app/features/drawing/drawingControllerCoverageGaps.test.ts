@@ -7,6 +7,7 @@ import { DrawingController } from './drawingController';
 describe('DrawingController uncovered behavior', () => {
 	let model: CanvasDocument;
 	let drawing: DrawingController;
+	let editableObjects: AnnotationDocument;
 	const viewport = {
 		zoomIn: vi.fn(),
 		zoomOut: vi.fn(),
@@ -20,7 +21,8 @@ describe('DrawingController uncovered behavior', () => {
 		model = new CanvasDocument(document.querySelector('#canvas')!, document.querySelector('#overlay')!);
 		model.create({ name: 'drawing-coverage', width: 200, height: 100, transparent: false, background: '#fff' });
 		model.overlay.getBoundingClientRect = () => ({ left: 0, top: 0, width: 200, height: 100, right: 200, bottom: 100, x: 0, y: 0, toJSON: vi.fn() });
-		drawing = new DrawingController(model, viewport as never, new AnnotationDocument());
+		editableObjects = new AnnotationDocument();
+		drawing = new DrawingController(model, viewport as never, editableObjects);
 	});
 
 	it('routes every view action and reports shortcut activation accurately', () => {
@@ -53,7 +55,11 @@ describe('DrawingController uncovered behavior', () => {
 		});
 		model.overlay.dispatchEvent(move);
 		model.overlay.dispatchEvent(pointerEvent('pointercancel', 60, 50));
-		expect(model.context.lineTo).toHaveBeenCalled();
+		expect(editableObjects.selected).toMatchObject({
+			type: 'stroke',
+			tool: PaintToolId.Brush,
+		});
+		expect(model.context.lineTo).not.toHaveBeenCalled();
 		model.overlay.dispatchEvent(pointerEvent('pointerleave', 80, 70));
 		expect(model.overlay.style.cursor).toBe('crosshair');
 	});

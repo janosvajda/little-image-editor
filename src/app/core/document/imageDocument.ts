@@ -4,6 +4,9 @@ import {
 	hasTransparency,
 } from '../../features/files/canvasHelpers';
 import { canvasContext } from '../../shared/dom/domHelpers';
+import { degreesToRadians, Numeric } from '../../shared/math/numericConstants';
+import { LayerDocument } from '../layers/layerDocument';
+import { CoreLayerId } from '../layers/layerTypes';
 import type {
 	CropRect,
 	DocumentSessionSnapshot,
@@ -12,22 +15,25 @@ import type {
 	ImageSnapshot,
 	NewImageOptions,
 } from './appTypes';
+import { DocumentType } from './appTypes';
 import { DEFAULT_IMAGE_FORMAT } from './imageFormats';
 import { PIXELS_PER_INCH } from './measurementUnits';
-import { Numeric, degreesToRadians } from '../../shared/math/numericConstants';
+import { EditorLimit } from './editorLimits';
 
-const HISTORY_LIMIT = 30;
+const HISTORY_LIMIT = EditorLimit.RasterHistory;
 const EMPTY_HISTORY_INDEX = -1;
 
 export class CanvasDocument {
 	readonly context: CanvasRenderingContext2D;
 	readonly overlayContext: CanvasRenderingContext2D;
+	readonly layers = new LayerDocument();
 
 	hasImage = false;
 	fileHandle: FileSystemFileHandle | null = null;
 	baseName = 'little-image';
 	savedType: ImageFormat = DEFAULT_IMAGE_FORMAT.mimeType;
 	resolution = PIXELS_PER_INCH;
+	documentType: DocumentType = DocumentType.Image;
 
 	#history: ImageData[] = [];
 	#historyIndex = EMPTY_HISTORY_INDEX;
@@ -48,6 +54,12 @@ export class CanvasDocument {
 	) {
 		this.context = canvasContext(canvas, { willReadFrequently: true });
 		this.overlayContext = canvasContext(overlay);
+		this.layers.onChange(() => {
+			this.canvas.style.opacity = this.layers.isVisible(CoreLayerId.Image)
+				? '1'
+				: '0';
+			if (this.hasImage) this.#emitContentChange();
+		});
 	}
 
 	get width(): number {
@@ -111,6 +123,8 @@ export class CanvasDocument {
 			history: this.#history.map((state) => this.#snapshotImageData(state)),
 			historyIndex: this.#historyIndex,
 			toolbarStates: structuredClone(this.#toolbarStates),
+			layerState: this.layers.state,
+			documentType: this.documentType,
 		};
 	}
 
@@ -127,6 +141,7 @@ export class CanvasDocument {
 		);
 		this.savedType = snapshot.savedType;
 		this.resolution = snapshot.resolution ?? PIXELS_PER_INCH;
+		this.documentType = snapshot.documentType ?? DocumentType.Image;
 		this.activate(snapshot.baseName);
 	}
 
@@ -161,6 +176,7 @@ export class CanvasDocument {
 		this.fileHandle = null;
 		this.baseName = snapshot.baseName;
 		this.#toolbarStates = structuredClone(snapshot.toolbarStates ?? {});
+		this.layers.restore(snapshot.layerState);
 		this.clearOverlay();
 		this.#emitHistory();
 		this.#emitDocumentChange();
@@ -179,6 +195,7 @@ export class CanvasDocument {
 		this.context.clearRect(0, 0, this.width, this.height);
 		this.context.drawImage(bitmap, 0, 0);
 		this.resolution = PIXELS_PER_INCH;
+		this.documentType = DocumentType.Image;
 		bitmap.close();
 		this.activate(file.name.replace(/\.[^.]+$/, '') || 'little-image');
 	}
@@ -192,6 +209,7 @@ export class CanvasDocument {
 		}
 		this.savedType = options.format ?? DEFAULT_IMAGE_FORMAT.mimeType;
 		this.resolution = options.resolution ?? PIXELS_PER_INCH;
+		this.documentType = options.documentType ?? DocumentType.Image;
 		this.activate(options.name || 'untitled');
 	}
 
@@ -200,6 +218,7 @@ export class CanvasDocument {
 		this.fileHandle = null;
 		this.baseName = name;
 		this.#toolbarStates = {};
+		this.layers.reset();
 		this.#history = [];
 		this.#historyIndex = EMPTY_HISTORY_INDEX;
 		this.#toolbarStates = {};
@@ -213,6 +232,7 @@ export class CanvasDocument {
 		this.fileHandle = null;
 		this.#history = [];
 		this.#historyIndex = EMPTY_HISTORY_INDEX;
+		this.layers.reset();
 		this.context.clearRect(0, 0, this.width, this.height);
 		this.clearOverlay();
 		this.#emitHistory();
@@ -316,13 +336,24 @@ export class CanvasDocument {
 		return hasTransparency(this.context, this.width, this.height);
 	}
 
-	toBlob(type: ImageFormat): Promise<Blob> {
-		if (this.#compositeRenderers.size === 0)
-			return encodeCanvas(this.canvas, type);
-		const composite = this.copyCanvas();
+	compositeCanvas(): HTMLCanvasElement {
+		const composite = document.createElement('canvas');
+		composite.width = this.width;
+		composite.height = this.height;
 		const context = composite.getContext('2d')!;
+		if (this.layers.isVisible(CoreLayerId.Image))
+			context.drawImage(this.canvas, 0, 0);
 		this.#compositeRenderers.forEach((renderer) => renderer(context));
-		return encodeCanvas(composite, type);
+		return composite;
+	}
+
+	toBlob(type: ImageFormat): Promise<Blob> {
+		if (
+			this.layers.isVisible(CoreLayerId.Image) &&
+			this.#compositeRenderers.size === 0
+		)
+			return encodeCanvas(this.canvas, type);
+		return encodeCanvas(this.compositeCanvas(), type);
 	}
 
 	private copyCanvas(): HTMLCanvasElement {

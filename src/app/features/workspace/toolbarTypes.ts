@@ -4,6 +4,7 @@ export const ToolbarId = {
 	Effects: 'effects',
 	Transform: 'transform',
 	Annotations: 'annotations',
+	Layers: 'layers',
 } as const;
 export type ToolbarId = (typeof ToolbarId)[keyof typeof ToolbarId];
 

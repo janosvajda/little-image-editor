@@ -1,7 +1,15 @@
-import { canvasPoint } from '../drawing/drawingHelpers';
 import type { CropRect, Point } from '../../core/document/appTypes';
 import type { CaptureSourceMetadata } from '../../core/document/browserCapture';
+import { ColorPalette } from '../../core/document/colorPalette';
 import type { CanvasDocument } from '../../core/document/imageDocument';
+import { genericShape } from '../../core/geometry/genericShape';
+import type { ShapeHandle } from '../../core/geometry/shapeTransformHelpers';
+import {
+	TextShapeMetrics,
+	textFrame,
+} from '../../core/geometry/textShapeMetrics';
+import { CoreLayerId } from '../../core/layers/layerTypes';
+import { canvasPoint } from '../drawing/drawingHelpers';
 import type { CanvasViewportController } from '../workspace/canvasViewportController';
 import { PersistentDocumentToolbar } from '../workspace/genericToolbar';
 import {
@@ -10,31 +18,29 @@ import {
 	type ToolbarVisibilityDetail,
 } from '../workspace/managedToolbarPanel';
 import {
+	AnnotationChangeKind,
 	AnnotationDocument,
 	annotationBounds,
 	normalizedRect,
 } from './annotationDocument';
 import { AnnotationPanel } from './annotationPanel';
-import { renderAnnotations } from './annotationRenderer';
+import { AnnotationRenderCache } from './annotationRenderCache';
 import {
-	AnnotationObjectTypeId,
-	AnnotationToolId,
+	renderAnnotationObject,
+	renderAnnotations,
+} from './annotationRenderer';
+import type { TextAnnotation } from './annotationTypes';
+import {
 	type AnnotationObject,
+	AnnotationObjectTypeId,
 	type AnnotationSessionState,
 	type AnnotationState,
 	type AnnotationStyle,
 	type AnnotationTool,
+	AnnotationToolId,
 } from './annotationTypes';
 import { formatBugReport } from './bugReportMetadata';
-import type { ShapeHandle } from '../../core/geometry/shapeTransformHelpers';
-import { genericShape } from '../../core/geometry/genericShape';
-import { ColorPalette } from '../../core/document/colorPalette';
 import { InlineTextEditor } from './inlineTextEditor';
-import {
-	textFrame,
-	TextShapeMetrics,
-} from '../../core/geometry/textShapeMetrics';
-import type { TextAnnotation } from './annotationTypes';
 
 const STATE_KEY = 'annotations';
 const AnnotationInteraction = {
@@ -61,6 +67,7 @@ export class AnnotationController {
 	#start: Point | null = null;
 	#last: Point | null = null;
 	#draggedId: string | null = null;
+	#editedTextId: string | null = null;
 	#transformHandle: ShapeHandle | null = null;
 	#pendingSelectionId: string | null = null;
 	#draft: AnnotationObject | null = null;
@@ -73,7 +80,9 @@ export class AnnotationController {
 	}>;
 	#reportEdited = false;
 	readonly #textEditor = new InlineTextEditor();
+	readonly #renderCache = new AnnotationRenderCache();
 	readonly #interactionListeners = new Set<() => void>();
+	#transientRenderFrame: number | null = null;
 
 	constructor(
 		private readonly documentModel: CanvasDocument,
@@ -130,11 +139,26 @@ export class AnnotationController {
 			(event) => this.onKeyDown(event),
 			true,
 		);
-		this.annotations.onChange((state) => this.onAnnotationChange(state));
-		this.annotations.onHistoryChange(() => this.emitHistory());
-		documentModel.registerCompositeRenderer((context) =>
-			renderAnnotations(context, documentModel.canvas, this.annotations.state),
+		this.annotations.onChange((state, change) =>
+			this.onAnnotationChange(state, change),
 		);
+		this.annotations.onHistoryChange(() => this.emitHistory());
+		documentModel.onHistoryChange(() => {
+			this.#renderCache.invalidate();
+			this.render();
+		});
+		documentModel.registerCompositeRenderer((context) => {
+			if (documentModel.layers.isVisible(CoreLayerId.Objects))
+				renderAnnotations(
+					context,
+					documentModel.canvas,
+					this.annotations.state,
+				);
+		});
+		documentModel.layers.onChange(() => {
+			if (!documentModel.layers.isEditable(CoreLayerId.Objects)) this.disable();
+			this.render();
+		});
 		documentModel.onBeforeGeometryChange(() => this.flattenShapes(false));
 		documentModel.onDocumentChange((snapshot) =>
 			this.onDocumentChange(snapshot.hasImage, snapshot.width, snapshot.height),
@@ -142,10 +166,7 @@ export class AnnotationController {
 	}
 
 	get active(): boolean {
-		return (
-			this.#active ||
-			this.annotations.selected?.type === AnnotationObjectTypeId.Shape
-		);
+		return this.#active || this.annotations.selected !== null;
 	}
 	get canUndo(): boolean {
 		return this.annotations.canUndo;
@@ -169,7 +190,11 @@ export class AnnotationController {
 	}
 
 	activate(focused = false): void {
-		if (!this.documentModel.hasImage) return;
+		if (
+			!this.documentModel.hasImage ||
+			!this.documentModel.layers.isEditable(CoreLayerId.Objects)
+		)
+			return;
 		this.requestInteractions();
 		document.body.classList.toggle('annotation-focus-preset', focused);
 		this.enable();
@@ -305,7 +330,8 @@ export class AnnotationController {
 		this.#last = point;
 		const selected = this.annotations.selected;
 		const selectedShape = selected ? genericShape(selected) : null;
-		const selectedHandle = selectedShape?.hitHandle(point) ?? null;
+		const selectedHandle =
+			selectedShape?.hitHandle(point, this.viewportVisualScale()) ?? null;
 		if (selected && selectedHandle) {
 			this.#draggedId = selected.id;
 			this.#transformHandle = selectedHandle;
@@ -434,6 +460,7 @@ export class AnnotationController {
 		clientY: number,
 		addOnCommit: boolean,
 	): void {
+		this.#editedTextId = addOnCommit ? null : original.id;
 		const scaledFontSize = Math.max(
 			TextShapeMetrics.MinimumFontSize,
 			original.size * this.viewportZoom(),
@@ -470,6 +497,8 @@ export class AnnotationController {
 			onCommit: (value) => {
 				applyText(value, true);
 				this.panel.text.value = value;
+				this.#editedTextId = null;
+				this.render();
 			},
 			onCancel: () => {
 				if (!addOnCommit)
@@ -478,6 +507,8 @@ export class AnnotationController {
 						(object) => Object.assign(object, original),
 						false,
 					);
+				this.#editedTextId = null;
+				this.render();
 			},
 		});
 	}
@@ -487,6 +518,10 @@ export class AnnotationController {
 			this.documentModel.overlay.getBoundingClientRect().width /
 			Math.max(1, this.documentModel.width)
 		);
+	}
+
+	private viewportVisualScale(): number {
+		return 1 / this.viewportZoom();
 	}
 
 	private onPointerUp(event: PointerEvent): void {
@@ -572,7 +607,7 @@ export class AnnotationController {
 	private updateHoverCursor(point: Point): void {
 		const selected = this.annotations.selected;
 		const selectedCursor = selected
-			? genericShape(selected).cursorAt(point)
+			? genericShape(selected).cursorAt(point, this.viewportVisualScale())
 			: null;
 		if (selectedCursor) {
 			this.documentModel.overlay.style.cursor = selectedCursor;
@@ -635,6 +670,7 @@ export class AnnotationController {
 	): void {
 		this.canvas.width = width;
 		this.canvas.height = height;
+		this.#renderCache.invalidate();
 		this.#restoring = true;
 		const persisted = hasImage
 			? this.documentModel.toolbarState<
@@ -651,8 +687,15 @@ export class AnnotationController {
 		this.render();
 	}
 
-	private onAnnotationChange(state: Readonly<AnnotationState>): void {
-		if (!this.#restoring && this.documentModel.hasImage)
+	private onAnnotationChange(
+		state: Readonly<AnnotationState>,
+		change: AnnotationChangeKind,
+	): void {
+		if (
+			change === AnnotationChangeKind.Committed &&
+			!this.#restoring &&
+			this.documentModel.hasImage
+		)
 			this.documentModel.setToolbarState(
 				STATE_KEY,
 				this.annotations.snapshotSession(),
@@ -661,27 +704,57 @@ export class AnnotationController {
 		this.panel.redo.disabled = !this.annotations.canRedo;
 		this.panel.nextStep.textContent = `Next marker: ${state.nextStep}`;
 		this.panel.markerValue.value = String(state.nextStep);
+		if (change === AnnotationChangeKind.Transient) {
+			this.scheduleTransientRender();
+			return;
+		}
+		this.cancelTransientRender();
 		this.render();
 	}
 
+	private scheduleTransientRender(): void {
+		if (this.#transientRenderFrame !== null) return;
+		this.#transientRenderFrame = requestAnimationFrame(() => {
+			this.#transientRenderFrame = null;
+			this.render();
+		});
+	}
+
+	private cancelTransientRender(): void {
+		if (this.#transientRenderFrame === null) return;
+		cancelAnimationFrame(this.#transientRenderFrame);
+		this.#transientRenderFrame = null;
+	}
+
 	private render(): void {
-		this.#context.clearRect(0, 0, this.canvas.width, this.canvas.height);
+		if (!this.documentModel.layers.isVisible(CoreLayerId.Objects)) {
+			this.#context.clearRect(0, 0, this.canvas.width, this.canvas.height);
+			return;
+		}
 		const selectedId =
-			this.#active ||
-			this.annotations.selected?.type === AnnotationObjectTypeId.Shape
+			this.#active || this.annotations.selected !== null
 				? this.annotations.selectedId
 				: null;
-		renderAnnotations(
+		const interactiveId =
+			this.#draggedId ??
+			this.#editedTextId ??
+			(this.annotations.renderState.interactionActive
+				? this.annotations.renderState.changedObjectId
+				: null);
+		this.#renderCache.render(
 			this.#context,
 			this.documentModel.canvas,
 			this.annotations.state,
-			selectedId,
+			this.annotations.renderState,
+			this.annotations.object(selectedId),
+			this.annotations.object(interactiveId),
 		);
 		if (this.#draft)
-			renderAnnotations(this.#context, this.documentModel.canvas, {
-				objects: [this.#draft],
-				nextStep: 1,
-			});
+			renderAnnotationObject(
+				this.#context,
+				this.documentModel.canvas,
+				this.#draft,
+			);
 		if (this.#crop) {
 			this.#context.save();
 			this.#context.strokeStyle = ColorPalette.Selection;

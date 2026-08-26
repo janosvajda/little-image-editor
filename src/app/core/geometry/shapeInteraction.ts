@@ -4,6 +4,7 @@ import {
 	resizeGeometry,
 	rotateGeometry,
 	ShapeHandleId,
+	ShapeHandleMetrics,
 	shapeHandles,
 	type ShapeHandle,
 	type TransformableGeometry,
@@ -14,13 +15,21 @@ export interface ShapeInteractionPolicy {
 	handles(
 		geometry: TransformableGeometry,
 	): Readonly<Record<ShapeHandle, Point>>;
-	hitHandle(geometry: TransformableGeometry, point: Point): ShapeHandle | null;
+	hitHandle(
+		geometry: TransformableGeometry,
+		point: Point,
+		visualScale?: number,
+	): ShapeHandle | null;
 	contains(
 		geometry: TransformableGeometry,
 		point: Point,
 		padding?: number,
 	): boolean;
-	cursor(geometry: TransformableGeometry, point: Point): string | null;
+	cursor(
+		geometry: TransformableGeometry,
+		point: Point,
+		visualScale?: number,
+	): string | null;
 	transform(
 		geometry: TransformableGeometry,
 		handle: ShapeHandle,
@@ -39,8 +48,17 @@ export class DefaultShapeInteractionPolicy implements ShapeInteractionPolicy {
 	): Readonly<Record<ShapeHandle, Point>> {
 		return shapeHandles(geometry);
 	}
-	hitHandle(geometry: TransformableGeometry, point: Point): ShapeHandle | null {
-		return hitShapeHandle(geometry, point);
+	hitHandle(
+		geometry: TransformableGeometry,
+		point: Point,
+		visualScale = 1,
+	): ShapeHandle | null {
+		return hitShapeHandle(
+			geometry,
+			point,
+			ShapeHandleMetrics.HitTolerance * visualScale,
+			ShapeHandleMetrics.Offset * visualScale,
+		);
 	}
 	contains(
 		geometry: TransformableGeometry,
@@ -49,8 +67,12 @@ export class DefaultShapeInteractionPolicy implements ShapeInteractionPolicy {
 	): boolean {
 		return containsTransformedPoint(geometry, point, padding);
 	}
-	cursor(geometry: TransformableGeometry, point: Point): string | null {
-		const handle = this.hitHandle(geometry, point);
+	cursor(
+		geometry: TransformableGeometry,
+		point: Point,
+		visualScale = 1,
+	): string | null {
+		const handle = this.hitHandle(geometry, point, visualScale);
 		if (handle === ShapeHandleId.Rotate) return ROTATE_CURSOR;
 		if (handle) return resizeCursor(handle, geometry.rotation ?? 0);
 		return this.contains(geometry, point) ? 'move' : null;

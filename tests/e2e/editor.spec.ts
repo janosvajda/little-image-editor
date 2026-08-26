@@ -201,7 +201,6 @@ test("uses grouped tool flyouts without changing tool persistence", async ({ pag
   await expect(brushGroup).toHaveClass(/active/);
   await expect(page.getByRole("menu", { name: "Brush tools" })).toBeHidden();
 
-  const shapeGroup = page.locator(".palette-group-button").nth(1);
   await shapeMenuTrigger.click();
   await expect(page.getByRole("menu", { name: "Shape tools" })).toBeVisible();
   await brushMenuTrigger.click();
@@ -273,8 +272,9 @@ test("shows the correct contextual UI for every drawing tool", async ({ page }) 
 test("returns from Picker directly to the selected paint tool through the split-button main area", async ({ page }) => {
   await page.goto("/");
   await page.locator("#quickNewButton").click();
-  await page.locator("#newImageWidth").fill("20");
-  await page.locator("#newImageHeight").fill("20");
+  await page.locator("#newImageName").fill("picker-to-pencil");
+  await page.locator("#newImageWidth").fill("200");
+  await page.locator("#newImageHeight").fill("200");
   await page.locator("#createImageButton").click();
   await page.locator(".palette-menu-trigger").first().click();
   await page.getByRole("menu", { name: "Brush tools" }).getByRole("menuitem", { name: "Pencil", exact: true }).click();
@@ -295,17 +295,45 @@ test("returns from Picker directly to the selected paint tool through the split-
   await expect(page.getByRole("menu", { name: "Brush tools" })).toBeHidden();
   await expect(page.locator("#paintToolSelect")).toHaveValue("pencil");
 
-  const x = bounds!.x + bounds!.width / 2;
-  const y = bounds!.y + bounds!.height / 2;
-  await overlay.dispatchEvent("pointerdown", { clientX: x, clientY: y, pointerId: 2 });
-  await overlay.dispatchEvent("pointermove", { clientX: x + 5, clientY: y, pointerId: 2 });
-  await overlay.dispatchEvent("pointerup", { clientX: x + 5, clientY: y, pointerId: 2 });
-  const containsRedPaint = await page.locator("#canvas").evaluate(canvas => {
-    const data = (canvas as HTMLCanvasElement).getContext("2d")!.getImageData(0, 0, 20, 20).data;
-    for (let index = 0; index < data.length; index += 4) if (data[index]! > data[index + 1]!) return true;
-    return false;
+  await overlay.evaluate((element) => {
+    const canvas = element as HTMLCanvasElement;
+    const area = canvas.getBoundingClientRect();
+    const from = { x: area.left + area.width * .55, y: area.top + area.height * .55 };
+    const to = { x: area.left + area.width * .7, y: area.top + area.height * .55 };
+    canvas.setPointerCapture = () => undefined;
+    canvas.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, button: 0, buttons: 1, pointerId: 2, clientX: from.x, clientY: from.y }));
+    canvas.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, button: 0, buttons: 1, pointerId: 2, clientX: to.x, clientY: to.y }));
+    canvas.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, button: 0, buttons: 0, pointerId: 2, clientX: to.x, clientY: to.y }));
   });
-  expect(containsRedPaint).toBe(true);
+  const retainedType = await page.evaluate(async () => {
+    await new Promise(resolve => setTimeout(resolve, 50));
+    const database = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open("littleImageEditor");
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    const record = await new Promise<Record<string, unknown> | undefined>((resolve, reject) => {
+      const request = database.transaction("recovery", "readonly").objectStore("recovery").get("currentImage");
+      request.onsuccess = () => resolve(request.result as Record<string, unknown> | undefined);
+      request.onerror = () => reject(request.error);
+    });
+    const toolbarStates = record?.toolbarStates as Record<string, unknown> | undefined;
+    const session = toolbarStates?.annotations as { state?: { objects?: Array<{ type?: string }> } } | undefined;
+    return session?.state?.objects?.at(-1)?.type;
+  });
+  expect(retainedType).toBe("stroke");
+  const paintPixels = await page.locator(".annotation-canvas").evaluate(canvas => {
+    const surface = canvas as HTMLCanvasElement;
+    const data = surface.getContext("2d")!.getImageData(0, 0, surface.width, surface.height).data;
+    let visible = 0, red = 0;
+    for (let index = 0; index < data.length; index += 4) {
+      if (data[index + 3]!) visible += 1;
+      if (data[index]! > data[index + 1]!) red += 1;
+    }
+    return { visible, red };
+  });
+  expect(paintPixels.visible).toBeGreaterThan(0);
+  expect(paintPixels.red).toBeGreaterThan(0);
 });
 
 test("gives every visible interactive UI element an accessible identity", async ({ page }) => {

@@ -44,6 +44,12 @@ export const ImageMimeType = {
 } as const;
 export type ImageFormat = (typeof ImageMimeType)[keyof typeof ImageMimeType];
 
+export const DocumentType = {
+	Image: 'image',
+	Project: 'project',
+} as const;
+export type DocumentType = (typeof DocumentType)[keyof typeof DocumentType];
+
 export interface NewImageOptions {
 	name: string;
 	width: number;
@@ -52,6 +58,7 @@ export interface NewImageOptions {
 	background: string;
 	format?: ImageFormat;
 	resolution?: number;
+	documentType?: DocumentType;
 }
 
 export interface ImageSnapshot {
@@ -61,6 +68,7 @@ export interface ImageSnapshot {
 	baseName: string;
 	savedType: ImageFormat;
 	resolution?: number;
+	documentType?: DocumentType;
 }
 
 export type HistorySnapshot = Pick<
@@ -72,4 +80,7 @@ export interface DocumentSessionSnapshot extends ImageSnapshot {
 	history: HistorySnapshot[];
 	historyIndex: number;
 	toolbarStates?: Record<string, unknown>;
+	layerState?: LayerState;
 }
+
+import type { LayerState } from '../layers/layerTypes';

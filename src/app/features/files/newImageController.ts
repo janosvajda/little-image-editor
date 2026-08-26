@@ -4,6 +4,8 @@ import {
 } from '../../core/geometry/geometryHelpers';
 import { element } from '../../shared/dom/domHelpers';
 import { CanvasDocument } from '../../core/document/imageDocument';
+import { DocumentType } from '../../core/document/appTypes';
+import { PROJECT_EXTENSION } from '../projects/projectTypes';
 import { imageFormat } from '../../core/document/imageFormats';
 import {
 	populateImageFormatSelect,
@@ -47,6 +49,7 @@ export class NewImageController {
 	readonly #name = element<HTMLInputElement>('#newImageName');
 	readonly #nameError = element<HTMLElement>('#newImageNameError');
 	readonly #resolution = document.createElement('select');
+	#documentType!: HTMLSelectElement;
 	#format!: HTMLSelectElement;
 
 	constructor(readonly documentModel: CanvasDocument) {
@@ -78,7 +81,12 @@ export class NewImageController {
 		}
 		this.#nameError.insertAdjacentHTML(
 			'afterend',
-			'<label>File type<select id="newImageFormat"></select></label>',
+			'<label>Document type<select id="newImageDocumentType"></select></label><label>File type<select id="newImageFormat"></select></label>',
+		);
+		this.#documentType = element<HTMLSelectElement>('#newImageDocumentType');
+		this.#documentType.append(
+			new Option('Standard image', DocumentType.Image),
+			new Option(`Little Image Editor project (.${PROJECT_EXTENSION})`, DocumentType.Project),
 		);
 		this.#format = element<HTMLSelectElement>('#newImageFormat');
 		populateImageFormatSelect(this.#format);
@@ -176,6 +184,7 @@ export class NewImageController {
 			background: element<HTMLInputElement>('#newImageColor').value,
 			format: imageFormat(this.#format.value).mimeType,
 			resolution: Number(this.#resolution.value),
+			documentType: this.#documentType.value as DocumentType,
 		});
 		this.dialog.close();
 	}

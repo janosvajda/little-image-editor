@@ -201,7 +201,7 @@ export class WorkspaceUi {
 						panel.position.x,
 						panel.position.y,
 					);
-				else this.toolbarLayout.resolve(panel);
+				else this.toolbarLayout.resolve(panel, true);
 				this.saveLayout();
 			});
 		});
@@ -239,7 +239,7 @@ export class WorkspaceUi {
 			panel.header.removeEventListener('pointermove', move);
 			panel.header.removeEventListener('pointerup', end);
 			panel.header.removeEventListener('pointercancel', end);
-			this.toolbarLayout.resolve(panel);
+			this.toolbarLayout.resolve(panel, true);
 			this.saveLayout();
 		};
 		panel.header.addEventListener('pointermove', move);
