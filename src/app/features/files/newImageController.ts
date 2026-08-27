@@ -4,9 +4,16 @@ import {
 } from '../../core/geometry/geometryHelpers';
 import { element } from '../../shared/dom/domHelpers';
 import { CanvasDocument } from '../../core/document/imageDocument';
-import { imageFormat } from '../../core/document/imageFormats';
+import { DocumentType } from '../../core/document/appTypes';
+import { PROJECT_MIME_TYPE } from '../projects/projectTypes';
 import {
-	populateImageFormatSelect,
+	DEFAULT_IMAGE_FORMAT,
+	imageFormat,
+	isImageFormat,
+} from '../../core/document/imageFormats';
+import {
+	documentFileTypeWarning,
+	populateDocumentFileTypeSelect,
 	transparencyWarning,
 } from './formatSelectHelpers';
 
@@ -48,6 +55,7 @@ export class NewImageController {
 	readonly #nameError = element<HTMLElement>('#newImageNameError');
 	readonly #resolution = document.createElement('select');
 	#format!: HTMLSelectElement;
+	#fileTypeWarning!: HTMLElement;
 
 	constructor(readonly documentModel: CanvasDocument) {
 		this.addDynamicControls();
@@ -78,10 +86,12 @@ export class NewImageController {
 		}
 		this.#nameError.insertAdjacentHTML(
 			'afterend',
-			'<label>File type<select id="newImageFormat"></select></label>',
+			'<label>File type<select id="newImageFormat"></select></label><p id="newImageFileTypeWarning" class="file-format-warning" role="status"></p>',
 		);
 		this.#format = element<HTMLSelectElement>('#newImageFormat');
-		populateImageFormatSelect(this.#format);
+		populateDocumentFileTypeSelect(this.#format);
+		this.#fileTypeWarning = element('#newImageFileTypeWarning');
+		this.updateFileTypeWarning();
 		this.#resolution.id = 'newImageResolution';
 		this.#resolution.setAttribute('aria-label', 'Resolution (PPI)');
 		for (const ppi of RESOLUTION_PRESETS) {
@@ -128,9 +138,10 @@ export class NewImageController {
 		this.#aspect.addEventListener('change', () =>
 			this.updateLinkedDimension(DimensionAxis.Width),
 		);
-		this.#format.addEventListener('change', () =>
-			this.updateTransparencyWarning(),
-		);
+		this.#format.addEventListener('change', () => {
+			this.updateFileTypeWarning();
+			this.updateTransparencyWarning();
+		});
 		element<HTMLInputElement>('#newImageTransparent').addEventListener(
 			'change',
 			(event) => {
@@ -168,14 +179,21 @@ export class NewImageController {
 		const width = clampDimension(this.#width.value),
 			height = clampDimension(this.#height.value);
 		if (!Number.isFinite(width) || !Number.isFinite(height)) return;
+		const fileType = this.#format.value;
+		const projectDocument = fileType === PROJECT_MIME_TYPE;
 		this.documentModel.create({
 			name,
 			width,
 			height,
 			transparent: element<HTMLInputElement>('#newImageTransparent').checked,
 			background: element<HTMLInputElement>('#newImageColor').value,
-			format: imageFormat(this.#format.value).mimeType,
+			format: isImageFormat(fileType)
+				? fileType
+				: DEFAULT_IMAGE_FORMAT.mimeType,
 			resolution: Number(this.#resolution.value),
+			documentType: projectDocument
+				? DocumentType.Project
+				: DocumentType.Image,
 		});
 		this.dialog.close();
 	}
@@ -190,8 +208,17 @@ export class NewImageController {
 		const transparent = element<HTMLInputElement>(
 			'#newImageTransparent',
 		).checked;
-		warning.textContent = transparencyWarning(this.#format.value);
+		warning.textContent =
+			this.#format.value === PROJECT_MIME_TYPE
+				? documentFileTypeWarning(PROJECT_MIME_TYPE)
+				: transparencyWarning(imageFormat(this.#format.value).mimeType);
 		warning.classList.toggle('hidden', !transparent);
+	}
+
+	private updateFileTypeWarning(): void {
+		this.#fileTypeWarning.textContent = documentFileTypeWarning(
+			this.#format.value,
+		);
 	}
 
 	private resolutionField(): HTMLLabelElement {

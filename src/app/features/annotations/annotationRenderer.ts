@@ -1,4 +1,5 @@
 import type { Point } from '../../core/document/appTypes';
+import { PaintToolId } from '../../core/document/appTypes';
 import { annotationBounds } from './annotationDocument';
 import {
 	AnnotationObjectTypeId,
@@ -9,12 +10,15 @@ import {
 import { drawShape } from '../drawing/drawingHelpers';
 import {
 	ShapeHandleId,
+	ShapeHandleMetrics,
 	shapeHandles,
 	withShapeTransform,
 } from '../../core/geometry/shapeTransformHelpers';
 import { genericShape } from '../../core/geometry/genericShape';
 import { ColorPalette } from '../../core/document/colorPalette';
 import { textFont } from '../../core/geometry/textShapeMetrics';
+import { drawFreehandStroke } from '../drawing/drawingHelpers';
+import { transformedStrokePoints } from './strokeGeometry';
 
 const AnnotationRendering = {
 	ArrowMinimumHead: 10,
@@ -27,12 +31,15 @@ const AnnotationRendering = {
 	BlurMinimum: 2,
 	BlurSpreadFactor: 2,
 	SelectionLineWidth: 1,
+	SelectionContrastLineWidth: 3,
 	SelectionDash: 5,
 	SelectionGap: 4,
 	RotateHandleHalfSize: 5,
 	RotateHandleSize: 10,
 	ResizeHandleHalfSize: 4,
 	ResizeHandleSize: 8,
+	StrokeEndpointHalfSize: 5,
+	StrokeEndpointSize: 10,
 	ShortHexLength: 3,
 	HexRadix: 16,
 	RedBitShift: 16,
@@ -43,6 +50,10 @@ const AnnotationRendering = {
 	BlueLumaInteger: 114,
 	LumaDivisor: 1_000,
 	LightColorThreshold: 145,
+	MinimumStrokePointCount: 2,
+	RandomMaximum: 4_294_967_296,
+	RandomMultiplier: 1_664_525,
+	RandomIncrement: 1_013_904_223,
 } as const;
 
 export function renderAnnotations(
@@ -51,12 +62,22 @@ export function renderAnnotations(
 	state: Readonly<AnnotationState>,
 	selectedId: string | null = null,
 ): void {
-	state.objects.forEach((object) => renderObject(context, baseCanvas, object));
+	renderAnnotationObjects(context, baseCanvas, state.objects);
 	const selected = state.objects.find((object) => object.id === selectedId);
-	if (selected) renderSelection(context, selected);
+	if (selected) renderAnnotationSelection(context, selected);
 }
 
-function renderObject(
+export function renderAnnotationObjects(
+	context: CanvasRenderingContext2D,
+	baseCanvas: HTMLCanvasElement,
+	objects: readonly AnnotationObject[],
+): void {
+	objects.filter((object) => object.visible !== false).forEach((object) =>
+		renderAnnotationObject(context, baseCanvas, object),
+	);
+}
+
+export function renderAnnotationObject(
 	context: CanvasRenderingContext2D,
 	baseCanvas: HTMLCanvasElement,
 	object: AnnotationObject,
@@ -89,6 +110,27 @@ function renderObject(
 				},
 				object.fill,
 			);
+		});
+	else if (object.type === AnnotationObjectTypeId.Stroke)
+		withShapeTransform(context, object, () => drawStroke(context, object));
+	else if (object.type === AnnotationObjectTypeId.Fill)
+		withShapeTransform(context, object, () => {
+			context.fillStyle = object.color;
+			context.globalAlpha = object.opacity;
+			const sourceBounds = fillSourceBounds(object.runs);
+			const scaleX = sourceBounds.width
+				? object.rect.width / sourceBounds.width
+				: 1;
+			const scaleY = sourceBounds.height
+				? object.rect.height / sourceBounds.height
+				: 1;
+			for (const run of object.runs)
+				context.fillRect(
+					object.rect.x + (run.x - sourceBounds.x) * scaleX,
+					object.rect.y + (run.y - sourceBounds.y) * scaleY,
+					run.length * scaleX,
+					scaleY,
+				);
 		});
 	else if (object.type === AnnotationObjectTypeId.Blur)
 		withShapeTransform(context, object, () =>
@@ -128,6 +170,93 @@ function renderObject(
 		});
 	}
 	context.restore();
+}
+
+function fillSourceBounds(
+	runs: ReadonlyArray<Readonly<{ x: number; y: number; length: number }>>,
+): { x: number; y: number; width: number; height: number } {
+	const left = Math.min(...runs.map((run) => run.x));
+	const top = Math.min(...runs.map((run) => run.y));
+	const right = Math.max(...runs.map((run) => run.x + run.length));
+	const bottom = Math.max(...runs.map((run) => run.y + 1));
+	return { x: left, y: top, width: right - left, height: bottom - top };
+}
+
+function drawStroke(
+	context: CanvasRenderingContext2D,
+	object: Extract<
+		AnnotationObject,
+		{ type: typeof AnnotationObjectTypeId.Stroke }
+	>,
+): void {
+	if (object.points.length < AnnotationRendering.MinimumStrokePointCount) return;
+	const source = object.sourceRect ?? object.rect;
+	const scaleX = source.width === 0 ? 1 : object.rect.width / source.width;
+	const scaleY = source.height === 0 ? 1 : object.rect.height / source.height;
+	const random = seededRandom(object.seed);
+	const from = { x: 0, y: 0 };
+	const to = { x: 0, y: 0 };
+	for (let index = 1; index < object.points.length; index += 1) {
+		const sourceFrom = object.points[index - 1]!;
+		const sourceTo = object.points[index]!;
+		from.x = object.rect.x + (sourceFrom.x - source.x) * scaleX;
+		from.y = object.rect.y + (sourceFrom.y - source.y) * scaleY;
+		to.x = object.rect.x + (sourceTo.x - source.x) * scaleX;
+		to.y = object.rect.y + (sourceTo.y - source.y) * scaleY;
+		drawFreehandStroke(
+			context,
+			object.tool,
+			from,
+			to,
+			{
+				color: object.color,
+				size: object.size,
+				opacity: object.opacity,
+				hardness: object.hardness,
+			},
+			sourceTo.pressure,
+			random,
+		);
+	}
+}
+
+export function renderStrokeTail(
+	context: CanvasRenderingContext2D,
+	object: Extract<
+		AnnotationObject,
+		{ type: typeof AnnotationObjectTypeId.Stroke }
+	>,
+	previousPointCount: number,
+): void {
+	const firstRequiredPoint = Math.max(0, previousPointCount - 1);
+	const points = object.points.slice(firstRequiredPoint);
+	if (points.length < AnnotationRendering.MinimumStrokePointCount) return;
+	renderAnnotationObject(context, context.canvas, {
+		...object,
+		points,
+		rotation: 0,
+		rect: { ...(object.sourceRect ?? object.rect) },
+	});
+}
+
+export function supportsIncrementalStrokeRendering(
+	object: Extract<
+		AnnotationObject,
+		{ type: typeof AnnotationObjectTypeId.Stroke }
+	>,
+): boolean {
+	return object.tool !== PaintToolId.Spray;
+}
+
+function seededRandom(seed: number): () => number {
+	let state = seed >>> 0;
+	return () => {
+		state =
+			(state * AnnotationRendering.RandomMultiplier +
+				AnnotationRendering.RandomIncrement) >>>
+			0;
+		return state / AnnotationRendering.RandomMaximum;
+	};
 }
 
 function drawArrow(
@@ -239,58 +368,103 @@ function drawBlur(
 	context.restore();
 }
 
-function renderSelection(
+export function renderAnnotationSelection(
 	context: CanvasRenderingContext2D,
 	object: AnnotationObject,
 ): void {
 	const bounds = annotationBounds(object);
+	const visualScale = canvasVisualScale(context.canvas);
 	context.save();
-	context.strokeStyle = ColorPalette.Selection;
-	context.lineWidth = AnnotationRendering.SelectionLineWidth;
-	context.setLineDash([
-		AnnotationRendering.SelectionDash,
-		AnnotationRendering.SelectionGap,
-	]);
 	const geometry = genericShape(object).geometry;
-	withShapeTransform(context, geometry, () =>
-		strokeRectangle(context, bounds.x, bounds.y, bounds.width, bounds.height),
-	);
+	withShapeTransform(context, geometry, () => {
+		context.strokeStyle = ColorPalette.White;
+		context.lineWidth =
+			AnnotationRendering.SelectionContrastLineWidth * visualScale;
+		context.setLineDash([]);
+		strokeRectangle(context, bounds.x, bounds.y, bounds.width, bounds.height);
+		context.strokeStyle = ColorPalette.Selection;
+		context.lineWidth = AnnotationRendering.SelectionLineWidth * visualScale;
+		context.setLineDash([
+			AnnotationRendering.SelectionDash * visualScale,
+			AnnotationRendering.SelectionGap * visualScale,
+		]);
+		strokeRectangle(context, bounds.x, bounds.y, bounds.width, bounds.height);
+	});
 	context.setLineDash([]);
 	context.fillStyle = ColorPalette.White;
 	context.strokeStyle = ColorPalette.Selection;
-	const handles = shapeHandles(genericShape(object).geometry);
+	const handles = shapeHandles(
+		genericShape(object).geometry,
+		ShapeHandleMetrics.Offset * visualScale,
+	);
 	for (const [key, point] of Object.entries(handles)) {
 		if (key === ShapeHandleId.Rotate) {
+			const halfSize = AnnotationRendering.RotateHandleHalfSize * visualScale;
+			const size = AnnotationRendering.RotateHandleSize * visualScale;
 			context.fillRect(
-				point.x - AnnotationRendering.RotateHandleHalfSize,
-				point.y - AnnotationRendering.RotateHandleHalfSize,
-				AnnotationRendering.RotateHandleSize,
-				AnnotationRendering.RotateHandleSize,
+				point.x - halfSize,
+				point.y - halfSize,
+				size,
+				size,
 			);
 			strokeRectangle(
 				context,
-				point.x - AnnotationRendering.RotateHandleHalfSize,
-				point.y - AnnotationRendering.RotateHandleHalfSize,
-				AnnotationRendering.RotateHandleSize,
-				AnnotationRendering.RotateHandleSize,
+				point.x - halfSize,
+				point.y - halfSize,
+				size,
+				size,
 			);
 		} else {
+			const halfSize = AnnotationRendering.ResizeHandleHalfSize * visualScale;
+			const size = AnnotationRendering.ResizeHandleSize * visualScale;
 			context.fillRect(
-				point.x - AnnotationRendering.ResizeHandleHalfSize,
-				point.y - AnnotationRendering.ResizeHandleHalfSize,
-				AnnotationRendering.ResizeHandleSize,
-				AnnotationRendering.ResizeHandleSize,
+				point.x - halfSize,
+				point.y - halfSize,
+				size,
+				size,
 			);
 			strokeRectangle(
 				context,
-				point.x - AnnotationRendering.ResizeHandleHalfSize,
-				point.y - AnnotationRendering.ResizeHandleHalfSize,
-				AnnotationRendering.ResizeHandleSize,
-				AnnotationRendering.ResizeHandleSize,
+				point.x - halfSize,
+				point.y - halfSize,
+				size,
+				size,
 			);
 		}
 	}
+	if (object.type === AnnotationObjectTypeId.Stroke)
+		renderStrokeEndpointHandles(context, object, visualScale);
 	context.restore();
+}
+
+function renderStrokeEndpointHandles(
+	context: CanvasRenderingContext2D,
+	stroke: Extract<
+		AnnotationObject,
+		{ type: typeof AnnotationObjectTypeId.Stroke }
+	>,
+	visualScale: number,
+): void {
+	const points = transformedStrokePoints(stroke);
+	const halfSize = AnnotationRendering.StrokeEndpointHalfSize * visualScale;
+	const size = AnnotationRendering.StrokeEndpointSize * visualScale;
+	for (const point of [points[0], points.at(-1)]) {
+		if (!point) continue;
+		context.fillRect(point.x - halfSize, point.y - halfSize, size, size);
+		strokeRectangle(
+			context,
+			point.x - halfSize,
+			point.y - halfSize,
+			size,
+			size,
+		);
+	}
+}
+
+function canvasVisualScale(canvas: HTMLCanvasElement | undefined): number {
+	if (!canvas) return 1;
+	const renderedWidth = canvas.getBoundingClientRect().width;
+	return renderedWidth > 0 ? canvas.width / renderedWidth : 1;
 }
 
 function strokeRectangle(

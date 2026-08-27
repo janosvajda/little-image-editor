@@ -28,6 +28,7 @@ const CLOSE_BUTTON_CLASS = 'panel-close';
 const CLOSE_BUTTON_SYMBOL = '×';
 const EXPAND_BUTTON_SYMBOL = '+';
 const COLLAPSE_BUTTON_SYMBOL = '−';
+const PANEL_TOP_PROPERTY = '--toolbar-panel-top';
 
 export class ManagedToolbarPanel {
 	readonly key: string;
@@ -115,6 +116,7 @@ export class ManagedToolbarPanel {
 		this.#lastPosition = position;
 		this.element.style.left = `${position.x}px`;
 		this.element.style.top = `${position.y}px`;
+		this.element.style.setProperty(PANEL_TOP_PROPERTY, `${position.y}px`);
 		this.element.style.right = 'auto';
 	}
 
@@ -153,6 +155,7 @@ export class ManagedToolbarPanel {
 		this.element.style.removeProperty('left');
 		this.element.style.removeProperty('right');
 		this.element.style.removeProperty('top');
+		this.element.style.removeProperty(PANEL_TOP_PROPERTY);
 		this.restore();
 	}
 

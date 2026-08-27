@@ -6,9 +6,11 @@ import {
 	AnnotationObjectTypeId,
 	type AnnotationObject,
 	type ArrowAnnotation,
+	type FillAnnotation,
 	type RectAnnotation,
 	type ShapeAnnotation,
 	type StepAnnotation,
+	type StrokeAnnotation,
 	type TextAnnotation,
 } from '../../features/annotations/annotationTypes';
 import type { CropRect, Point } from '../document/appTypes';
@@ -40,14 +42,14 @@ export abstract class GenericShape<
 		return this.interaction.handles(this.geometry);
 	}
 
-	hitHandle(point: Point): ShapeHandle | null {
-		return this.interaction.hitHandle(this.geometry, point);
+	hitHandle(point: Point, visualScale = 1): ShapeHandle | null {
+		return this.interaction.hitHandle(this.geometry, point, visualScale);
 	}
 	contains(point: Point, padding?: number): boolean {
 		return this.interaction.contains(this.geometry, point, padding);
 	}
-	cursorAt(point: Point): string | null {
-		return this.interaction.cursor(this.geometry, point);
+	cursorAt(point: Point, visualScale = 1): string | null {
+		return this.interaction.cursor(this.geometry, point, visualScale);
 	}
 
 	move(delta: Point): void {
@@ -63,7 +65,9 @@ export abstract class GenericShape<
 	}
 }
 
-export class RectShape extends GenericShape<RectAnnotation | ShapeAnnotation> {
+export class RectShape extends GenericShape<
+	RectAnnotation | ShapeAnnotation | FillAnnotation
+> {
 	protected readRect(): CropRect {
 		return this.object.rect;
 	}
@@ -120,6 +124,16 @@ export class TextShape extends GenericShape<TextAnnotation> {
 	}
 }
 
+export class StrokeShape extends GenericShape<StrokeAnnotation> {
+	protected readRect(): CropRect {
+		return this.object.rect;
+	}
+	protected writeRect(rect: CropRect): void {
+		this.object.sourceRect ??= { ...this.object.rect };
+		this.object.rect = rect;
+	}
+}
+
 type ShapeRegistration = Readonly<{
 	supports(object: AnnotationObject): boolean;
 	create(object: AnnotationObject): GenericShape;
@@ -146,6 +160,11 @@ const DEFAULT_SHAPE_FACTORY = new GenericShapeFactory([
 	registration(AnnotationObjectTypeId.Step, (object) => new StepShape(object)),
 	registration(AnnotationObjectTypeId.Text, (object) => new TextShape(object)),
 	registration(AnnotationObjectTypeId.Shape, (object) => new RectShape(object)),
+	registration(
+		AnnotationObjectTypeId.Stroke,
+		(object) => new StrokeShape(object),
+	),
+	registration(AnnotationObjectTypeId.Fill, (object) => new RectShape(object)),
 	registration(AnnotationObjectTypeId.Box, (object) => new RectShape(object)),
 	registration(
 		AnnotationObjectTypeId.Highlight,

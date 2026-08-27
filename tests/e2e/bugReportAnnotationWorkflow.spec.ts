@@ -14,12 +14,13 @@ test("annotation workspace is hidden normally and focused when explicitly reques
   await page.goto("/");
   await expect(page.locator(".annotation-panel")).toBeHidden();
   await createImage(page);
-  await expect(page.locator("[data-panel=tools]")).toBeHidden();
-  await expect(page.getByRole("button", { name: "Arrow", exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Number", exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Blur", exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Redact", exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Crop", exact: true })).toBeVisible();
+  await expect(page.locator("[data-panel=tools]")).toBeVisible();
+  const annotations = page.locator('[data-panel="annotations"]');
+  await expect(annotations.getByRole("button", { name: "Arrow", exact: true })).toBeVisible();
+  await expect(annotations.getByRole("button", { name: "Number", exact: true })).toBeVisible();
+  await expect(annotations.getByRole("button", { name: "Blur", exact: true })).toBeVisible();
+  await expect(annotations.getByRole("button", { name: "Redact", exact: true })).toBeVisible();
+  await expect(annotations.getByRole("button", { name: "Crop", exact: true })).toBeVisible();
 });
 
 test("number shortcut places an incrementing sequence and persists it across reload", async ({ page }) => {
@@ -43,8 +44,9 @@ test("number shortcut places an incrementing sequence and persists it across rel
 
 test("all annotation tools switch immediately and crop requires explicit apply", async ({ page }) => {
   await createImage(page);
+  const annotations = page.locator('[data-panel="annotations"]');
   for (const tool of ["Select", "Arrow", "Number", "Box", "Highlight", "Text", "Blur", "Redact", "Crop"]) {
-    const button = page.getByRole("button", { name: tool, exact: true });
+    const button = annotations.getByRole("button", { name: tool, exact: true });
     await button.click();
     await expect(button).toHaveClass(/active/);
   }

@@ -4,6 +4,12 @@ export interface FloodFillOptions {
 	readonly tolerance: number;
 }
 
+export interface FloodFillRun {
+	readonly x: number;
+	readonly y: number;
+	readonly length: number;
+}
+
 const COLOR_CHANNEL_COUNT = 4;
 const COLOR_CHANNEL_MAXIMUM = 255;
 const ALPHA_CHANNEL_OFFSET = 3;
@@ -20,15 +26,7 @@ export function floodFill(
 	startY: number,
 	options: FloodFillOptions,
 ): boolean {
-	if (
-		width <= 0 ||
-		height <= 0 ||
-		startX < 0 ||
-		startY < 0 ||
-		startX >= width ||
-		startY >= height
-	)
-		return false;
+	if (!validFillRequest(width, height, startX, startY)) return false;
 	return new FloodFillOperation(
 		context,
 		width,
@@ -37,6 +35,25 @@ export function floodFill(
 		startY,
 		options,
 	).run();
+}
+
+export function createFloodFillMask(
+	context: CanvasRenderingContext2D,
+	width: number,
+	height: number,
+	startX: number,
+	startY: number,
+	options: FloodFillOptions,
+): readonly FloodFillRun[] {
+	if (!validFillRequest(width, height, startX, startY)) return [];
+	return new FloodFillOperation(
+		context,
+		width,
+		height,
+		startX,
+		startY,
+		options,
+	).createMask();
 }
 
 class FloodFillOperation {
@@ -73,16 +90,25 @@ class FloodFillOperation {
 	}
 
 	run(): boolean {
+		this.scan();
+		if (this.#changed) this.context.putImageData(this.#image, 0, 0);
+		return this.#changed;
+	}
+
+	createMask(): readonly FloodFillRun[] {
+		this.scan();
+		return this.#changed ? maskRuns(this.#visited, this.width, this.height) : [];
+	}
+
+	private scan(): void {
 		if (
 			composite(this.#source, this.#opacity, this.#target).every(
 				(value, index) => value === this.#target[index],
 			)
 		)
-			return false;
+			return;
 		while (this.#stack.length)
 			this.fillSegment(this.#stack.pop()!, this.#stack.pop()!);
-		if (this.#changed) this.context.putImageData(this.#image, 0, 0);
-		return this.#changed;
 	}
 
 	private fillSegment(y: number, x: number): void {
@@ -153,6 +179,40 @@ class FloodFillOperation {
 			this.#pixels.subarray(index, index + COLOR_CHANNEL_COUNT),
 		);
 	}
+}
+
+function validFillRequest(
+	width: number,
+	height: number,
+	startX: number,
+	startY: number,
+): boolean {
+	return (
+		width > 0 &&
+		height > 0 &&
+		startX >= 0 &&
+		startY >= 0 &&
+		startX < width &&
+		startY < height
+	);
+}
+
+function maskRuns(
+	visited: Uint8Array,
+	width: number,
+	height: number,
+): FloodFillRun[] {
+	const runs: FloodFillRun[] = [];
+	for (let y = 0; y < height; y += 1) {
+		let x = 0;
+		while (x < width) {
+			while (x < width && visited[y * width + x] === 0) x += 1;
+			const start = x;
+			while (x < width && visited[y * width + x] !== 0) x += 1;
+			if (x > start) runs.push({ x: start, y, length: x - start });
+		}
+	}
+	return runs;
 }
 
 function parseHexColor(color: string): readonly [number, number, number] {

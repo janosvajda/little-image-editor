@@ -11,7 +11,7 @@ test.beforeEach(async ({ page }) => {
     Object.defineProperty(window, "ClipboardItem", { configurable: true, value: TestClipboardItem });
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,
-      value: { write: async (items: ClipboardItem[]) => { (window as unknown as { copiedItems: ClipboardItem[] }).copiedItems = items; } }
+      value: { write: (items: ClipboardItem[]) => { (window as unknown as { copiedItems: ClipboardItem[] }).copiedItems = items; return Promise.resolve(); } }
     });
   });
 });

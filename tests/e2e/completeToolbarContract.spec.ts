@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
-const TOOLBARS = ["tools", "adjust", "effects", "transform", "annotations"] as const;
+const TOOLBARS = ["tools", "adjust", "effects", "transform", "annotations", "layers"] as const;
 const LAYOUT_KEY = "little-editor.panel-layout.v2";
 test.setTimeout(60_000);
 
@@ -144,7 +144,12 @@ test("auto-open is a generic toolbar metadata capability, not an annotation name
   await expect(toolbar(page, "adjust")).toBeVisible();
   await expect(toolbar(page, "adjust")).toHaveAttribute("data-auto-open-mode", "audit-adjust");
   await expect(page).not.toHaveURL(/mode=audit-adjust/);
-  for (const key of TOOLBARS.filter(key => key !== "adjust")) await expect(toolbar(page, key)).toBeHidden();
+  for (const key of TOOLBARS.filter(key => key !== "adjust")) {
+    const panel = toolbar(page, key);
+    const defaultVisible = await panel.getAttribute("data-default-visible") !== null;
+    if (defaultVisible) await expect(panel).toBeVisible();
+    else await expect(panel).toBeHidden();
+  }
 
   await page.reload();
   await expect(toolbar(page, "adjust")).toBeVisible();

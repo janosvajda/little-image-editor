@@ -12,6 +12,9 @@ import { FileController } from './app/features/files/fileController';
 import { NewImageController } from './app/features/files/newImageController';
 import { SessionPersistence } from './app/features/files/sessionPersistence';
 import { SpriteController } from './app/features/files/spriteController';
+import { LayersController } from './app/features/layers/layersController';
+import { ProjectController } from './app/features/projects/projectController';
+import { DocumentLimitController } from './app/features/projects/documentLimitController';
 import { CanvasToolCoordinator } from './app/features/workspace/canvasToolCoordinator';
 import { CanvasViewportController } from './app/features/workspace/canvasViewportController';
 import { ToolbarManager } from './app/features/workspace/genericToolbar';
@@ -35,13 +38,19 @@ const documentModel = new CanvasDocument(
 	element<HTMLCanvasElement>('#canvas'),
 	element<HTMLCanvasElement>('#overlay'),
 );
+const vectorShapes = new AnnotationDocument();
 const newImage = new NewImageController(documentModel);
-const files = new FileController(documentModel);
+const files = new FileController(
+	documentModel,
+	() => vectorShapes.state.objects.length > 0,
+);
 const clipboard = new ClipboardController(documentModel);
 const sprites = new SpriteController(documentModel);
 const annotationPanel = new AnnotationPanel();
+const layers = new LayersController(documentModel, vectorShapes);
 element<HTMLElement>(toolbarSelector(ToolbarId.Transform)).before(
 	annotationPanel.element,
+	layers.panel.element,
 );
 const workspaceUi = new WorkspaceUi([
 	newImage.dialog,
@@ -50,8 +59,11 @@ const workspaceUi = new WorkspaceUi([
 ]);
 workspaceUi.bindToolbarAvailability(documentModel);
 const viewport = new CanvasViewportController(documentModel);
-const vectorShapes = new AnnotationDocument();
+new DocumentLimitController(documentModel, vectorShapes);
 const drawing = new DrawingController(documentModel, viewport, vectorShapes);
+layers.onEditRequested((objectId) => {
+	drawing.editObject(objectId);
+});
 new ImageOperations(documentModel);
 new EffectsController(documentModel);
 const toolbarManager = new ToolbarManager(documentModel);
@@ -70,8 +82,9 @@ const annotations = new AnnotationController(
 	annotationPreferences,
 	vectorShapes,
 );
+const projects = new ProjectController(documentModel, undefined, vectorShapes);
+files.setProjectSaveHandler((saveAs) => projects.save(saveAs));
 new CanvasToolCoordinator([drawing, annotations]);
-files.onBeforeSave(() => annotations.flattenShapes());
 enhancePanelButtons();
 const sessionPersistence = new SessionPersistence(documentModel);
 new TooltipController();
@@ -135,11 +148,13 @@ const redoButtons = [
 ];
 let documentCanUndo = false;
 let documentCanRedo = false;
-let historyDomain: 'document' | 'annotation' = 'document';
+let objectCanUndo = false;
+let objectCanRedo = false;
+let historyDomain: 'document' | 'objects' = 'document';
 const updateHistoryButtons = () => {
-	const useAnnotations = annotations.active && historyDomain === 'annotation';
-	const canUndo = useAnnotations ? annotations.canUndo : documentCanUndo;
-	const canRedo = useAnnotations ? annotations.canRedo : documentCanRedo;
+	const useObjects = historyDomain === 'objects';
+	const canUndo = useObjects ? objectCanUndo : documentCanUndo;
+	const canRedo = useObjects ? objectCanRedo : documentCanRedo;
 	undoButtons.forEach((button) => {
 		button.disabled = !canUndo;
 	});
@@ -153,17 +168,19 @@ documentModel.onHistoryChange((canUndo, canRedo) => {
 	historyDomain = 'document';
 	updateHistoryButtons();
 });
-annotations.onHistoryChange(() => {
-	historyDomain = annotations.active ? 'annotation' : 'document';
+vectorShapes.onHistoryChange((canUndo, canRedo) => {
+	objectCanUndo = canUndo;
+	objectCanRedo = canRedo;
+	historyDomain = 'objects';
 	updateHistoryButtons();
 });
 const undo = () =>
-	annotations.active && historyDomain === 'annotation'
-		? annotations.undo()
+	historyDomain === 'objects'
+		? vectorShapes.undo()
 		: documentModel.undo();
 const redo = () =>
-	annotations.active && historyDomain === 'annotation'
-		? annotations.redo()
+	historyDomain === 'objects'
+		? vectorShapes.redo()
 		: documentModel.redo();
 undoButtons.forEach((button) => button.addEventListener('click', undo));
 redoButtons.forEach((button) => button.addEventListener('click', redo));

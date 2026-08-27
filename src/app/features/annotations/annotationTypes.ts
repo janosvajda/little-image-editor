@@ -1,4 +1,11 @@
-import type { CropRect, Point, ShapeTool } from '../../core/document/appTypes';
+import type {
+	CropRect,
+	PaintTool,
+	Point,
+	ShapeTool,
+} from '../../core/document/appTypes';
+import { CoreLayerId } from '../../core/layers/layerTypes';
+import type { FloodFillRun } from '../drawing/floodFillHelpers';
 
 export const AnnotationToolId = {
 	Select: 'select',
@@ -27,12 +34,47 @@ export const AnnotationObjectTypeId = {
 	Blur: AnnotationToolId.Blur,
 	Redact: AnnotationToolId.Redact,
 	Shape: 'shape',
+	Stroke: 'stroke',
+	Fill: 'fill',
 } as const;
 
 interface AnnotationBase {
 	id: string;
-	type: AnnotationObjectType;
+	type:
+		| AnnotationObjectType
+		| typeof AnnotationObjectTypeId.Stroke
+		| typeof AnnotationObjectTypeId.Fill;
 	rotation?: number;
+	visible?: boolean;
+	locked?: boolean;
+}
+
+export interface StrokePoint extends Point {
+	readonly pressure: number;
+}
+
+export interface StrokeAnnotation extends AnnotationBase {
+	type: typeof AnnotationObjectTypeId.Stroke;
+	layerId: typeof CoreLayerId.Objects;
+	tool: PaintTool;
+	points: StrokePoint[];
+	sourceRect?: CropRect;
+	rect: CropRect;
+	color: string;
+	size: number;
+	opacity: number;
+	hardness: number;
+	seed: number;
+}
+
+export interface FillAnnotation extends AnnotationBase {
+	type: typeof AnnotationObjectTypeId.Fill;
+	layerId: typeof CoreLayerId.Objects;
+	rect: CropRect;
+	runs: FloodFillRun[];
+	color: string;
+	opacity: number;
+	tolerance: number;
 }
 
 export interface ArrowAnnotation extends AnnotationBase {
@@ -67,6 +109,8 @@ export interface ShapeAnnotation {
 	width: number;
 	opacity: number;
 	fill: boolean;
+	visible?: boolean;
+	locked?: boolean;
 }
 
 export interface StepAnnotation extends AnnotationBase {
@@ -91,7 +135,9 @@ export type AnnotationObject =
 	| RectAnnotation
 	| StepAnnotation
 	| TextAnnotation
-	| ShapeAnnotation;
+	| ShapeAnnotation
+	| StrokeAnnotation
+	| FillAnnotation;
 
 export interface AnnotationState {
 	objects: AnnotationObject[];

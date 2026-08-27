@@ -8,9 +8,9 @@ test("annotation uses the standard toolbar header and Toolbars visibility persis
 
   const panel = page.locator('[data-panel="annotations"]');
   await expect(panel).toBeVisible();
-  await expect(panel.locator(".panel-header button")).toHaveCount(1);
+  await expect(panel.locator(".panel-header button")).toHaveCount(2);
   await expect(panel.locator(".panel-header .collapse")).toBeVisible();
-  await expect(panel.locator(".panel-header")).not.toContainText("×");
+  await expect(panel.getByRole("button", { name: "Close Capture & annotate" })).toBeVisible();
 
   await toggle.uncheck();
   await expect(panel).toBeHidden();

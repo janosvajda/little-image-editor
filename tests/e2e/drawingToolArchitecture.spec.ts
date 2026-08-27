@@ -26,7 +26,7 @@ test("every drawing tool activates through the shared palette and receives canva
 
   await chooseBrush(page, "Brush");
   await dragCanvas(page, { x: 560, y: 220 }, { x: 650, y: 310 });
-  await expect.poll(() => imageHasNonWhitePixel(page)).toBe(true);
+  await expect.poll(() => annotationAlphaCount(page)).toBeGreaterThan(0);
 });
 
 async function createImage(page: Page): Promise<void> {
@@ -58,19 +58,11 @@ async function dragCanvas(page: Page, from: { x: number; y: number }, to: { x: n
   }, { from, to });
 }
 
-async function annotationAlphaCount(page: Page): Promise<number> {
+function annotationAlphaCount(page: Page): Promise<number> {
   return page.locator(".annotation-canvas").evaluate((canvas: HTMLCanvasElement) => {
     const pixels = canvas.getContext("2d")!.getImageData(0, 0, canvas.width, canvas.height).data;
     let count = 0;
     for (let index = 3; index < pixels.length; index += 4) if (pixels[index]) count += 1;
     return count;
-  });
-}
-
-async function imageHasNonWhitePixel(page: Page): Promise<boolean> {
-  return page.locator("#canvas").evaluate((canvas: HTMLCanvasElement) => {
-    const pixels = canvas.getContext("2d")!.getImageData(0, 0, canvas.width, canvas.height).data;
-    for (let index = 0; index < pixels.length; index += 4) if (pixels[index] !== 255 || pixels[index + 1] !== 255 || pixels[index + 2] !== 255) return true;
-    return false;
   });
 }

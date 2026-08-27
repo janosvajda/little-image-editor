@@ -6,6 +6,7 @@ import {
 } from './fileNameHelpers';
 import { CanvasDocument } from '../../core/document/imageDocument';
 import type { ImageFormat } from '../../core/document/appTypes';
+import { DocumentType } from '../../core/document/appTypes';
 import { imageFormat } from '../../core/document/imageFormats';
 import { populateImageFormatSelect } from './formatSelectHelpers';
 
@@ -13,6 +14,10 @@ type PickerWindow = Window & {
 	showSaveFilePicker?: (options: object) => Promise<FileSystemFileHandle>;
 };
 const OBJECT_URL_RELEASE_DELAY_MS = 1_000;
+const RASTER_LAYER_WARNING =
+	'This format saves a flattened image. Layers and editable objects remain available in the open document, but cannot be restored from the saved file. Continue?';
+
+export type EditableContentDetector = () => boolean;
 
 export class FileController {
 	readonly fileInput = element<HTMLInputElement>('#fileInput');
@@ -20,8 +25,12 @@ export class FileController {
 	readonly #format = element<HTMLSelectElement>('#formatSelect');
 	readonly #saveButtons: HTMLButtonElement[];
 	readonly #beforeSaveListeners = new Set<() => void>();
+	#projectSave: ((saveAs: boolean) => Promise<void>) | null = null;
 
-	constructor(readonly documentModel: CanvasDocument) {
+	constructor(
+		readonly documentModel: CanvasDocument,
+		private readonly hasEditableContent: EditableContentDetector = () => false,
+	) {
 		this.fileInput.accept = 'image/png,image/jpeg,image/webp';
 		element('#saveAsButton').insertAdjacentHTML(
 			'afterend',
@@ -54,14 +63,21 @@ export class FileController {
 	onBeforeSave(listener: () => void): void {
 		this.#beforeSaveListeners.add(listener);
 	}
+	setProjectSaveHandler(handler: (saveAs: boolean) => Promise<void>): void {
+		this.#projectSave = handler;
+	}
 
 	async save(): Promise<void> {
 		if (!this.documentModel.hasImage) return;
+		if (this.documentModel.documentType === DocumentType.Project) {
+			await this.#projectSave?.(false);
+			return;
+		}
 		if (!this.documentModel.fileHandle) {
 			await this.saveAs();
 			return;
 		}
-		if (!this.confirmTransparency(this.documentModel.savedType)) return;
+		if (!this.canSaveRaster(this.documentModel.savedType)) return;
 		this.prepareDocumentForSave();
 		await this.write(
 			this.documentModel.fileHandle,
@@ -70,6 +86,10 @@ export class FileController {
 	}
 
 	async saveAs(): Promise<void> {
+		if (this.documentModel.documentType === DocumentType.Project) {
+			await this.#projectSave?.(true);
+			return;
+		}
 		await this.saveCopy(true);
 	}
 
@@ -89,7 +109,7 @@ export class FileController {
 	private async saveCopy(updateDocument: boolean): Promise<void> {
 		if (!this.documentModel.hasImage) return;
 		const type = this.#format.value as ImageFormat;
-		if (!this.confirmTransparency(type)) return;
+		if (!this.canSaveRaster(type)) return;
 		try {
 			const picker = (window as PickerWindow).showSaveFilePicker;
 			if (picker) {
@@ -182,6 +202,14 @@ export class FileController {
 				`${format.label} does not support transparency. Transparent pixels will be replaced with white. Continue?`,
 			)
 		);
+	}
+
+	private canSaveRaster(type: ImageFormat): boolean {
+		return this.confirmRasterFlattening() && this.confirmTransparency(type);
+	}
+
+	private confirmRasterFlattening(): boolean {
+		return !this.hasEditableContent() || window.confirm(RASTER_LAYER_WARNING);
 	}
 
 	private prepareDocumentForSave(): void {

@@ -42,7 +42,7 @@ test("annotation is a fully managed toolbar with visibility, collapse, layout, a
   await expect(page.locator('[data-panel-toggle="annotations"]')).not.toBeChecked();
 });
 
-test("bug-report capture preset uses managed visibility and can reveal another toolbar", async ({ page }) => {
+test("annotation auto-open preserves existing toolbar visibility", async ({ page }) => {
   await page.goto("/");
   await page.locator("#quickNewButton").click();
   await page.locator("#newImageName").fill("managed-capture");
@@ -52,11 +52,11 @@ test("bug-report capture preset uses managed visibility and can reveal another t
 
   await expect(page.locator('[data-panel="annotations"]')).toBeVisible();
   await expect(page.locator('[data-panel-toggle="annotations"]')).toBeChecked();
-  await expect(page.locator('[data-panel="tools"]')).toBeHidden();
-  await expect(page.locator('[data-panel-toggle="tools"]')).not.toBeChecked();
+  await expect(page.locator('[data-panel="tools"]')).toBeVisible();
+  await expect(page.locator('[data-panel-toggle="tools"]')).toBeChecked();
 
   await page.locator("#toolbarPickerButton").click();
-  await page.locator('[data-panel-toggle="tools"]').check();
-  await expect(page.locator('[data-panel="tools"]')).toBeVisible();
+  await page.locator('[data-panel-toggle="adjust"]').check();
+  await expect(page.locator('[data-panel="adjust"]')).toBeVisible();
   await expect(page.locator('[data-panel="annotations"]')).toBeVisible();
 });

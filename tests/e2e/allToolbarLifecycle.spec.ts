@@ -1,6 +1,11 @@
 import { expect, test, type Page } from "@playwright/test";
 
-const TOOLBAR_KEYS = ["tools", "adjust", "effects", "transform", "annotations"] as const;
+const TOOLBAR_KEYS = ["tools", "adjust", "effects", "transform", "annotations", "layers"] as const;
+const LAYOUT_COLUMNS = 2;
+const LAYOUT_LEFT = 24;
+const LAYOUT_TOP = 24;
+const LAYOUT_COLUMN_GAP = 560;
+const LAYOUT_ROW_GAP = 90;
 
 test.beforeEach(async ({ page }) => {
   await page.goto("/");
@@ -55,17 +60,14 @@ test("every toolbar restores open, closed, collapsed, and positioned state after
 
   for (const [index, key] of TOOLBAR_KEYS.entries()) {
     const panel = page.locator(`[data-panel="${key}"]`);
-    const left = 24 + index * 38;
-    const top = 24 + index * 42;
-    await panel.evaluate((element, position) => {
-      const panelElement = element as HTMLElement;
-      panelElement.style.left = `${position.left}px`;
-      panelElement.style.top = `${position.top}px`;
-      panelElement.style.right = "auto";
-      const collapse = panelElement.querySelector<HTMLButtonElement>(".collapse")!;
-      collapse.click();
-    }, { left, top });
-    expectedPositions[key] = { left, top };
+    const deltaX = LAYOUT_LEFT + index % LAYOUT_COLUMNS * LAYOUT_COLUMN_GAP;
+    const deltaY = LAYOUT_TOP + Math.floor(index / LAYOUT_COLUMNS) * LAYOUT_ROW_GAP;
+    await dragPanel(panel, deltaX, deltaY);
+    await panel.locator(":scope > .panel-header > .collapse").click();
+    expectedPositions[key] = await panel.evaluate(element => ({
+      left: (element as HTMLElement).offsetLeft,
+      top: (element as HTMLElement).offsetTop
+    }));
   }
 
   await page.reload();
@@ -79,7 +81,7 @@ test("every toolbar restores open, closed, collapsed, and positioned state after
   }
 
   await page.locator("#toolbarPickerButton").click();
-  for (const key of ["adjust", "transform", "annotations"] as const) await page.locator(`[data-panel-toggle="${key}"]`).uncheck();
+  for (const key of ["adjust", "transform", "annotations", "layers"] as const) await page.locator(`[data-panel-toggle="${key}"]`).uncheck();
   await page.reload();
 
   for (const key of TOOLBAR_KEYS) {
@@ -115,6 +117,17 @@ async function showEveryToolbar(page: Page): Promise<void> {
   }
 }
 
+async function dragPanel(panel: import("@playwright/test").Locator, deltaX: number, deltaY: number): Promise<void> {
+  const header = panel.locator(":scope > .panel-header");
+  const box = await header.boundingBox();
+  if (!box) throw new Error("Toolbar header is not visible.");
+  const page = header.page();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + deltaX, box.y + box.height / 2 + deltaY, { steps: 3 });
+  await page.mouse.up();
+}
+
 async function createImage(page: Page, name: string, width: number, height: number): Promise<void> {
   await page.locator("#quickNewButton").click();
   await page.locator("#newImageName").fill(name);
@@ -147,7 +160,7 @@ async function clickCanvas(page: Page, x: number, y: number): Promise<void> {
   }, { x, y });
 }
 
-async function hasNonWhitePixel(page: Page): Promise<boolean> {
+function hasNonWhitePixel(page: Page): Promise<boolean> {
   return page.locator("#canvas").evaluate(canvas => {
     const context = (canvas as HTMLCanvasElement).getContext("2d")!;
     const pixels = context.getImageData(0, 0, (canvas as HTMLCanvasElement).width, (canvas as HTMLCanvasElement).height).data;

@@ -40,7 +40,7 @@ async function dragCanvas(page: Page, from: { x: number; y: number }, to: { x: n
   await page.mouse.move(start.x, start.y); await page.mouse.down(); await page.mouse.move(end.x, end.y); await page.mouse.up();
 }
 
-async function alphaBounds(page: Page): Promise<{ width: number; height: number }> {
+function alphaBounds(page: Page): Promise<{ width: number; height: number }> {
   return page.locator(".annotation-canvas").evaluate((canvas: HTMLCanvasElement) => {
     const data = canvas.getContext("2d")!.getImageData(0, 0, canvas.width, canvas.height).data;
     let left = canvas.width, top = canvas.height, right = -1, bottom = -1;

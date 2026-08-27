@@ -21,7 +21,7 @@ test("selecting the active brush takes canvas control from annotation Highlight"
   await page.mouse.up();
 
   await expect(page.locator("body")).not.toHaveClass(/annotation-mode/);
-  const painted = await page.locator("#canvas").evaluate(canvas => {
+  const painted = await page.locator(".annotation-canvas").evaluate(canvas => {
     const context = (canvas as HTMLCanvasElement).getContext("2d")!;
     return [...context.getImageData(0, 0, (canvas as HTMLCanvasElement).width, (canvas as HTMLCanvasElement).height).data]
       .some((value, index) => index % 4 === 3 && value > 0);
