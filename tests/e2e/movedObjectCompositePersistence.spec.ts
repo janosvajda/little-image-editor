@@ -9,7 +9,7 @@ test('moving a lower object preserves every object and canonical z-order after r
 	await page.goto('/');
 	await installProjectWriter(page);
 	await page.locator('#quickNewButton').click();
-	await page.locator('#newImageDocumentType').selectOption('project');
+	await page.locator('#newImageFormat').selectOption('application/vnd.little-image-editor.project+json');
 	await page.locator('#newImageName').fill('composite-order');
 	await page.locator('#createImageButton').click();
 	await chooseBrush(page);

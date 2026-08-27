@@ -31,6 +31,7 @@ const AnnotationRendering = {
 	BlurMinimum: 2,
 	BlurSpreadFactor: 2,
 	SelectionLineWidth: 1,
+	SelectionContrastLineWidth: 3,
 	SelectionDash: 5,
 	SelectionGap: 4,
 	RotateHandleHalfSize: 5,
@@ -374,16 +375,21 @@ export function renderAnnotationSelection(
 	const bounds = annotationBounds(object);
 	const visualScale = canvasVisualScale(context.canvas);
 	context.save();
-	context.strokeStyle = ColorPalette.Selection;
-	context.lineWidth = AnnotationRendering.SelectionLineWidth * visualScale;
-	context.setLineDash([
-		AnnotationRendering.SelectionDash * visualScale,
-		AnnotationRendering.SelectionGap * visualScale,
-	]);
 	const geometry = genericShape(object).geometry;
-	withShapeTransform(context, geometry, () =>
-		strokeRectangle(context, bounds.x, bounds.y, bounds.width, bounds.height),
-	);
+	withShapeTransform(context, geometry, () => {
+		context.strokeStyle = ColorPalette.White;
+		context.lineWidth =
+			AnnotationRendering.SelectionContrastLineWidth * visualScale;
+		context.setLineDash([]);
+		strokeRectangle(context, bounds.x, bounds.y, bounds.width, bounds.height);
+		context.strokeStyle = ColorPalette.Selection;
+		context.lineWidth = AnnotationRendering.SelectionLineWidth * visualScale;
+		context.setLineDash([
+			AnnotationRendering.SelectionDash * visualScale,
+			AnnotationRendering.SelectionGap * visualScale,
+		]);
+		strokeRectangle(context, bounds.x, bounds.y, bounds.width, bounds.height);
+	});
 	context.setLineDash([]);
 	context.fillStyle = ColorPalette.White;
 	context.strokeStyle = ColorPalette.Selection;

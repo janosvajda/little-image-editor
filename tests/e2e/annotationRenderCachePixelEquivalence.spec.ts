@@ -19,7 +19,7 @@ test('cached interactive rendering is pixel-identical to a fresh project render'
 	await page.goto('/');
 	await installProjectWriter(page);
 	await page.locator('#quickNewButton').click();
-	await page.locator('#newImageDocumentType').selectOption('project');
+	await page.locator('#newImageFormat').selectOption('application/vnd.little-image-editor.project+json');
 	await page.locator('#newImageName').fill('render-cache-equivalence');
 	await page.locator('#createImageButton').click();
 	await page.locator('#quickSaveButton').click();

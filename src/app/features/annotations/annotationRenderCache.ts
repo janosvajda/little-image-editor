@@ -293,7 +293,8 @@ export class AnnotationRenderCache {
 		this.#cachedRevision = revision;
 		this.#cachedStaticRevision = staticRevision;
 		this.#excludedObjectId = excludedId;
-		this.#excludedObjectCanPromote = false;
+		this.#excludedObjectCanPromote =
+			excludedId !== null && state.objects.at(-1)?.id === excludedId;
 		this.#cacheBuilds += 1;
 		this.#cachedObjectsRendered += objects.length;
 	}

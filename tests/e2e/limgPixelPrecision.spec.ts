@@ -20,7 +20,7 @@ test('every editable object renders pixel-identically after save, reopen, resave
 	await page.goto('/');
 	await installProjectWriter(page);
 	await page.locator('#quickNewButton').click();
-	await page.locator('#newImageDocumentType').selectOption('project');
+	await page.locator('#newImageFormat').selectOption('application/vnd.little-image-editor.project+json');
 	await page.locator('#newImageName').fill('pixel-precise-project');
 	await page.locator('#createImageButton').click();
 	await page.locator('#quickSaveButton').click();

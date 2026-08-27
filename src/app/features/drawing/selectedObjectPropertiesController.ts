@@ -1,7 +1,7 @@
 import { element } from '../../shared/dom/domHelpers';
 import {
-	AnnotationChangeKind,
 	type AnnotationDocument,
+	isEphemeralAnnotationChange,
 } from '../annotations/annotationDocument';
 import {
 	EditableObjectPropertyId,
@@ -72,7 +72,7 @@ export class SelectedObjectPropertiesController {
 		this.#root.append(continueButton);
 		parent.prepend(this.#root);
 		objects.onChange((_state, change) => {
-			if (change !== AnnotationChangeKind.Transient) this.sync();
+			if (!isEphemeralAnnotationChange(change)) this.sync();
 		});
 		this.sync();
 	}

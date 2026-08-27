@@ -513,6 +513,7 @@ export class DrawingController {
 			) {
 				this.shapes.select(selectableHit.id);
 				this.#shapeId = selectableHit.id;
+				this.shapes.beginInteraction(selectableHit.id);
 			} else this.#pendingShapeSelectionId = selectableHit.id;
 			this.#drawing = true;
 			this.#start = this.#last = point;
@@ -537,6 +538,7 @@ export class DrawingController {
 			return false;
 		this.#drawing = true;
 		this.#pendingBodyMoveId = selected.id;
+		this.shapes.beginInteraction(selected.id);
 		this.#start = this.#last = point;
 		this.documentModel.overlay.setPointerCapture(event.pointerId);
 		return true;
@@ -554,6 +556,7 @@ export class DrawingController {
 		this.#shapeId = selected.id;
 		this.#shapeHandle = handle;
 		this.#pendingHandleInteraction = true;
+		this.shapes.beginInteraction(selected.id);
 		this.#start = this.#last = point;
 		this.documentModel.overlay.setPointerCapture(event.pointerId);
 		return true;
@@ -735,11 +738,13 @@ export class DrawingController {
 		const remainsClick =
 			Math.hypot(point.x - this.#start.x, point.y - this.#start.y) <
 			POINTER_DRAG_THRESHOLD;
-		if (remainsClick) return true;
+		if (remainsClick) {
+			this.previewPendingBodyMove(point);
+			return true;
+		}
 		if (this.#pendingBodyMoveId) {
 			this.#shapeId = this.#pendingBodyMoveId;
 			this.#pendingBodyMoveId = null;
-			this.#last = this.#start;
 		}
 		if (this.#pendingStrokeContinuationId)
 			this.startPendingStrokeContinuation();
@@ -749,6 +754,25 @@ export class DrawingController {
 		}
 		this.#pendingShapeSelectionId = null;
 		return remainsClick;
+	}
+
+	private previewPendingBodyMove(point: Point): void {
+		if (!this.shapes || !this.#pendingBodyMoveId) return;
+		this.shapes.move(
+			this.#pendingBodyMoveId,
+			{ x: point.x - this.#last.x, y: point.y - this.#last.y },
+			false,
+		);
+		this.#last = point;
+	}
+
+	private restorePendingBodyPreview(): void {
+		if (!this.shapes || !this.#pendingBodyMoveId) return;
+		this.shapes.move(
+			this.#pendingBodyMoveId,
+			{ x: this.#start.x - this.#last.x, y: this.#start.y - this.#last.y },
+			false,
+		);
 	}
 
 	private startPendingStrokeContinuation(): void {
@@ -815,6 +839,9 @@ export class DrawingController {
 		this.#drawing = false;
 		this.#activeStrokeOptions ??= this.strokeOptions();
 		const point = this.point(event);
+		this.restorePendingBodyPreview();
+		if (this.#pendingBodyMoveId || this.#pendingHandleInteraction)
+			this.shapes?.cancelCurrentInteraction();
 		if (this.#pendingShapeSelectionId && this.shapes) {
 			this.shapes.select(this.#pendingShapeSelectionId);
 		} else if (
@@ -1068,10 +1095,16 @@ function randomSeed(): number {
 }
 
 function fillBounds(runs: readonly FloodFillRun[]): CropRect {
-	const left = Math.min(...runs.map((run) => run.x));
-	const top = Math.min(...runs.map((run) => run.y));
-	const right = Math.max(...runs.map((run) => run.x + run.length));
-	const bottom = Math.max(...runs.map((run) => run.y + 1));
+	let left = Number.POSITIVE_INFINITY;
+	let top = Number.POSITIVE_INFINITY;
+	let right = Number.NEGATIVE_INFINITY;
+	let bottom = Number.NEGATIVE_INFINITY;
+	for (const run of runs) {
+		left = Math.min(left, run.x);
+		top = Math.min(top, run.y);
+		right = Math.max(right, run.x + run.length);
+		bottom = Math.max(bottom, run.y + 1);
+	}
 	return { x: left, y: top, width: right - left, height: bottom - top };
 }
 

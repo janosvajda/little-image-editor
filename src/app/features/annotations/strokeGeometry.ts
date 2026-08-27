@@ -47,14 +47,54 @@ export function strokePointBounds(
 	points: readonly StrokePoint[],
 	strokeSize: number,
 ): StrokeAnnotation['rect'] {
-	const xs = points.map((point) => point.x);
-	const ys = points.map((point) => point.y);
 	const padding = strokeSize / 2;
-	const left = Math.min(...xs) - padding;
-	const top = Math.min(...ys) - padding;
-	const right = Math.max(...xs) + padding;
-	const bottom = Math.max(...ys) + padding;
+	let left = Number.POSITIVE_INFINITY;
+	let top = Number.POSITIVE_INFINITY;
+	let right = Number.NEGATIVE_INFINITY;
+	let bottom = Number.NEGATIVE_INFINITY;
+	for (const point of points) {
+		left = Math.min(left, point.x);
+		top = Math.min(top, point.y);
+		right = Math.max(right, point.x);
+		bottom = Math.max(bottom, point.y);
+	}
+	left -= padding;
+	top -= padding;
+	right += padding;
+	bottom += padding;
 	return { x: left, y: top, width: right - left, height: bottom - top };
+}
+
+export function strokeContainsPoint(
+	stroke: StrokeAnnotation,
+	point: Point,
+	tolerance: number,
+): boolean {
+	if (stroke.points.length < 2) return false;
+	const transform = new StrokeCoordinateTransform(stroke);
+	const toleranceSquared = tolerance * tolerance;
+	const first = stroke.points[0]!;
+	let previousX = transform.x(first);
+	let previousY = transform.y(first);
+	for (let index = 1; index < stroke.points.length; index += 1) {
+		const current = stroke.points[index]!;
+		const currentX = transform.x(current);
+		const currentY = transform.y(current);
+		if (
+			squaredDistanceToSegmentCoordinates(
+				point.x,
+				point.y,
+				previousX,
+				previousY,
+				currentX,
+				currentY,
+			) <= toleranceSquared
+		)
+			return true;
+		previousX = currentX;
+		previousY = currentY;
+	}
+	return false;
 }
 
 export function distanceToStroke(
@@ -72,23 +112,107 @@ export function distanceToStroke(
 }
 
 function distanceToSegment(point: Point, from: Point, to: Point): number {
-	const dx = to.x - from.x;
-	const dy = to.y - from.y;
-	if (dx === 0 && dy === 0) return pointDistance(point, from);
+	return Math.sqrt(squaredDistanceToSegment(point, from, to));
+}
+
+function squaredDistanceToSegment(
+	point: Point,
+	from: Point,
+	to: Point,
+): number {
+	return squaredDistanceToSegmentCoordinates(
+		point.x,
+		point.y,
+		from.x,
+		from.y,
+		to.x,
+		to.y,
+	);
+}
+
+function squaredDistanceToSegmentCoordinates(
+	pointX: number,
+	pointY: number,
+	fromX: number,
+	fromY: number,
+	toX: number,
+	toY: number,
+): number {
+	const dx = toX - fromX;
+	const dy = toY - fromY;
+	if (dx === 0 && dy === 0) {
+		const pointDx = pointX - fromX;
+		const pointDy = pointY - fromY;
+		return pointDx * pointDx + pointDy * pointDy;
+	}
 	const projection = Math.max(
 		0,
 		Math.min(
 			1,
-			((point.x - from.x) * dx + (point.y - from.y) * dy) /
+			((pointX - fromX) * dx + (pointY - fromY) * dy) /
 				(dx * dx + dy * dy),
 		),
 	);
-	return pointDistance(point, {
-		x: from.x + projection * dx,
-		y: from.y + projection * dy,
-	});
+	const offsetX = pointX - (fromX + projection * dx);
+	const offsetY = pointY - (fromY + projection * dy);
+	return offsetX * offsetX + offsetY * offsetY;
 }
 
 function pointDistance(left: Point, right: Point): number {
 	return Math.hypot(left.x - right.x, left.y - right.y);
+}
+
+class StrokeCoordinateTransform {
+	readonly #source;
+	readonly #centerX;
+	readonly #centerY;
+	readonly #cosine;
+	readonly #sine;
+	readonly #scaleX;
+	readonly #scaleY;
+
+	constructor(private readonly stroke: StrokeAnnotation) {
+		this.#source = stroke.sourceRect ?? stroke.rect;
+		this.#centerX = stroke.rect.x + stroke.rect.width / 2;
+		this.#centerY = stroke.rect.y + stroke.rect.height / 2;
+		const radians = degreesToRadians(stroke.rotation ?? 0);
+		this.#cosine = Math.cos(radians);
+		this.#sine = Math.sin(radians);
+		this.#scaleX =
+			this.#source.width === 0
+				? 1
+				: stroke.rect.width / this.#source.width;
+		this.#scaleY =
+			this.#source.height === 0
+				? 1
+				: stroke.rect.height / this.#source.height;
+	}
+
+	x(point: StrokePoint): number {
+		const x = this.unrotatedX(point);
+		const y = this.unrotatedY(point);
+		return (
+			this.#centerX +
+			(x - this.#centerX) * this.#cosine -
+			(y - this.#centerY) * this.#sine
+		);
+	}
+
+	y(point: StrokePoint): number {
+		const x = this.unrotatedX(point);
+		const y = this.unrotatedY(point);
+		return (
+			this.#centerY +
+			(x - this.#centerX) * this.#sine +
+			(y - this.#centerY) * this.#cosine
+		);
+	}
+
+	private unrotatedX(point: StrokePoint): number {
+		return this.stroke.rect.x + (point.x - this.#source.x) * this.#scaleX;
+	}
+
+	private unrotatedY(point: StrokePoint): number {
+		return this.stroke.rect.y + (point.y - this.#source.y) * this.#scaleY;
+	}
 }

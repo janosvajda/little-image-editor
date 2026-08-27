@@ -13,7 +13,7 @@ import { genericShape } from '../../core/geometry/genericShape';
 import { normalizedRect as normalizeRectangle } from '../../core/geometry/geometryHelpers';
 import { EditorLimit } from '../../core/document/editorLimits';
 import { ObjectSpatialIndex } from './objectSpatialIndex';
-import { distanceToStroke } from './strokeGeometry';
+import { strokeContainsPoint } from './strokeGeometry';
 
 const HISTORY_LIMIT = EditorLimit.EditableObjectHistory;
 const ARROW_HIT_MINIMUM = 8;
@@ -29,10 +29,18 @@ export interface AnnotationRenderState {
 export const AnnotationChangeKind = {
 	Committed: 'committed',
 	Transient: 'transient',
+	Interaction: 'interaction',
 	Selection: 'selection',
 } as const;
 export type AnnotationChangeKind =
 	(typeof AnnotationChangeKind)[keyof typeof AnnotationChangeKind];
+
+export const AnnotationStackDirection = {
+	Forward: 'forward',
+	Backward: 'backward',
+} as const;
+export type AnnotationStackDirection =
+	(typeof AnnotationStackDirection)[keyof typeof AnnotationStackDirection];
 
 export class AnnotationDocument {
 	#state: AnnotationState = { objects: [], nextStep: 1 };
@@ -156,6 +164,23 @@ export class AnnotationDocument {
 		this.emit(AnnotationChangeKind.Selection);
 	}
 
+	beginInteraction(id: string): void {
+		if (!this.#objectsById.has(id)) return;
+		this.markRenderedContentChanged(id, true);
+		this.emit(AnnotationChangeKind.Interaction);
+	}
+
+	cancelCurrentInteraction(): void {
+		if (!this.#renderState.interactionActive) return;
+		this.#renderState = {
+			...this.#renderState,
+			revision: this.#renderState.revision + 1,
+			staticRevision: this.#renderState.staticRevision + 1,
+			interactionActive: false,
+		};
+		this.emit(AnnotationChangeKind.Interaction);
+	}
+
 	removeSelected(): void {
 		if (!this.selectedId) return;
 		this.remove(this.selectedId);
@@ -167,6 +192,40 @@ export class AnnotationDocument {
 		this.rebuildObjectIndex();
 		this.markRenderedContentChanged(null, false);
 		if (this.selectedId === id) this.selectedId = null;
+		this.commit();
+	}
+
+	reorder(id: string, direction: AnnotationStackDirection): void {
+		const currentIndex = this.#objectOrder.get(id);
+		if (currentIndex === undefined) return;
+		const offset = direction === AnnotationStackDirection.Forward ? 1 : -1;
+		const targetIndex = currentIndex + offset;
+		if (targetIndex < 0 || targetIndex >= this.#state.objects.length) return;
+		const current = this.#state.objects[currentIndex];
+		const target = this.#state.objects[targetIndex];
+		if (!current || !target) return;
+		this.#state.objects[currentIndex] = target;
+		this.#state.objects[targetIndex] = current;
+		this.indexObject(target, currentIndex);
+		this.indexObject(current, targetIndex);
+		this.markRenderedContentChanged(null, false);
+		this.commit();
+	}
+
+	moveToObject(id: string, targetId: string): void {
+		const currentIndex = this.#objectOrder.get(id);
+		const targetIndex = this.#objectOrder.get(targetId);
+		if (
+			currentIndex === undefined ||
+			targetIndex === undefined ||
+			currentIndex === targetIndex
+		)
+			return;
+		const [object] = this.#state.objects.splice(currentIndex, 1);
+		if (!object) return;
+		this.#state.objects.splice(targetIndex, 0, object);
+		this.rebuildObjectIndex();
+		this.markRenderedContentChanged(null, false);
 		this.commit();
 	}
 
@@ -229,25 +288,24 @@ export class AnnotationDocument {
 		point: Point,
 		excludedIds: ReadonlySet<string> = EMPTY_OBJECT_IDS,
 	): AnnotationObject | null {
-		return (
-			[...this.#spatialIndex.query(point)]
-				.sort(
-					(left, right) =>
-						(this.#objectOrder.get(right) ?? 0) -
-						(this.#objectOrder.get(left) ?? 0),
-				)
-				.map((id) => this.#objectsById.get(id))
-				.find(
-					(object): object is AnnotationObject =>
-						Boolean(
-							object &&
-							!excludedIds.has(object.id) &&
-							object.visible !== false &&
-							object.locked !== true &&
-							containsPoint(object, point),
-						),
-				) ?? null
-		);
+		let topmost: AnnotationObject | null = null;
+		let topmostOrder = -1;
+		for (const id of this.#spatialIndex.query(point)) {
+			const object = this.#objectsById.get(id);
+			const order = this.#objectOrder.get(id) ?? 0;
+			if (
+				order <= topmostOrder ||
+				!object ||
+				excludedIds.has(id) ||
+				object.visible === false ||
+				object.locked === true ||
+				!containsPoint(object, point)
+			)
+				continue;
+			topmost = object;
+			topmostOrder = order;
+		}
+		return topmost;
 	}
 
 	discardUncommitted(ids: ReadonlySet<string>): void {
@@ -345,6 +403,15 @@ export class AnnotationDocument {
 	}
 }
 
+export function isEphemeralAnnotationChange(
+	change: AnnotationChangeKind,
+): boolean {
+	return (
+		change === AnnotationChangeKind.Transient ||
+		change === AnnotationChangeKind.Interaction
+	);
+}
+
 export function annotationBounds(object: AnnotationObject): CropRect {
 	return genericShape(object).geometry.rect;
 }
@@ -355,9 +422,10 @@ export function normalizedRect(from: Point, to: Point): CropRect {
 
 function containsPoint(object: AnnotationObject, point: Point): boolean {
 	if (object.type === AnnotationObjectTypeId.Stroke)
-		return (
-			distanceToStroke(object, point) <=
-			Math.max(ARROW_HIT_MINIMUM, object.size * ARROW_HIT_WIDTH_FACTOR)
+		return strokeContainsPoint(
+			object,
+			point,
+			Math.max(ARROW_HIT_MINIMUM, object.size * ARROW_HIT_WIDTH_FACTOR),
 		);
 	if (object.type === AnnotationObjectTypeId.Arrow && !object.rotation)
 		return (

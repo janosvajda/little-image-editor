@@ -333,18 +333,18 @@ export class AnnotationController {
 		const selectedHandle =
 			selectedShape?.hitHandle(point, this.viewportVisualScale()) ?? null;
 		if (selected && selectedHandle) {
-			this.#draggedId = selected.id;
 			this.#transformHandle = selectedHandle;
+			this.beginObjectDrag(selected.id);
 			return;
 		}
 		if (selected && selectedShape?.contains(point)) {
-			this.#draggedId = selected.id;
+			this.beginObjectDrag(selected.id);
 			return;
 		}
 		if (this.#tool === AnnotationToolId.Select) {
 			const hit = this.annotations.hitTest(point);
 			this.annotations.select(hit?.id ?? null);
-			this.#draggedId = hit?.id ?? null;
+			this.beginObjectDrag(hit?.id ?? null);
 			return;
 		}
 		const hit = this.annotations.hitTest(point);
@@ -372,6 +372,11 @@ export class AnnotationController {
 		}
 		this.#draft = this.createDraft(point);
 		this.render();
+	}
+
+	private beginObjectDrag(id: string | null): void {
+		this.#draggedId = id;
+		if (id) this.annotations.beginInteraction(id);
 	}
 
 	private onPointerMove(event: PointerEvent): void {
@@ -706,6 +711,11 @@ export class AnnotationController {
 		this.panel.markerValue.value = String(state.nextStep);
 		if (change === AnnotationChangeKind.Transient) {
 			this.scheduleTransientRender();
+			return;
+		}
+		if (change === AnnotationChangeKind.Interaction) {
+			this.cancelTransientRender();
+			this.render();
 			return;
 		}
 		this.cancelTransientRender();

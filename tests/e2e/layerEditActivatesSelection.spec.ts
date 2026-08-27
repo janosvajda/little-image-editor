@@ -13,7 +13,7 @@ test('Layers Edit activates Select and moves the chosen retained object', async 
 	await page.goto('/');
 	await installProjectWriter(page);
 	await page.locator('#quickNewButton').click();
-	await page.locator('#newImageDocumentType').selectOption('project');
+	await page.locator('#newImageFormat').selectOption('application/vnd.little-image-editor.project+json');
 	await page.locator('#newImageName').fill('layer-edit-selection');
 	await page.locator('#createImageButton').click();
 	await chooseBrush(page);

@@ -38,12 +38,15 @@ const documentModel = new CanvasDocument(
 	element<HTMLCanvasElement>('#canvas'),
 	element<HTMLCanvasElement>('#overlay'),
 );
+const vectorShapes = new AnnotationDocument();
 const newImage = new NewImageController(documentModel);
-const files = new FileController(documentModel);
+const files = new FileController(
+	documentModel,
+	() => vectorShapes.state.objects.length > 0,
+);
 const clipboard = new ClipboardController(documentModel);
 const sprites = new SpriteController(documentModel);
 const annotationPanel = new AnnotationPanel();
-const vectorShapes = new AnnotationDocument();
 const layers = new LayersController(documentModel, vectorShapes);
 element<HTMLElement>(toolbarSelector(ToolbarId.Transform)).before(
 	annotationPanel.element,

@@ -4,8 +4,10 @@ import {
 	type DocumentPerformanceWarningState,
 } from '../../core/document/editorLimits';
 import type { CanvasDocument } from '../../core/document/imageDocument';
-import type { AnnotationDocument } from '../annotations/annotationDocument';
-import { AnnotationChangeKind } from '../annotations/annotationDocument';
+import {
+	type AnnotationDocument,
+	isEphemeralAnnotationChange,
+} from '../annotations/annotationDocument';
 
 const DialogAction = {
 	Continue: 'continue',
@@ -28,7 +30,7 @@ export class DocumentLimitController {
 			if (!this.documentModel.hasImage && this.dialog.open) this.dialog.close();
 		});
 		this.editableObjects.onChange((state, change) => {
-			if (change !== AnnotationChangeKind.Transient)
+			if (!isEphemeralAnnotationChange(change))
 				this.evaluate(state.objects.length);
 		});
 	}

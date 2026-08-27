@@ -15,6 +15,9 @@ export class LayersPanel {
 		this.list.className = 'layer-list';
 		this.list.setAttribute('role', 'listbox');
 		this.list.setAttribute('aria-label', 'Image layers');
-		panel.body.append(this.list);
+		const orderHint = document.createElement('p');
+		orderHint.className = 'layer-order-hint';
+		orderHint.textContent = 'Top objects render in front.';
+		panel.body.append(orderHint, this.list);
 	}
 }

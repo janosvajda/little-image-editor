@@ -9,8 +9,8 @@ test('a new .limg document saves and reopens its editable shape through primary 
 	await page.goto('/');
 	await page.locator('#quickNewButton').click();
 	await page
-		.locator('#newImageDocumentType')
-		.selectOption({ label: 'Little Image Editor project (.limg)' });
+		.locator('#newImageFormat')
+		.selectOption({ label: 'Little Image Editor (.limg) — preserves layers' });
 	await page.locator('#newImageName').fill('editable-project');
 	await page.locator('#createImageButton').click();
 

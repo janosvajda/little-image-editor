@@ -30,7 +30,7 @@ test('paint objects can be edited from Layers and by double-clicking', async ({
 
 async function createProject(page: Page): Promise<void> {
 	await page.locator('#quickNewButton').click();
-	await page.locator('#newImageDocumentType').selectOption('project');
+	await page.locator('#newImageFormat').selectOption('application/vnd.little-image-editor.project+json');
 	await page.locator('#newImageName').fill('direct-paint-editing');
 	await page.locator('#createImageButton').click();
 }

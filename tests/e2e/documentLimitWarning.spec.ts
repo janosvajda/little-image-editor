@@ -11,7 +11,7 @@ test('large documents warn without blocking and persist per-document suppression
 	await page.goto('/');
 	await installWriter(page);
 	await page.locator('#quickNewButton').click();
-	await page.locator('#newImageDocumentType').selectOption('project');
+	await page.locator('#newImageFormat').selectOption('application/vnd.little-image-editor.project+json');
 	await page.locator('#newImageName').fill('large-project');
 	await page.locator('#createImageButton').click();
 	await page.locator('#quickSaveButton').click();

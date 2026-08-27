@@ -143,5 +143,17 @@
   "tests/e2e/toolbarCollisionPrevention.spec.ts": "9da8d1561b1b0d64fe9b084c3ad29e20e98af2387c65cffabb24406506e74d93",
   "tests/e2e/toolbarCloseSynchronization.spec.ts": "3c2fb08c125b2159860aa810100dcba987b9374a36b3b4c29e0f88f9b0090704",
   "tests/e2e/toolbarDocumentAvailability.spec.ts": "d212ab0b732b7e4d587de6aa2f89da2d955c17b3bfbd62eda19b6d58042b688c",
-  "tests/integration/editor.test.ts": "b7aaed2433505c3bc8666abf650acec015d5519e945fbd0fca1b533282db8b58"
+  "tests/integration/editor.test.ts": "b7aaed2433505c3bc8666abf650acec015d5519e945fbd0fca1b533282db8b58",
+  "src/app/features/annotations/spatialIndexMovementPerformance.test.ts": "cf0418d2b7dc17b2ea728689ad08d8299a615767144516a751fe564153ca66bb",
+  "src/app/features/drawing/smoothObjectDragPreview.test.ts": "78d00954a70da1cb4955b8c2c4d99c0dbdb223a27d7ea448747dbcc4d09b43dc",
+  "src/app/features/workspace/managedToolbarScrolling.test.ts": "a13e6ab53c131623f9b84f8aeb94ff0ddd22c8b20080137b6f22d2be85e0e52f",
+  "src/app/features/layers/layerRowSelectionPresentation.test.ts": "1607aa8439c3fd3cd9a3ab819e99994e1f7f445fa92e48d390b5941eef22eb20",
+  "tests/e2e/layersToolbarScrollingAndSelection.spec.ts": "cb0753e06bcbb07dcc45f06d050b2c4fc8a2735264e788538e11319d4abc4c92",
+  "src/app/features/layers/annotationStackOrdering.test.ts": "d102bf5c5cec1e5685410d90c9495fd766c71516ef119e3e794510dc4f7a6562",
+  "src/app/features/layers/layersOrderingPresentation.test.ts": "e7fb4be86b4b2ac6c37f4718c6cc71ca5992259449c0b701ba9a666a2c0fc24b",
+  "tests/e2e/genericToolbarScrollingPreservesToolsLayout.spec.ts": "84591ec8bd514bfc7284ed12e4718b494fe994e9131f73e651972ba47de6ee74",
+  "src/app/features/annotations/highContrastSelectionOutline.test.ts": "b417b41a8f6454bc15fa9bb75a12017d4288e68159526dc46059ec0ff0378c77",
+  "src/app/features/layers/annotationDragOrdering.test.ts": "714aa1107172e1bd238d4bb1e06586894ef3d6649454d9892002e42244038545",
+	"tests/e2e/layerDragOrdering.spec.ts": "09498440531fbd076182a5025395e701e14d37e9a818db7c11176b7651e80182",
+	"tests/e2e/layerDragVisualFeedback.spec.ts": "ec6aa76a0df6a52bc217a14417c8a03c888184b10d4fd5286a7dc1d5b6805e0a"
 }

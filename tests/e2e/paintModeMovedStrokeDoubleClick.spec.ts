@@ -40,7 +40,7 @@ test('paint-mode double-click does not displace a moved stroke', async ({
 
 async function createProject(page: Page): Promise<void> {
 	await page.locator('#quickNewButton').click();
-	await page.locator('#newImageDocumentType').selectOption('project');
+	await page.locator('#newImageFormat').selectOption('application/vnd.little-image-editor.project+json');
 	await page.locator('#newImageName').fill('moved-double-click');
 	await page.locator('#createImageButton').click();
 }
