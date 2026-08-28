@@ -14,6 +14,9 @@ test('moving a lower object preserves every object and canonical z-order after r
 	await page.locator('#createImageButton').click();
 	await chooseBrush(page);
 	await drag(page, { x: 250, y: 260 }, { x: 500, y: 260 });
+	await page.locator('[data-tool="select"]').click();
+	await drag(page, { x: 760, y: 560 }, { x: 760, y: 560 });
+	await chooseBrush(page);
 	await drag(page, { x: 400, y: 260 }, { x: 650, y: 260 });
 
 	await page.locator('[data-tool="select"]').click();

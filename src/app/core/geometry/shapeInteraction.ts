@@ -1,11 +1,13 @@
 import {
 	containsTransformedPoint,
 	hitShapeHandle,
+	hitShapeMoveHandle,
 	resizeGeometry,
 	rotateGeometry,
 	ShapeHandleId,
 	ShapeHandleMetrics,
 	shapeHandles,
+	shapeMoveHandle,
 	type ShapeHandle,
 	type TransformableGeometry,
 } from './shapeTransformHelpers';
@@ -20,12 +22,23 @@ export interface ShapeInteractionPolicy {
 		point: Point,
 		visualScale?: number,
 	): ShapeHandle | null;
+	moveHandle(geometry: TransformableGeometry, visualScale?: number): Point;
+	hitMoveHandle(
+		geometry: TransformableGeometry,
+		point: Point,
+		visualScale?: number,
+	): boolean;
 	contains(
 		geometry: TransformableGeometry,
 		point: Point,
 		padding?: number,
 	): boolean;
 	cursor(
+		geometry: TransformableGeometry,
+		point: Point,
+		visualScale?: number,
+	): string | null;
+	handleCursor(
 		geometry: TransformableGeometry,
 		point: Point,
 		visualScale?: number,
@@ -60,6 +73,21 @@ export class DefaultShapeInteractionPolicy implements ShapeInteractionPolicy {
 			ShapeHandleMetrics.Offset * visualScale,
 		);
 	}
+	moveHandle(geometry: TransformableGeometry, visualScale = 1): Point {
+		return shapeMoveHandle(geometry, ShapeHandleMetrics.Offset * visualScale);
+	}
+	hitMoveHandle(
+		geometry: TransformableGeometry,
+		point: Point,
+		visualScale = 1,
+	): boolean {
+		return hitShapeMoveHandle(
+			geometry,
+			point,
+			ShapeHandleMetrics.HitTolerance * visualScale,
+			ShapeHandleMetrics.Offset * visualScale,
+		);
+	}
 	contains(
 		geometry: TransformableGeometry,
 		point: Point,
@@ -72,10 +100,20 @@ export class DefaultShapeInteractionPolicy implements ShapeInteractionPolicy {
 		point: Point,
 		visualScale = 1,
 	): string | null {
+		const handleCursor = this.handleCursor(geometry, point, visualScale);
+		if (handleCursor) return handleCursor;
+		if (this.hitMoveHandle(geometry, point, visualScale)) return 'move';
+		return this.contains(geometry, point) ? 'move' : null;
+	}
+	handleCursor(
+		geometry: TransformableGeometry,
+		point: Point,
+		visualScale = 1,
+	): string | null {
 		const handle = this.hitHandle(geometry, point, visualScale);
 		if (handle === ShapeHandleId.Rotate) return ROTATE_CURSOR;
 		if (handle) return resizeCursor(handle, geometry.rotation ?? 0);
-		return this.contains(geometry, point) ? 'move' : null;
+		return null;
 	}
 	transform(
 		geometry: TransformableGeometry,

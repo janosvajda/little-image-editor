@@ -1205,16 +1205,6 @@ html[data-theme=dark] .transparency-warning strong {
 	}
 }
 
-.field-error {
-    margin: -10px 0 0 132px;
-    color: #d92f50;
-    font-size: 11px
-}
-
-.new-image-fields input[aria-invalid=true] {
-    border-color: #d92f50
-}
-
 .new-image-form>footer .dialog-action {
     display: inline-flex;
     align-items: center;
@@ -1240,12 +1230,6 @@ html[data-theme=dark] .transparency-warning strong {
     color: var(--accent);
     border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
     background: color-mix(in srgb, var(--accent) 8%, var(--surface2))
-}
-
-@media(max-width:520px) {
-    .field-error {
-        margin-left: 0
-    }
 }
 
 .startup-splash {
@@ -1329,6 +1313,50 @@ html[data-theme=dark] .transparency-warning strong {
 .canvas-stage canvas {
     position: absolute;
     inset: 0
+}
+
+.canvas-stage-layer {
+    position: absolute;
+    inset: 0
+}
+
+.canvas-stage.magnified canvas {
+    image-rendering: pixelated
+}
+
+.selection-overlay {
+    overflow: visible;
+    pointer-events: none
+}
+
+.selection-frame-contrast,
+.selection-frame {
+    fill: none;
+    vector-effect: non-scaling-stroke
+}
+
+.selection-frame-contrast {
+    stroke: var(--surface);
+    stroke-width: 3
+}
+
+.selection-frame {
+    stroke: var(--accent);
+    stroke-width: 1;
+    stroke-dasharray: 5 4
+}
+
+.selection-handle,
+.selection-endpoint,
+.selection-move-handle circle {
+    fill: var(--surface);
+    stroke: var(--accent);
+    vector-effect: non-scaling-stroke
+}
+
+.selection-move-handle line {
+    stroke: var(--accent);
+    vector-effect: non-scaling-stroke
 }
 
 .canvas-ruler,
@@ -1566,6 +1594,28 @@ body.focus-mode .canvas-ruler-layer {
 	border-color: var(--accent);
 	background: color-mix(in srgb, var(--accent) 12%, var(--surface));
 	box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.layer-row.locked {
+	border-color: color-mix(in srgb, var(--muted) 70%, var(--border));
+	background: repeating-linear-gradient(
+		-45deg,
+		var(--surface),
+		var(--surface) 6px,
+		var(--surface2) 6px,
+		var(--surface2) 12px
+	);
+}
+
+.layer-row.locked .layer-name {
+	color: var(--muted);
+}
+
+.layer-lock[aria-pressed=true] {
+	border-color: var(--accent);
+	background: color-mix(in srgb, var(--accent) 18%, var(--surface));
+	color: var(--accent);
+	box-shadow: inset 0 0 0 1px var(--accent);
 }
 
 .layer-row[aria-selected=true] .layer-name {

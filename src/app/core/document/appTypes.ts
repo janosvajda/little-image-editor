@@ -30,6 +30,7 @@ export const UtilityToolId = {
 } as const;
 export type UtilityTool = (typeof UtilityToolId)[keyof typeof UtilityToolId];
 export type Tool = PaintTool | ShapeTool | UtilityTool;
+export const DEFAULT_DOCUMENT_NAME = 'untitled';
 export type Point = Readonly<{ x: number; y: number }>;
 export type CropRect = Readonly<{
 	x: number;

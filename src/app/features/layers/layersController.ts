@@ -90,6 +90,7 @@ export class LayersController {
 		const row = document.createElement('div');
 		row.className = 'layer-row';
 		row.dataset.layerId = layer.id;
+		row.classList.toggle('locked', layer.locked);
 		this.bindSelectableRow(row, selected, () =>
 			this.documentModel.layers.select(layer.id),
 		);
@@ -119,6 +120,7 @@ export class LayersController {
 			() => this.documentModel.layers.setLocked(layer.id, !layer.locked),
 		);
 		lock.className = 'layer-lock';
+		lock.setAttribute('aria-pressed', String(layer.locked));
 		const edit = this.actionButton(LayerActionSymbol.Edit, `Edit ${layer.name}`, () =>
 			this.documentModel.layers.select(layer.id),
 		);
@@ -131,6 +133,7 @@ export class LayersController {
 		const row = document.createElement('div');
 		row.className = 'layer-row layer-object-row';
 		row.dataset.objectId = object.id;
+		row.classList.toggle('locked', object.locked === true);
 		row.classList.toggle(DRAG_SOURCE_CLASS, this.#draggedObjectId === object.id);
 		this.bindSelectableRow(
 			row,
@@ -155,6 +158,7 @@ export class LayersController {
 			() => this.objects?.setLocked(object.id, !object.locked),
 		);
 		lock.className = 'layer-lock';
+		lock.setAttribute('aria-pressed', String(object.locked === true));
 		const edit = this.actionButton(LayerActionSymbol.Edit, `Edit ${label}`, () =>
 			this.editObject(object),
 		);

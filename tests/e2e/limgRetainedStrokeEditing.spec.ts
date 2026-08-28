@@ -51,9 +51,13 @@ test('a .limg brush stroke remains selectable, movable, saved, and editable afte
 	await page.locator('#toolbarPickerButton').click();
 	const layersToggle = page.locator('[data-panel-toggle="layers"]');
 	if (!(await layersToggle.isChecked())) await layersToggle.check();
-	await expect(page.locator('[data-layer-id="objects"]')).toContainText(
-		'Editable objects',
+	const restoredStrokeLayer = page.locator(
+		'[data-panel="layers"] .layer-object-row',
 	);
+	await expect(restoredStrokeLayer).toHaveCount(1);
+	await expect(
+		restoredStrokeLayer.getByRole('button', { name: /Edit Stroke/ }),
+	).toBeEnabled();
 });
 
 async function chooseBrush(page: Page): Promise<void> {

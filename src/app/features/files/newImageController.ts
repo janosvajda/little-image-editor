@@ -4,7 +4,10 @@ import {
 } from '../../core/geometry/geometryHelpers';
 import { element } from '../../shared/dom/domHelpers';
 import { CanvasDocument } from '../../core/document/imageDocument';
-import { DocumentType } from '../../core/document/appTypes';
+import {
+	DEFAULT_DOCUMENT_NAME,
+	DocumentType,
+} from '../../core/document/appTypes';
 import { PROJECT_MIME_TYPE } from '../projects/projectTypes';
 import {
 	DEFAULT_IMAGE_FORMAT,
@@ -52,7 +55,6 @@ export class NewImageController {
 	readonly #width = element<HTMLInputElement>('#newImageWidth');
 	readonly #height = element<HTMLInputElement>('#newImageHeight');
 	readonly #name = element<HTMLInputElement>('#newImageName');
-	readonly #nameError = element<HTMLElement>('#newImageNameError');
 	readonly #resolution = document.createElement('select');
 	#format!: HTMLSelectElement;
 	#fileTypeWarning!: HTMLElement;
@@ -84,7 +86,7 @@ export class NewImageController {
 				print.insertBefore(option, print.firstChild);
 			else print.append(option);
 		}
-		this.#nameError.insertAdjacentHTML(
+		this.#name.closest('label')!.insertAdjacentHTML(
 			'afterend',
 			'<label>File type<select id="newImageFormat"></select></label><p id="newImageFileTypeWarning" class="file-format-warning" role="status"></p>',
 		);
@@ -118,7 +120,6 @@ export class NewImageController {
 		element('#createImageButton').addEventListener('click', () =>
 			this.create(),
 		);
-		this.#name.addEventListener('input', () => this.setNameValidity(true));
 		this.#preset.addEventListener('change', () => {
 			if (this.#preset.value === PresetId.Custom) return;
 			const [width, height] = this.#preset.value.split('x');
@@ -170,12 +171,7 @@ export class NewImageController {
 	}
 
 	private create(): void {
-		const name = this.#name.value.trim();
-		if (!name) {
-			this.setNameValidity(false);
-			this.#name.focus();
-			return;
-		}
+		const name = this.#name.value.trim() || DEFAULT_DOCUMENT_NAME;
 		const width = clampDimension(this.#width.value),
 			height = clampDimension(this.#height.value);
 		if (!Number.isFinite(width) || !Number.isFinite(height)) return;
@@ -196,11 +192,6 @@ export class NewImageController {
 				: DocumentType.Image,
 		});
 		this.dialog.close();
-	}
-
-	private setNameValidity(valid: boolean): void {
-		this.#name.toggleAttribute('aria-invalid', !valid);
-		this.#nameError.classList.toggle('hidden', valid);
 	}
 
 	private updateTransparencyWarning(): void {

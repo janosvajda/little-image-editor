@@ -19,6 +19,27 @@ export const ShapeHandleMetrics = {
 	HitTolerance: 10,
 } as const;
 
+export function shapeMoveHandle(
+	shape: TransformableGeometry,
+	offset: number = ShapeHandleMetrics.Offset,
+): Point {
+	const center = shapeCenter(shape);
+	return rotatePoint(
+		{ x: center.x + offset, y: shape.rect.y - offset },
+		center,
+		radians(shape.rotation),
+	);
+}
+
+export function hitShapeMoveHandle(
+	shape: TransformableGeometry,
+	point: Point,
+	tolerance: number = ShapeHandleMetrics.HitTolerance,
+	offset: number = ShapeHandleMetrics.Offset,
+): boolean {
+	return distance(shapeMoveHandle(shape, offset), point) <= tolerance;
+}
+
 export function shapeCenter(shape: TransformableGeometry): Point {
 	return {
 		x: shape.rect.x + shape.rect.width / 2,

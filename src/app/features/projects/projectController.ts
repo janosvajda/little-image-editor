@@ -1,5 +1,8 @@
 import type { CanvasDocument } from '../../core/document/imageDocument';
-import { DocumentType } from '../../core/document/appTypes';
+import {
+	DEFAULT_DOCUMENT_NAME,
+	DocumentType,
+} from '../../core/document/appTypes';
 import type { AnnotationDocument } from '../annotations/annotationDocument';
 import type { AnnotationSessionState } from '../annotations/annotationTypes';
 import {
@@ -167,7 +170,7 @@ function projectPickerType(): object {
 
 function projectFileName(name: string): string {
 	const normalized = name.trim().replace(/\.[^.]+$/, '');
-	return `${normalized || 'untitled'}.${PROJECT_EXTENSION}`;
+	return `${normalized || DEFAULT_DOCUMENT_NAME}.${PROJECT_EXTENSION}`;
 }
 
 async function writeBlob(

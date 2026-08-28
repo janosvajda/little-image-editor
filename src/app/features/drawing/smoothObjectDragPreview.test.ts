@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ShapeToolId } from '../../core/document/appTypes';
+import { ShapeToolId, UtilityToolId } from '../../core/document/appTypes';
 import { ColorPalette } from '../../core/document/colorPalette';
 import { CanvasDocument } from '../../core/document/imageDocument';
 import { AnnotationDocument } from '../annotations/annotationDocument';
@@ -46,7 +46,8 @@ describe('smooth retained-object drag preview', () => {
 			opacity: 1,
 			fill: false,
 		});
-		new DrawingController(model, undefined, objects);
+		const controller = new DrawingController(model, undefined, objects);
+		controller.select(UtilityToolId.Select);
 
 		dispatch(overlay, 'pointerdown', 30, 30);
 		dispatch(overlay, 'pointermove', 31, 30);

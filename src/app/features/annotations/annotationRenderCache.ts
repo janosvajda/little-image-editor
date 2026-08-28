@@ -267,6 +267,11 @@ export class AnnotationRenderCache {
 			(object) => object.id === this.#excludedObjectId,
 		);
 		if (!committed) return false;
+		if (
+			committed.type === AnnotationObjectTypeId.Stroke &&
+			isTransformedStroke(committed)
+		)
+			return false;
 		this.renderInteractiveObject(this.#context, baseCanvas, committed);
 		this.#cachedRevision = renderState.revision;
 		this.#cachedStaticRevision = renderState.staticRevision;
@@ -352,6 +357,18 @@ export class AnnotationRenderCache {
 		>,
 	): void {
 		const source = object.sourceRect ?? object.rect;
+		if (
+			!object.rotation &&
+			object.rect.width === source.width &&
+			object.rect.height === source.height
+		) {
+			target.drawImage(
+				this.#interactiveCanvas,
+				object.rect.x - source.x,
+				object.rect.y - source.y,
+			);
+			return;
+		}
 		withShapeTransform(target, object, () =>
 			target.drawImage(
 				this.#interactiveCanvas,
