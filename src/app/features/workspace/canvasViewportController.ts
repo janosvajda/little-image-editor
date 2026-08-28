@@ -44,6 +44,7 @@ const ZOOM_LEVELS = [
 const RULER_SIZE = ViewportConfiguration.RulerSize;
 export const ZoomDirection = { Out: -1, In: 1 } as const;
 export type ZoomDirection = (typeof ZoomDirection)[keyof typeof ZoomDirection];
+type StageLayer = HTMLElement | SVGElement;
 
 export class CanvasViewportController {
 	readonly #wrap = element<HTMLElement>('#canvasWrap');
@@ -59,6 +60,7 @@ export class CanvasViewportController {
 	readonly #rulerButton = document.createElement('button');
 	readonly #rulerVisible = document.createElement('input');
 	readonly #toolbar: PersistentDocumentToolbar;
+	readonly #viewListeners = new Set<() => void>();
 
 	constructor(readonly documentModel: CanvasDocument) {
 		this.createViewport();
@@ -87,8 +89,18 @@ export class CanvasViewportController {
 	}
 
 	addCanvasLayer(canvas: HTMLCanvasElement): void {
-		this.#stage.insertBefore(canvas, this.documentModel.overlay);
-		this.applyCanvasSize(canvas);
+		this.addStageLayer(canvas);
+	}
+
+	addStageLayer(layer: StageLayer): void {
+		layer.classList.add('canvas-stage-layer');
+		this.#stage.insertBefore(layer, this.documentModel.overlay);
+		this.applyLayerSize(layer);
+	}
+
+	onViewChange(listener: () => void): () => void {
+		this.#viewListeners.add(listener);
+		return () => this.#viewListeners.delete(listener);
 	}
 
 	zoomIn(): void {
@@ -288,9 +300,10 @@ export class CanvasViewportController {
 		this.#stage.style.top = `${rulerSize}px`;
 		this.#stage.style.width = `${width}px`;
 		this.#stage.style.height = `${height}px`;
+		this.#stage.classList.toggle('magnified', zoom > 1);
 		this.#stage
-			.querySelectorAll('canvas')
-			.forEach((canvas) => this.applyCanvasSize(canvas, width, height));
+			.querySelectorAll<StageLayer>(':scope > *')
+			.forEach((layer) => this.applyLayerSize(layer, width, height));
 		this.#viewport.classList.toggle('rulers-hidden', !this.rulersVisible);
 		this.#rulerLayer.classList.toggle(
 			'hidden',
@@ -300,17 +313,18 @@ export class CanvasViewportController {
 		this.#rulerButton.classList.toggle('active', this.rulersVisible);
 		element('#zoomLabel').textContent =
 			`${Math.round(zoom * Numeric.PercentScale)}%`;
+		this.#viewListeners.forEach((listener) => listener());
 		this.pinRulersToViewport();
 		this.renderRulers();
 	}
 
-	private applyCanvasSize(
-		canvas: HTMLCanvasElement,
+	private applyLayerSize(
+		layer: StageLayer,
 		width = this.documentModel.width * this.zoom,
 		height = this.documentModel.height * this.zoom,
 	): void {
-		canvas.style.width = `${width}px`;
-		canvas.style.height = `${height}px`;
+		layer.style.width = `${width}px`;
+		layer.style.height = `${height}px`;
 	}
 
 	private pinRulersToViewport(): void {

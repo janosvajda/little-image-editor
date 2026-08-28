@@ -29,7 +29,10 @@ describe("NewImageController", () => {
     expect(preset.value).toBe("custom");
 
     const format = document.querySelector<HTMLSelectElement>("#newImageFormat")!;
-    expect([...format.options].map(option => option.value)).toEqual(["image/png", "image/jpeg", "image/webp"]);
+    expect([...format.options].map(option => option.value)).toEqual([
+      "application/vnd.little-image-editor.project+json", "image/png", "image/jpeg", "image/webp"
+    ]);
+    expect(format.selectedOptions[0]?.text).toContain(".limg");
     format.value = "image/jpeg";
     format.dispatchEvent(new Event("change", { bubbles: true }));
     const transparent = document.querySelector<HTMLInputElement>("#newImageTransparent")!;

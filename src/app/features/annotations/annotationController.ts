@@ -41,6 +41,7 @@ import {
 } from './annotationTypes';
 import { formatBugReport } from './bugReportMetadata';
 import { InlineTextEditor } from './inlineTextEditor';
+import { SelectionOverlayRenderer } from './selectionOverlayRenderer';
 
 const STATE_KEY = 'annotations';
 const AnnotationInteraction = {
@@ -81,6 +82,7 @@ export class AnnotationController {
 	#reportEdited = false;
 	readonly #textEditor = new InlineTextEditor();
 	readonly #renderCache = new AnnotationRenderCache();
+	readonly #selectionOverlay = new SelectionOverlayRenderer();
 	readonly #interactionListeners = new Set<() => void>();
 	#transientRenderFrame: number | null = null;
 
@@ -99,6 +101,8 @@ export class AnnotationController {
 		this.canvas.setAttribute('aria-hidden', 'true');
 		this.#context = this.canvas.getContext('2d')!;
 		viewport.addCanvasLayer(this.canvas);
+		viewport.addStageLayer?.(this.#selectionOverlay.element);
+		viewport.onViewChange?.(() => this.renderSelection());
 		if (!this.panel.element.isConnected)
 			document.querySelector('.workspace')!.append(this.panel.element);
 		this.#preferences =
@@ -329,18 +333,7 @@ export class AnnotationController {
 		this.#start = point;
 		this.#last = point;
 		const selected = this.annotations.selected;
-		const selectedShape = selected ? genericShape(selected) : null;
-		const selectedHandle =
-			selectedShape?.hitHandle(point, this.viewportVisualScale()) ?? null;
-		if (selected && selectedHandle) {
-			this.#transformHandle = selectedHandle;
-			this.beginObjectDrag(selected.id);
-			return;
-		}
-		if (selected && selectedShape?.contains(point)) {
-			this.beginObjectDrag(selected.id);
-			return;
-		}
+		if (selected && this.beginSelectedInteraction(selected, point)) return;
 		if (this.#tool === AnnotationToolId.Select) {
 			const hit = this.annotations.hitTest(point);
 			this.annotations.select(hit?.id ?? null);
@@ -372,6 +365,28 @@ export class AnnotationController {
 		}
 		this.#draft = this.createDraft(point);
 		this.render();
+	}
+
+	private beginSelectedInteraction(
+		selected: AnnotationObject,
+		point: Point,
+	): boolean {
+		const shape = genericShape(selected);
+		const visualScale = this.viewportVisualScale();
+		const handle = shape.hitHandle(point, visualScale);
+		if (handle) {
+			this.#transformHandle = handle;
+			this.beginObjectDrag(selected.id);
+			return true;
+		}
+		if (
+			shape.hitMoveHandle(point, visualScale) ||
+			(this.#tool === AnnotationToolId.Select && shape.contains(point))
+		) {
+			this.beginObjectDrag(selected.id);
+			return true;
+		}
+		return false;
 	}
 
 	private beginObjectDrag(id: string | null): void {
@@ -611,8 +626,14 @@ export class AnnotationController {
 
 	private updateHoverCursor(point: Point): void {
 		const selected = this.annotations.selected;
-		const selectedCursor = selected
-			? genericShape(selected).cursorAt(point, this.viewportVisualScale())
+		const selectedShape = selected ? genericShape(selected) : null;
+		const selectedCursor = selectedShape
+			? (selectedShape.handleCursorAt(point, this.viewportVisualScale()) ??
+				(selectedShape.hitMoveHandle(point, this.viewportVisualScale())
+					? 'move'
+					: this.#tool === AnnotationToolId.Select
+						? selectedShape.cursorAt(point, this.viewportVisualScale())
+						: null))
 			: null;
 		if (selectedCursor) {
 			this.documentModel.overlay.style.cursor = selectedCursor;
@@ -739,6 +760,7 @@ export class AnnotationController {
 	private render(): void {
 		if (!this.documentModel.layers.isVisible(CoreLayerId.Objects)) {
 			this.#context.clearRect(0, 0, this.canvas.width, this.canvas.height);
+			this.renderSelection(null);
 			return;
 		}
 		const selectedId =
@@ -756,9 +778,10 @@ export class AnnotationController {
 			this.documentModel.canvas,
 			this.annotations.state,
 			this.annotations.renderState,
-			this.annotations.object(selectedId),
+			null,
 			this.annotations.object(interactiveId),
 		);
+		this.renderSelection(this.annotations.object(selectedId));
 		if (this.#draft)
 			renderAnnotationObject(
 				this.#context,
@@ -781,6 +804,17 @@ export class AnnotationController {
 			);
 			this.#context.restore();
 		}
+	}
+
+	private renderSelection(
+		object: AnnotationObject | null = this.annotations.selected,
+	): void {
+		this.#selectionOverlay.render(
+			object,
+			this.documentModel.width,
+			this.documentModel.height,
+			this.viewportVisualScale(),
+		);
 	}
 
 	flattenShapes(commit = true): void {

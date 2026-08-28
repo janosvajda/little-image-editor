@@ -29,7 +29,12 @@ describe("editor integration", () => {
     const preset = document.querySelector<HTMLSelectElement>("#newImagePreset")!;
     preset.value = "1280x720"; preset.dispatchEvent(new Event("change"));
     const newFormat = document.querySelector<HTMLSelectElement>("#newImageFormat")!;
-    expect([...newFormat.options].map(option => option.text)).toEqual(["PNG", "JPEG", "WebP"]);
+    expect([...newFormat.options].map(option => option.text)).toEqual([
+      "Little Image Editor (.limg) — preserves layers",
+      "PNG — flattened image",
+      "JPEG — flattened image",
+      "WebP — flattened image",
+    ]);
     newFormat.value = "image/webp";
     expect(document.querySelector<HTMLInputElement>("#newImageWidth")!.value).toBe("1280");
     click("#createImageButton");

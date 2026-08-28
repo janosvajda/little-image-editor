@@ -491,8 +491,7 @@ export class DrawingController {
 	private beginShapeInteraction(point: Point, event: PointerEvent): boolean {
 		if (!this.shapes) return false;
 		if (this.beginStrokeContinuation(point, event)) return true;
-		if (this.beginSelectedHandleInteraction(point, event)) return true;
-		if (this.beginSelectedBodyInteraction(point, event)) return true;
+		if (this.beginSelectedInteraction(point, event)) return true;
 		if (
 			!isToolKind(this.#tool, DrawingToolKind.Shape) &&
 			!isToolKind(this.#tool, DrawingToolKind.Select)
@@ -525,7 +524,38 @@ export class DrawingController {
 		return true;
 	}
 
+	private beginSelectedInteraction(
+		point: Point,
+		event: PointerEvent,
+	): boolean {
+		return (
+			this.beginSelectedHandleInteraction(point, event) ||
+			this.beginSelectedMoveHandleInteraction(point, event) ||
+			this.beginSelectedBodyInteraction(point, event)
+		);
+	}
+
 	private beginSelectedBodyInteraction(
+		point: Point,
+		event: PointerEvent,
+	): boolean {
+		if (this.#tool !== UtilityToolId.Select) return false;
+		const selected = this.shapes?.selected;
+		if (
+			!selected ||
+			!this.shapes?.isEditable(selected.id) ||
+			!genericShape(selected).contains(point)
+		)
+			return false;
+		this.#drawing = true;
+		this.#pendingBodyMoveId = selected.id;
+		this.shapes.beginInteraction(selected.id);
+		this.#start = this.#last = point;
+		this.documentModel.overlay.setPointerCapture(event.pointerId);
+		return true;
+	}
+
+	private beginSelectedMoveHandleInteraction(
 		point: Point,
 		event: PointerEvent,
 	): boolean {
@@ -533,7 +563,7 @@ export class DrawingController {
 		if (
 			!selected ||
 			!this.shapes?.isEditable(selected.id) ||
-			!genericShape(selected).contains(point)
+			!genericShape(selected).hitMoveHandle(point, this.visualScale())
 		)
 			return false;
 		this.#drawing = true;
@@ -1014,14 +1044,7 @@ export class DrawingController {
 			this.documentModel.overlay.style.cursor = 'crosshair';
 			return;
 		}
-		const selectedForTransform = this.shapes.selected;
-		const transformCursor =
-			selectedForTransform && this.shapes.isEditable(selectedForTransform.id)
-				? genericShape(selectedForTransform).cursorAt(
-						point,
-						this.visualScale(),
-					)
-				: null;
+		const transformCursor = this.selectedTransformCursor(point);
 		if (transformCursor) {
 			this.documentModel.overlay.style.cursor = transformCursor;
 			return;
@@ -1045,6 +1068,17 @@ export class DrawingController {
 			const hit = this.shapes.hitTest(point);
 			this.documentModel.overlay.style.cursor = hit ? 'move' : 'default';
 		} else this.restoreDrawingCursor();
+	}
+
+	private selectedTransformCursor(point: Point): string | null {
+		const selected = this.shapes?.selected;
+		if (!selected || !this.shapes?.isEditable(selected.id)) return null;
+		const shape = genericShape(selected);
+		const visualScale = this.visualScale();
+		return (
+			shape.handleCursorAt(point, visualScale) ??
+			(shape.hitMoveHandle(point, visualScale) ? 'move' : null)
+		);
 	}
 
 	private restoreDrawingCursor(): void {

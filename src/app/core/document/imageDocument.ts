@@ -15,7 +15,7 @@ import type {
 	ImageSnapshot,
 	NewImageOptions,
 } from './appTypes';
-import { DocumentType } from './appTypes';
+import { DEFAULT_DOCUMENT_NAME, DocumentType } from './appTypes';
 import { DEFAULT_IMAGE_FORMAT } from './imageFormats';
 import { PIXELS_PER_INCH } from './measurementUnits';
 import { EditorLimit } from './editorLimits';
@@ -210,7 +210,7 @@ export class CanvasDocument {
 		this.savedType = options.format ?? DEFAULT_IMAGE_FORMAT.mimeType;
 		this.resolution = options.resolution ?? PIXELS_PER_INCH;
 		this.documentType = options.documentType ?? DocumentType.Image;
-		this.activate(options.name || 'untitled');
+		this.activate(options.name.trim() || DEFAULT_DOCUMENT_NAME);
 	}
 
 	activate(name: string): void {
