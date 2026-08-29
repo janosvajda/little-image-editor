@@ -1,7 +1,7 @@
 import { element, elements } from '../../shared/dom/domHelpers';
 import { applyToneAdjustments } from './imageFilterHelpers';
 import type { HistorySnapshot } from '../../core/document/appTypes';
-import { CanvasDocument } from '../../core/document/imageDocument';
+import type { CanvasDocument } from '../../core/document/imageDocument';
 import { PersistentDocumentToolbar } from '../workspace/genericToolbar';
 import { ToolbarId, toolbarSelector } from '../workspace/toolbarTypes';
 

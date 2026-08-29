@@ -5,7 +5,9 @@ import {
 	AnnotationObjectTypeId,
 	type AnnotationObject,
 	type AnnotationState,
+	type ObjectErasurePath,
 	type RectAnnotation,
+	type StrokeAnnotation,
 } from './annotationTypes';
 import { drawShape } from '../drawing/drawingHelpers';
 import {
@@ -18,7 +20,14 @@ import { genericShape } from '../../core/geometry/genericShape';
 import { ColorPalette } from '../../core/document/colorPalette';
 import { textFont } from '../../core/geometry/textShapeMetrics';
 import { drawFreehandStroke } from '../drawing/drawingHelpers';
-import { transformedStrokePoints } from './strokeGeometry';
+import {
+	strokePathStyleAt,
+	transformedStrokePoints,
+} from './strokeGeometry';
+import {
+	objectErasureCanvasPoint,
+	objectErasureSize,
+} from './objectErasures';
 
 const AnnotationRendering = {
 	ArrowMinimumHead: 10,
@@ -56,6 +65,9 @@ const AnnotationRendering = {
 	RandomIncrement: 1_013_904_223,
 } as const;
 
+const erasedObjectCanvas = document.createElement('canvas');
+const erasedObjectContext = erasedObjectCanvas.getContext('2d')!;
+
 export function renderAnnotations(
 	context: CanvasRenderingContext2D,
 	baseCanvas: HTMLCanvasElement,
@@ -64,7 +76,11 @@ export function renderAnnotations(
 ): void {
 	renderAnnotationObjects(context, baseCanvas, state.objects);
 	const selected = state.objects.find((object) => object.id === selectedId);
-	if (selected) renderAnnotationSelection(context, selected);
+	if (
+		selected &&
+		!(selected.type === AnnotationObjectTypeId.Stroke && selected.points.length === 0)
+	)
+		renderAnnotationSelection(context, selected);
 }
 
 export function renderAnnotationObjects(
@@ -78,6 +94,31 @@ export function renderAnnotationObjects(
 }
 
 export function renderAnnotationObject(
+	context: CanvasRenderingContext2D,
+	baseCanvas: HTMLCanvasElement,
+	object: AnnotationObject,
+): void {
+	if (!object.erasures?.length) {
+		renderAnnotationObjectContent(context, baseCanvas, object);
+		return;
+	}
+	resizeErasedObjectCanvas(context.canvas.width, context.canvas.height);
+	erasedObjectContext.clearRect(
+		0,
+		0,
+		erasedObjectCanvas.width,
+		erasedObjectCanvas.height,
+	);
+	if (object.type === AnnotationObjectTypeId.Stroke)
+		renderChronologicallyErasedStroke(erasedObjectContext, object);
+	else {
+		renderAnnotationObjectContent(erasedObjectContext, baseCanvas, object);
+		applyObjectErasures(erasedObjectContext, object);
+	}
+	context.drawImage(erasedObjectCanvas, 0, 0);
+}
+
+function renderAnnotationObjectContent(
 	context: CanvasRenderingContext2D,
 	baseCanvas: HTMLCanvasElement,
 	object: AnnotationObject,
@@ -172,6 +213,106 @@ export function renderAnnotationObject(
 	context.restore();
 }
 
+function applyObjectErasures(
+	context: CanvasRenderingContext2D,
+	object: AnnotationObject,
+): void {
+	const geometry = genericShape(object).geometry;
+	withShapeTransform(context, geometry, () => {
+		for (const path of object.erasures ?? [])
+			applyObjectErasure(context, geometry, path);
+	});
+}
+
+function applyObjectErasure(
+	context: CanvasRenderingContext2D,
+	geometry: ReturnType<typeof genericShape>['geometry'],
+	path: ObjectErasurePath,
+	firstSegmentIndex = 1,
+): void {
+	const options = {
+		color: ColorPalette.Black,
+		size: objectErasureSize(geometry, path),
+		opacity: path.opacity,
+		hardness: path.hardness,
+	};
+	for (
+		let index = Math.max(1, firstSegmentIndex);
+		index < path.points.length;
+		index += 1
+	) {
+		const fromPoint = path.points[index - 1]!;
+		const toPoint = path.points[index]!;
+		drawFreehandStroke(
+			context,
+			PaintToolId.Eraser,
+			objectErasureCanvasPoint(geometry, fromPoint),
+			objectErasureCanvasPoint(geometry, toPoint),
+			options,
+			toPoint.pressure,
+		);
+	}
+}
+
+export function renderObjectErasureTail(
+	context: CanvasRenderingContext2D,
+	object: AnnotationObject,
+	path: ObjectErasurePath,
+	previousPointCount: number,
+): void {
+	const geometry = genericShape(object).geometry;
+	withShapeTransform(context, geometry, () =>
+		applyObjectErasure(context, geometry, path, previousPointCount),
+	);
+}
+
+function renderChronologicallyErasedStroke(
+	context: CanvasRenderingContext2D,
+	object: StrokeAnnotation,
+): void {
+	context.save();
+	context.lineCap = 'round';
+	context.lineJoin = 'round';
+	const geometry = genericShape(object).geometry;
+	const pathStarts = new Set(object.pathStarts);
+	withShapeTransform(context, geometry, () => {
+		let firstSegmentIndex = 1;
+		for (const erasure of object.erasures ?? []) {
+			const pointLimit = Math.min(
+				object.points.length,
+				Math.max(
+					AnnotationRendering.MinimumStrokePointCount,
+					erasure.strokePointLimit ?? object.points.length,
+				),
+			);
+			drawStrokeRange(
+				context,
+				object,
+				firstSegmentIndex,
+				pointLimit,
+				pathStarts,
+			);
+			applyObjectErasure(context, geometry, erasure);
+			firstSegmentIndex = pointLimit;
+		}
+		drawStrokeRange(
+			context,
+			object,
+			firstSegmentIndex,
+			object.points.length,
+			pathStarts,
+		);
+	});
+	context.restore();
+}
+
+function resizeErasedObjectCanvas(width: number, height: number): void {
+	if (erasedObjectCanvas.width === width && erasedObjectCanvas.height === height)
+		return;
+	erasedObjectCanvas.width = width;
+	erasedObjectCanvas.height = height;
+}
+
 function fillSourceBounds(
 	runs: ReadonlyArray<Readonly<{ x: number; y: number; length: number }>>,
 ): { x: number; y: number; width: number; height: number } {
@@ -184,38 +325,56 @@ function fillSourceBounds(
 
 function drawStroke(
 	context: CanvasRenderingContext2D,
-	object: Extract<
-		AnnotationObject,
-		{ type: typeof AnnotationObjectTypeId.Stroke }
-	>,
+	object: StrokeAnnotation,
 ): void {
 	if (object.points.length < AnnotationRendering.MinimumStrokePointCount) return;
+	drawStrokeRange(
+		context,
+		object,
+		1,
+		object.points.length,
+		new Set(object.pathStarts),
+	);
+}
+
+function drawStrokeRange(
+	context: CanvasRenderingContext2D,
+	object: StrokeAnnotation,
+	firstSegmentIndex: number,
+	endPointIndex: number,
+	pathStarts: ReadonlySet<number>,
+): void {
 	const source = object.sourceRect ?? object.rect;
 	const scaleX = source.width === 0 ? 1 : object.rect.width / source.width;
 	const scaleY = source.height === 0 ? 1 : object.rect.height / source.height;
-	const random = seededRandom(object.seed);
 	const from = { x: 0, y: 0 };
 	const to = { x: 0, y: 0 };
-	for (let index = 1; index < object.points.length; index += 1) {
+	for (
+		let index = Math.max(1, firstSegmentIndex);
+		index < endPointIndex;
+		index += 1
+	) {
+		if (pathStarts.has(index)) continue;
 		const sourceFrom = object.points[index - 1]!;
 		const sourceTo = object.points[index]!;
+		const style = strokePathStyleAt(object, index);
 		from.x = object.rect.x + (sourceFrom.x - source.x) * scaleX;
 		from.y = object.rect.y + (sourceFrom.y - source.y) * scaleY;
 		to.x = object.rect.x + (sourceTo.x - source.x) * scaleX;
 		to.y = object.rect.y + (sourceTo.y - source.y) * scaleY;
 		drawFreehandStroke(
 			context,
-			object.tool,
+			style.tool,
 			from,
 			to,
 			{
-				color: object.color,
-				size: object.size,
-				opacity: object.opacity,
-				hardness: object.hardness,
+				color: style.color,
+				size: style.size,
+				opacity: style.opacity,
+				hardness: style.hardness,
 			},
 			sourceTo.pressure,
-			random,
+			seededRandom(style.seed + index),
 		);
 	}
 }
@@ -228,15 +387,25 @@ export function renderStrokeTail(
 	>,
 	previousPointCount: number,
 ): void {
-	const firstRequiredPoint = Math.max(0, previousPointCount - 1);
-	const points = object.points.slice(firstRequiredPoint);
-	if (points.length < AnnotationRendering.MinimumStrokePointCount) return;
-	renderAnnotationObject(context, context.canvas, {
+	if (object.points.length <= previousPointCount) return;
+	const sourceObject: StrokeAnnotation = {
 		...object,
-		points,
 		rotation: 0,
 		rect: { ...(object.sourceRect ?? object.rect) },
-	});
+	};
+	context.save();
+	context.lineCap = 'round';
+	context.lineJoin = 'round';
+	withShapeTransform(context, sourceObject, () =>
+		drawStrokeRange(
+			context,
+			sourceObject,
+			previousPointCount,
+			sourceObject.points.length,
+			new Set(sourceObject.pathStarts),
+		),
+	);
+	context.restore();
 }
 
 export function supportsIncrementalStrokeRendering(
@@ -245,7 +414,7 @@ export function supportsIncrementalStrokeRendering(
 		{ type: typeof AnnotationObjectTypeId.Stroke }
 	>,
 ): boolean {
-	return object.tool !== PaintToolId.Spray;
+	return strokePathStyleAt(object, object.points.length - 1).tool !== PaintToolId.Spray;
 }
 
 function seededRandom(seed: number): () => number {

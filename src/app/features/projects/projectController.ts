@@ -112,10 +112,18 @@ export class ProjectController {
 		}
 	}
 
+	async openFile(file: File): Promise<void> {
+		try {
+			await this.load(file);
+		} catch (error) {
+			this.handleError(error);
+		}
+	}
+
 	private async load(file: File): Promise<void> {
 		const project = this.codec.parse(await file.text());
-		this.#persistence.restore(this.codec.toEditorState(project));
 		this.documentModel.documentType = DocumentType.Project;
+		this.#persistence.restore(this.codec.toEditorState(project));
 		this.#fileHandle = null;
 	}
 
@@ -124,8 +132,7 @@ export class ProjectController {
 		this.#saveButton.addEventListener('click', () => void this.save());
 		this.#input.addEventListener('change', () => {
 			const file = this.#input.files?.[0];
-			if (file)
-				void this.load(file).catch((error: unknown) => this.handleError(error));
+			if (file) void this.openFile(file);
 			this.#input.value = '';
 		});
 		this.documentModel.onDocumentChange(({ hasImage }) => {

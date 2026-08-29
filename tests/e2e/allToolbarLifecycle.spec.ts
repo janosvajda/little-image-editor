@@ -161,7 +161,7 @@ async function clickCanvas(page: Page, x: number, y: number): Promise<void> {
 }
 
 function hasNonWhitePixel(page: Page): Promise<boolean> {
-  return page.locator("#canvas").evaluate(canvas => {
+  return page.locator(".annotation-canvas").evaluate(canvas => {
     const context = (canvas as HTMLCanvasElement).getContext("2d")!;
     const pixels = context.getImageData(0, 0, (canvas as HTMLCanvasElement).width, (canvas as HTMLCanvasElement).height).data;
     for (let index = 0; index < pixels.length; index += 4) {

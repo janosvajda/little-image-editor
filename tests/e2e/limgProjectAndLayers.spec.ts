@@ -16,7 +16,8 @@ test('.limg saves and restores an editable layered project', async ({
 	await page.locator('[data-panel-toggle="layers"]').check();
 	const layers = page.locator('[data-panel="layers"]');
 	await expect(layers).toBeVisible();
-	await expect(layers.locator('.layer-row')).toHaveCount(2);
+	await expect(layers.locator('.layer-row')).toHaveCount(1);
+	await expect(layers.locator('.layer-row')).toContainText('Image');
 
 	await page.evaluate(() => {
 		Object.defineProperty(window, 'showSaveFilePicker', {

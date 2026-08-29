@@ -12,6 +12,7 @@ import {
 } from '../../core/layers/layerTypes';
 import {
 	GuideOrientation,
+	LEGACY_PROJECT_FORMAT_VERSION,
 	type LittleImageProject,
 	PROJECT_FORMAT_IDENTIFIER,
 	PROJECT_FORMAT_VERSION,
@@ -19,6 +20,13 @@ import {
 	type SerializedDocumentSession,
 	type SerializedPixelState,
 } from './projectTypes';
+import {
+	decodePixelBytes,
+	decodePixelReference,
+	encodePixelBytes,
+	encodePixelReference,
+	PixelBufferRegistry,
+} from './pixelDataCodec';
 import type { AnnotationSessionState } from '../annotations/annotationTypes';
 import { isSafeProjectAnnotationSession } from '../annotations/annotationSerialization';
 import type { EditorProjectState } from './projectEditorAdapter';
@@ -28,7 +36,6 @@ import {
 } from './projectCompatibility';
 
 const RGBA_CHANNEL_COUNT = 4;
-const BYTE_CHUNK_SIZE = 0x8000;
 const EMPTY_EDITABLE_OBJECTS: AnnotationSessionState = {
 	state: { objects: [], nextStep: 1 },
 	history: [{ objects: [], nextStep: 1 }],
@@ -94,12 +101,15 @@ export class ProjectCodec {
 	}
 
 	toSession(project: LittleImageProject): DocumentSessionSnapshot {
+		const { documentPixels, history } = deserializeSessionPixels(
+			project.document,
+		);
 		return {
-			...deserializePixels(project.document),
+			...deserializePixels(project.document, documentPixels),
 			baseName: project.document.baseName,
 			savedType: project.document.savedType,
 			resolution: project.document.resolution,
-			history: project.document.history.map(deserializePixels),
+			history,
 			historyIndex: project.document.historyIndex,
 			toolbarStates: structuredClone(project.document.toolbarStates),
 			layerState: structuredClone(project.document.layerState),
@@ -111,12 +121,28 @@ export class ProjectCodec {
 function serializeSession(
 	session: DocumentSessionSnapshot,
 ): SerializedDocumentSession {
+	const document = serializePixels(session);
+	const pixelBuffers = new PixelBufferRegistry();
+	pixelBuffers.register(session.pixels, { kind: 'document' });
+	const history = session.history.map((state, index) => {
+		const reference = pixelBuffers.register(state.pixels, {
+			kind: 'history',
+			index,
+		});
+		if (reference)
+			return {
+				width: state.width,
+				height: state.height,
+				pixels: encodePixelReference(reference),
+			};
+		return serializePixels(state);
+	});
 	return {
-		...serializePixels(session),
+		...document,
 		baseName: session.baseName,
 		savedType: session.savedType,
 		resolution: session.resolution ?? PIXELS_PER_INCH,
-		history: session.history.map(serializePixels),
+		history,
 		historyIndex: session.historyIndex,
 		toolbarStates: structuredClone(session.toolbarStates ?? {}),
 		layerState: structuredClone(session.layerState ?? DEFAULT_LAYER_STATE),
@@ -127,31 +153,75 @@ function serializeSession(
 function serializePixels(
 	state: Readonly<{ width: number; height: number; pixels: Uint8ClampedArray }>,
 ): SerializedPixelState {
-	let binary = '';
-	for (let offset = 0; offset < state.pixels.length; offset += BYTE_CHUNK_SIZE)
-		binary += String.fromCharCode(
-			...state.pixels.subarray(offset, offset + BYTE_CHUNK_SIZE),
-		);
-	return { width: state.width, height: state.height, pixels: btoa(binary) };
+	return {
+		width: state.width,
+		height: state.height,
+		pixels: encodePixelBytes(state.pixels),
+	};
 }
 
-function deserializePixels(state: SerializedPixelState): {
+function deserializePixels(
+	state: SerializedPixelState,
+	pixels = decodePixelBytes(state.pixels),
+): {
 	width: number;
 	height: number;
 	pixels: Uint8ClampedArray;
 } {
-	const binary = atob(state.pixels);
-	const pixels = new Uint8ClampedArray(binary.length);
-	for (let index = 0; index < binary.length; index += 1)
-		pixels[index] = binary.charCodeAt(index);
 	return { width: state.width, height: state.height, pixels };
+}
+
+function deserializeSessionPixels(session: SerializedDocumentSession): {
+	readonly documentPixels: Uint8ClampedArray;
+	readonly history: Array<{
+		readonly width: number;
+		readonly height: number;
+		readonly pixels: Uint8ClampedArray;
+	}>;
+} {
+	const documentPixels = decodePixelBytes(session.pixels);
+	assertPixelLength(session, documentPixels);
+	const history: Array<{
+		readonly width: number;
+		readonly height: number;
+		readonly pixels: Uint8ClampedArray;
+	}> = [];
+	for (const state of session.history) {
+		const reference = decodePixelReference(state.pixels);
+		const pixels = reference
+			? referencedPixels(reference, documentPixels, history)
+			: decodePixelBytes(state.pixels);
+		assertPixelLength(state, pixels);
+		history.push(deserializePixels(state, pixels));
+	}
+	return { documentPixels, history };
+}
+
+function referencedPixels(
+	reference: ReturnType<typeof decodePixelReference> & {},
+	documentPixels: Uint8ClampedArray,
+	history: ReadonlyArray<Readonly<{ pixels: Uint8ClampedArray }>>,
+): Uint8ClampedArray {
+	if (reference.kind === 'document') return documentPixels;
+	const state = history[reference.index];
+	if (!state) throw new Error('Invalid pixel snapshot reference.');
+	return state.pixels;
+}
+
+function assertPixelLength(
+	state: SerializedPixelState,
+	pixels: Uint8ClampedArray,
+): void {
+	if (pixels.length !== state.width * state.height * RGBA_CHANNEL_COUNT)
+		throw new Error('Pixel data does not match its canvas dimensions.');
 }
 
 function isProject(value: unknown): value is LittleImageProject {
 	if (!isRecord(value)) return false;
 	return (
 		value.format === PROJECT_FORMAT_IDENTIFIER &&
-		value.version === PROJECT_FORMAT_VERSION &&
+		(value.version === PROJECT_FORMAT_VERSION ||
+			value.version === LEGACY_PROJECT_FORMAT_VERSION) &&
 		isSerializedSession(value.document) &&
 		Array.isArray(value.guides) &&
 		value.guides.every(isGuide) &&
@@ -166,7 +236,7 @@ function isSerializedSession(
 	value: unknown,
 ): value is SerializedDocumentSession {
 	if (!isRecord(value) || !isPixelState(value)) return false;
-	return (
+	const structurallyValid =
 		typeof value.baseName === 'string' &&
 		isImageFormat(value.savedType) &&
 		isPositiveNumber(value.resolution) &&
@@ -181,8 +251,14 @@ function isSerializedSession(
 		isLayerState(value.layerState) &&
 		Object.values(DocumentType).some(
 			(documentType) => documentType === value.documentType,
-		)
-	);
+		);
+	if (!structurallyValid) return false;
+	try {
+		deserializeSessionPixels(value as unknown as SerializedDocumentSession);
+		return true;
+	} catch {
+		return false;
+	}
 }
 
 function isPixelState(value: unknown): value is SerializedPixelState {
@@ -193,14 +269,7 @@ function isPixelState(value: unknown): value is SerializedPixelState {
 		typeof value.pixels !== 'string'
 	)
 		return false;
-	try {
-		return (
-			atob(value.pixels).length ===
-			value.width * value.height * RGBA_CHANNEL_COUNT
-		);
-	} catch {
-		return false;
-	}
+	return true;
 }
 
 function isLayerState(value: unknown): value is LayerState {

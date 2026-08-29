@@ -14,6 +14,7 @@ import { normalizedRect as normalizeRectangle } from '../../core/geometry/geomet
 import { EditorLimit } from '../../core/document/editorLimits';
 import { ObjectSpatialIndex } from './objectSpatialIndex';
 import { strokeContainsPoint } from './strokeGeometry';
+import { createPaintLayer } from './paintLayerFactory';
 
 const HISTORY_LIMIT = EditorLimit.EditableObjectHistory;
 const ARROW_HIT_MINIMUM = 8;
@@ -60,6 +61,7 @@ export class AnnotationDocument {
 		interactionActive: false,
 	};
 	selectedId: string | null = null;
+	#activePaintLayerId: string | null = null;
 
 	get state(): Readonly<AnnotationState> {
 		return this.#state;
@@ -72,6 +74,21 @@ export class AnnotationDocument {
 	}
 	get selected(): AnnotationObject | null {
 		return this.selectedId ? (this.#objectsById.get(this.selectedId) ?? null) : null;
+	}
+	get activePaintLayer(): Extract<
+		AnnotationObject,
+		{ type: typeof AnnotationObjectTypeId.Stroke }
+	> | null {
+		const active = this.object(this.#activePaintLayerId);
+		if (active?.type === AnnotationObjectTypeId.Stroke) return active;
+		for (let index = this.#state.objects.length - 1; index >= 0; index -= 1) {
+			const object = this.#state.objects[index];
+			if (object?.type === AnnotationObjectTypeId.Stroke) {
+				this.#activePaintLayerId = object.id;
+				return object;
+			}
+		}
+		return null;
 	}
 	get renderState(): AnnotationRenderState {
 		return this.#renderState;
@@ -109,6 +126,7 @@ export class AnnotationDocument {
 		this.#history = [cloneState(this.#state)];
 		this.#historyIndex = 0;
 		this.selectedId = null;
+		this.#activePaintLayerId = null;
 		this.rebuildObjectIndex();
 		this.markRenderedContentChanged(null, false);
 		this.emit(AnnotationChangeKind.Committed);
@@ -127,6 +145,7 @@ export class AnnotationDocument {
 		this.#state = cloneState(session.state);
 		this.#history[this.#historyIndex] = cloneState(this.#state);
 		this.selectedId = null;
+		this.#activePaintLayerId = null;
 		this.rebuildObjectIndex();
 		this.markRenderedContentChanged(null, false);
 		this.emit(AnnotationChangeKind.Committed);
@@ -140,6 +159,8 @@ export class AnnotationDocument {
 		if (object.type === AnnotationObjectTypeId.Step)
 			this.#state.nextStep = Math.max(this.#state.nextStep, object.value + 1);
 		this.selectedId = object.id;
+		if (object.type === AnnotationObjectTypeId.Stroke)
+			this.#activePaintLayerId = object.id;
 		if (commit) this.commit();
 		else this.emit(AnnotationChangeKind.Transient);
 	}
@@ -161,7 +182,15 @@ export class AnnotationDocument {
 	select(id: string | null): void {
 		if (this.selectedId === id) return;
 		this.selectedId = id;
+		if (this.object(id)?.type === AnnotationObjectTypeId.Stroke)
+			this.#activePaintLayerId = id;
 		this.emit(AnnotationChangeKind.Selection);
+	}
+
+	createPaintLayer(): string {
+		const layer = createPaintLayer();
+		this.add(layer);
+		return layer.id;
 	}
 
 	beginInteraction(id: string): void {
@@ -192,6 +221,7 @@ export class AnnotationDocument {
 		this.rebuildObjectIndex();
 		this.markRenderedContentChanged(null, false);
 		if (this.selectedId === id) this.selectedId = null;
+		if (this.#activePaintLayerId === id) this.#activePaintLayerId = null;
 		this.commit();
 	}
 
@@ -254,6 +284,7 @@ export class AnnotationDocument {
 		this.rebuildObjectIndex();
 		this.markRenderedContentChanged(null, false);
 		this.selectedId = null;
+		this.#activePaintLayerId = null;
 		this.commit();
 	}
 
@@ -315,8 +346,12 @@ export class AnnotationDocument {
 		);
 		this.rebuildObjectIndex();
 		this.markRenderedContentChanged(null, false);
-		if (this.selectedId && ids.has(this.selectedId)) this.selectedId = null;
+		const selectionChanged = Boolean(
+			this.selectedId && ids.has(this.selectedId),
+		);
+		if (selectionChanged) this.selectedId = null;
 		this.emit(AnnotationChangeKind.Transient);
+		if (selectionChanged) this.emit(AnnotationChangeKind.Selection);
 	}
 
 	move(id: string, delta: Point, commit = true): void {

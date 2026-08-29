@@ -6,7 +6,7 @@ import {
 	MeasurementUnitId,
 	type MeasurementUnit,
 } from '../../core/document/measurementUnits';
-import { CanvasDocument } from '../../core/document/imageDocument';
+import type { CanvasDocument } from '../../core/document/imageDocument';
 import { PersistentDocumentToolbar } from './genericToolbar';
 import { Numeric } from '../../shared/math/numericConstants';
 

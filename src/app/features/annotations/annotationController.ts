@@ -20,7 +20,6 @@ import {
 import {
 	AnnotationChangeKind,
 	AnnotationDocument,
-	annotationBounds,
 	normalizedRect,
 } from './annotationDocument';
 import { AnnotationPanel } from './annotationPanel';

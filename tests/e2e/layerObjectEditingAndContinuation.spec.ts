@@ -6,7 +6,7 @@ const Stroke = {
 	ContinuedEnd: { x: 500, y: 300 },
 } as const;
 
-test('layers expose retained object actions and continuation preserves one stroke', async ({
+test('layers expose paint-layer actions and split painting only on explicit request', async ({
 	page,
 }) => {
 	await page.addInitScript(() => localStorage.clear());
@@ -27,12 +27,11 @@ test('layers expose retained object actions and continuation preserves one strok
 	await page.locator('[data-panel-toggle="layers"]').check();
 	const objectRow = page.locator('[data-panel="layers"] .layer-object-row');
 	await expect(objectRow).toHaveCount(1);
-	await expect(objectRow.getByRole('button', { name: /Edit Stroke/ })).toBeVisible();
-	await expect(objectRow.getByRole('button', { name: /Lock Stroke/ })).toBeVisible();
-	await expect(objectRow.getByRole('button', { name: /Delete Stroke/ })).toBeVisible();
+	await expect(objectRow.getByRole('button', { name: /Edit Paint layer/ })).toBeVisible();
+	await expect(objectRow.getByRole('button', { name: /Lock Paint layer/ })).toBeVisible();
+	await expect(objectRow.getByRole('button', { name: /Delete Paint layer/ })).toBeVisible();
 
-	await objectRow.getByRole('button', { name: /Edit Stroke/ }).click();
-	await page.getByRole('button', { name: 'Continue selected stroke' }).click();
+	await chooseBrush(page);
 	await drag(page, Stroke.End, Stroke.ContinuedEnd);
 	await page.locator('#quickSaveButton').click();
 	const project = await savedProject(page);
@@ -41,9 +40,9 @@ test('layers expose retained object actions and continuation preserves one strok
 	expect(objects[0]?.type).toBe('stroke');
 	expect(objects[0]?.points.length).toBeGreaterThan(2);
 
-	await objectRow.getByRole('button', { name: /Lock Stroke/ }).click();
-	await expect(objectRow.getByRole('button', { name: /Edit Stroke/ })).toBeDisabled();
-	await objectRow.getByRole('button', { name: /Delete Stroke/ }).click();
+	await objectRow.getByRole('button', { name: /Lock Paint layer/ }).click();
+	await expect(objectRow.getByRole('button', { name: /Edit Paint layer/ })).toBeDisabled();
+	await objectRow.getByRole('button', { name: /Delete Paint layer/ }).click();
 	await expect(page.locator('[data-panel="layers"] .layer-object-row')).toHaveCount(0);
 	await page.locator('#undoButton').click();
 	await expect(page.locator('[data-panel="layers"] .layer-object-row')).toHaveCount(1);

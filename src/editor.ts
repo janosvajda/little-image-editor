@@ -84,6 +84,7 @@ const annotations = new AnnotationController(
 );
 const projects = new ProjectController(documentModel, undefined, vectorShapes);
 files.setProjectSaveHandler((saveAs) => projects.save(saveAs));
+files.setProjectOpenHandler((file) => projects.openFile(file));
 new CanvasToolCoordinator([drawing, annotations]);
 enhancePanelButtons();
 const sessionPersistence = new SessionPersistence(documentModel);
@@ -103,8 +104,6 @@ documentModel.onDocumentChange(({ hasImage, width, height }) => {
 		: '';
 	element('#emptyState').classList.toggle('hidden', hasImage);
 	element('#canvasWrap').classList.toggle('hidden', !hasImage);
-	if (hasImage)
-		element<HTMLSelectElement>('#formatSelect').value = documentModel.savedType;
 });
 
 void finishStartup();

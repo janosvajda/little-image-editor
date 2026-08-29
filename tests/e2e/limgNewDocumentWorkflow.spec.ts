@@ -108,19 +108,5 @@ function annotationAlphaCount(page: Page): Promise<number> {
 }
 
 function selectionHandleCount(page: Page): Promise<number> {
-	return page.locator('.annotation-canvas').evaluate((canvas: HTMLCanvasElement) => {
-		const pixels = canvas
-			.getContext('2d')!
-			.getImageData(0, 0, canvas.width, canvas.height).data;
-		let bluePixels = 0;
-		for (let index = 0; index < pixels.length; index += 4) {
-			if (
-				pixels[index]! < 100 &&
-				pixels[index + 1]! > 80 &&
-				pixels[index + 2]! > 150
-			)
-				bluePixels += 1;
-		}
-		return bluePixels;
-	});
+	return page.locator('.selection-overlay .selection-handle').count();
 }

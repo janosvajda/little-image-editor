@@ -1,5 +1,5 @@
 import type { DocumentSessionSnapshot } from '../../core/document/appTypes';
-import { CanvasDocument } from '../../core/document/imageDocument';
+import type { CanvasDocument } from '../../core/document/imageDocument';
 
 const DATABASE_NAME = 'littleImageEditor';
 const DATABASE_VERSION = 1;

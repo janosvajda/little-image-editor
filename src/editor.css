@@ -1535,6 +1535,11 @@ body.focus-mode .canvas-ruler-layer {
 	font-size: 11px;
 }
 
+.layer-new-paint {
+	width: 100%;
+	margin: 0 0 8px;
+}
+
 .layer-row {
 	display: grid;
 	grid-template-columns: 30px minmax(0, 1fr) 30px 30px;

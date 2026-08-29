@@ -4,7 +4,7 @@ import type {
 	Point,
 	ShapeTool,
 } from '../../core/document/appTypes';
-import { CoreLayerId } from '../../core/layers/layerTypes';
+import type { CoreLayerId } from '../../core/layers/layerTypes';
 import type { FloodFillRun } from '../drawing/floodFillHelpers';
 
 export const AnnotationToolId = {
@@ -38,7 +38,26 @@ export const AnnotationObjectTypeId = {
 	Fill: 'fill',
 } as const;
 
-interface AnnotationBase {
+export interface ObjectErasurePoint {
+	readonly xRatio: number;
+	readonly yRatio: number;
+	readonly pressure: number;
+}
+
+export interface ObjectErasurePath {
+	readonly points: ObjectErasurePoint[];
+	readonly sizeRatio: number;
+	readonly opacity: number;
+	readonly hardness: number;
+	strokePointLimit?: number;
+}
+
+interface ErasableAnnotation {
+	erasures?: ObjectErasurePath[];
+	erasureRevision?: number;
+}
+
+interface AnnotationBase extends ErasableAnnotation {
 	id: string;
 	type:
 		| AnnotationObjectType
@@ -53,11 +72,23 @@ export interface StrokePoint extends Point {
 	readonly pressure: number;
 }
 
+export interface StrokePathStyle {
+	readonly startIndex: number;
+	readonly tool: PaintTool;
+	color: string;
+	size: number;
+	opacity: number;
+	hardness: number;
+	readonly seed: number;
+}
+
 export interface StrokeAnnotation extends AnnotationBase {
 	type: typeof AnnotationObjectTypeId.Stroke;
 	layerId: typeof CoreLayerId.Objects;
 	tool: PaintTool;
 	points: StrokePoint[];
+	pathStarts?: number[];
+	pathStyles?: StrokePathStyle[];
 	sourceRect?: CropRect;
 	rect: CropRect;
 	color: string;
@@ -99,7 +130,7 @@ export interface RectAnnotation extends AnnotationBase {
 	rotation?: number;
 }
 
-export interface ShapeAnnotation {
+export interface ShapeAnnotation extends ErasableAnnotation {
 	id: string;
 	type: typeof AnnotationObjectTypeId.Shape;
 	shape: ShapeTool;

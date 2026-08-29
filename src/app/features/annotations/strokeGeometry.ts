@@ -1,20 +1,59 @@
 import type { Point } from '../../core/document/appTypes';
 import { degreesToRadians } from '../../shared/math/numericConstants';
-import type { StrokeAnnotation, StrokePoint } from './annotationTypes';
+import type {
+	StrokeAnnotation,
+	StrokePathStyle,
+	StrokePoint,
+} from './annotationTypes';
 
 export function materializeStrokeTransform(
 	stroke: StrokeAnnotation,
 	pointer: Point,
+	preservePointOrder = false,
 ): void {
 	const transformed = transformedStrokePoints(stroke);
 	const first = transformed[0]!;
 	const last = transformed.at(-1)!;
-	if (pointDistance(pointer, first) < pointDistance(pointer, last))
+	if (
+		!preservePointOrder &&
+		pointDistance(pointer, first) < pointDistance(pointer, last)
+	)
 		transformed.reverse();
 	stroke.points = transformed;
-	stroke.sourceRect = strokePointBounds(transformed, stroke.size);
+	stroke.sourceRect = strokePointBounds(
+		transformed,
+		maximumStrokeSize(stroke),
+	);
 	stroke.rect = { ...stroke.sourceRect };
 	stroke.rotation = 0;
+}
+
+export function maximumStrokeSize(stroke: StrokeAnnotation): number {
+	let maximum = stroke.size;
+	for (const style of stroke.pathStyles ?? [])
+		maximum = Math.max(maximum, style.size);
+	return maximum;
+}
+
+export function strokePathStyleAt(
+	stroke: StrokeAnnotation,
+	pointIndex: number,
+): StrokePathStyle {
+	const fallback: StrokePathStyle = {
+		startIndex: 0,
+		tool: stroke.tool,
+		color: stroke.color,
+		size: stroke.size,
+		opacity: stroke.opacity,
+		hardness: stroke.hardness,
+		seed: stroke.seed,
+	};
+	let resolved = fallback;
+	for (const style of stroke.pathStyles ?? []) {
+		if (style.startIndex > pointIndex) break;
+		resolved = style;
+	}
+	return resolved;
 }
 
 export function transformedStrokePoints(
@@ -76,7 +115,14 @@ export function strokeContainsPoint(
 	const first = stroke.points[0]!;
 	let previousX = transform.x(first);
 	let previousY = transform.y(first);
+	const pathStarts = new Set(stroke.pathStarts);
 	for (let index = 1; index < stroke.points.length; index += 1) {
+		if (pathStarts.has(index)) {
+			const current = stroke.points[index]!;
+			previousX = transform.x(current);
+			previousY = transform.y(current);
+			continue;
+		}
 		const current = stroke.points[index]!;
 		const currentX = transform.x(current);
 		const currentY = transform.y(current);
@@ -103,11 +149,14 @@ export function distanceToStroke(
 ): number {
 	const points = transformedStrokePoints(stroke);
 	let shortest = Number.POSITIVE_INFINITY;
-	for (let index = 1; index < points.length; index += 1)
+	const pathStarts = new Set(stroke.pathStarts);
+	for (let index = 1; index < points.length; index += 1) {
+		if (pathStarts.has(index)) continue;
 		shortest = Math.min(
 			shortest,
 			distanceToSegment(point, points[index - 1]!, points[index]!),
 		);
+	}
 	return shortest;
 }
 

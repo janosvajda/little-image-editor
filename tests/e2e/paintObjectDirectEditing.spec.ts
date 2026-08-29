@@ -7,7 +7,7 @@ const Stroke = {
 	DoubleClickEditedEnd: { x: 560, y: 330 },
 } as const;
 
-test('paint objects can be edited from Layers and by double-clicking', async ({
+test('paint layers can be selected from Layers and by double-clicking', async ({
 	page,
 }) => {
 	await page.addInitScript(() => localStorage.clear());
@@ -19,11 +19,15 @@ test('paint objects can be edited from Layers and by double-clicking', async ({
 
 	await showLayers(page);
 	const objectRow = page.locator('[data-panel="layers"] .layer-object-row');
-	await objectRow.getByRole('button', { name: /Edit Stroke/ }).click();
+	await objectRow.getByRole('button', { name: /Edit Paint layer/ }).click();
+	await expect(objectRow).toHaveClass(/active/);
+	await chooseBrush(page);
 	await drag(page, Stroke.End, Stroke.LayerEditedEnd);
 	await expectStroke(page, 1, Stroke.LayerEditedEnd);
 
 	await doubleClickCanvasPoint(page, Stroke.LayerEditedEnd);
+	await expect(objectRow).toHaveClass(/active/);
+	await chooseBrush(page);
 	await drag(page, Stroke.LayerEditedEnd, Stroke.DoubleClickEditedEnd);
 	await expectStroke(page, 1, Stroke.DoubleClickEditedEnd);
 });

@@ -11,7 +11,11 @@ export const PROJECT_EXTENSION = 'limg';
 export const PROJECT_MIME_TYPE =
 	'application/vnd.little-image-editor.project+json';
 export const PROJECT_FORMAT_IDENTIFIER = 'little-image-editor-project';
-export const PROJECT_FORMAT_VERSION = 2;
+export const PROJECT_FORMAT_VERSION = 3;
+export const LEGACY_PROJECT_FORMAT_VERSION = 2;
+export type ProjectFormatVersion =
+	| typeof PROJECT_FORMAT_VERSION
+	| typeof LEGACY_PROJECT_FORMAT_VERSION;
 
 export const GuideOrientation = {
 	Horizontal: 'horizontal',
@@ -48,7 +52,7 @@ export interface SerializedDocumentSession extends SerializedPixelState {
 
 export interface LittleImageProject {
 	readonly format: typeof PROJECT_FORMAT_IDENTIFIER;
-	readonly version: typeof PROJECT_FORMAT_VERSION;
+	readonly version: ProjectFormatVersion;
 	readonly document: SerializedDocumentSession;
 	readonly guides: readonly ProjectGuide[];
 	readonly exportPreferences: ProjectExportPreferences;

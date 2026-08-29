@@ -1,5 +1,5 @@
 import { element } from '../../shared/dom/domHelpers';
-import { CanvasDocument } from '../../core/document/imageDocument';
+import type { CanvasDocument } from '../../core/document/imageDocument';
 import { IMAGE_FORMATS } from '../../core/document/imageFormats';
 
 export class SpriteController {

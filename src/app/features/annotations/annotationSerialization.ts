@@ -52,7 +52,9 @@ function isAnnotationObject(value: unknown): value is AnnotationObject {
 		!isRecord(value) ||
 		typeof value.id !== 'string' ||
 		!isOptionalBoolean(value.visible) ||
-		!isOptionalBoolean(value.locked)
+		!isOptionalBoolean(value.locked) ||
+		!isOptionalObjectErasures(value.erasures) ||
+		!(value.erasureRevision === undefined || isFiniteNumber(value.erasureRevision))
 	)
 		return false;
 	switch (value.type) {
@@ -104,23 +106,7 @@ function isAnnotationObject(value: unknown): value is AnnotationObject {
 				isOptionalRotation(value.rotation)
 			);
 		case AnnotationObjectTypeId.Stroke:
-			return (
-				value.layerId === CoreLayerId.Objects &&
-				Object.values(PaintToolId).some((tool) => tool === value.tool) &&
-				Array.isArray(value.points) &&
-				value.points.length >= 2 &&
-				value.points.every(
-					(point) => isPoint(point) && isFiniteNumber(point.pressure),
-				) &&
-				isRect(value.rect) &&
-				(value.sourceRect === undefined || isRect(value.sourceRect)) &&
-				isColor(value.color) &&
-				isFiniteNumber(value.size) &&
-				isFiniteNumber(value.opacity) &&
-				isFiniteNumber(value.hardness) &&
-				isFiniteNumber(value.seed) &&
-				isOptionalRotation(value.rotation)
-			);
+			return isStrokeAnnotation(value);
 		case AnnotationObjectTypeId.Fill:
 			return (
 				value.layerId === CoreLayerId.Objects &&
@@ -136,6 +122,74 @@ function isAnnotationObject(value: unknown): value is AnnotationObject {
 		default:
 			return false;
 	}
+}
+
+function isStrokeAnnotation(value: Record<string, unknown>): boolean {
+	return (
+		value.layerId === CoreLayerId.Objects &&
+		Object.values(PaintToolId).some((tool) => tool === value.tool) &&
+		Array.isArray(value.points) &&
+		value.points.every(
+			(point) => isPoint(point) && isFiniteNumber(point.pressure),
+		) &&
+		(value.pathStarts === undefined ||
+			(Array.isArray(value.pathStarts) &&
+				value.pathStarts.every(
+					(index) => Number.isInteger(index) && Number(index) > 0,
+				))) &&
+		(value.pathStyles === undefined ||
+			(Array.isArray(value.pathStyles) &&
+				value.pathStyles.every(isStrokePathStyle))) &&
+		isRect(value.rect) &&
+		(value.sourceRect === undefined || isRect(value.sourceRect)) &&
+		isColor(value.color) &&
+		isFiniteNumber(value.size) &&
+		isFiniteNumber(value.opacity) &&
+		isFiniteNumber(value.hardness) &&
+		isFiniteNumber(value.seed) &&
+		isOptionalRotation(value.rotation)
+	);
+}
+
+function isStrokePathStyle(value: unknown): boolean {
+	return (
+		isRecord(value) &&
+		Number.isInteger(value.startIndex) &&
+		Number(value.startIndex) >= MINIMUM_INDEX &&
+		Object.values(PaintToolId).some((tool) => tool === value.tool) &&
+		isColor(value.color) &&
+		isFiniteNumber(value.size) &&
+		isFiniteNumber(value.opacity) &&
+		isFiniteNumber(value.hardness) &&
+		isFiniteNumber(value.seed)
+	);
+}
+
+function isOptionalObjectErasures(value: unknown): boolean {
+	return (
+		value === undefined ||
+		(Array.isArray(value) &&
+			value.every(
+				(path) =>
+					isRecord(path) &&
+					Array.isArray(path.points) &&
+					path.points.length >= 2 &&
+					path.points.every(
+						(point) =>
+							isRecord(point) &&
+							isFiniteNumber(point.xRatio) &&
+							isFiniteNumber(point.yRatio) &&
+							isFiniteNumber(point.pressure),
+					) &&
+					isFiniteNumber(path.sizeRatio) &&
+					isFiniteNumber(path.opacity) &&
+					isFiniteNumber(path.hardness) &&
+					(path.strokePointLimit === undefined ||
+						(Number.isInteger(path.strokePointLimit) &&
+							Number(path.strokePointLimit) >= 2)),
+			)
+		)
+	);
 }
 
 function isOptionalBoolean(value: unknown): boolean {

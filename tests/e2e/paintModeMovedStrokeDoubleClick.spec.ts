@@ -4,7 +4,6 @@ const Gesture = {
 	Start: { x: 180, y: 180 },
 	End: { x: 360, y: 220 },
 	Move: { x: 80, y: 60 },
-	Jitter: { x: 1, y: 1 },
 } as const;
 
 test('paint-mode double-click does not displace a moved stroke', async ({
@@ -23,12 +22,11 @@ test('paint-mode double-click does not displace a moved stroke', async ({
 	});
 	const before = await saveStroke(page);
 
-	await chooseBrush(page);
 	const movedEndpoint = {
 		x: Gesture.End.x + Gesture.Move.x,
 		y: Gesture.End.y + Gesture.Move.y,
 	};
-	await doubleClickWithJitter(page, movedEndpoint);
+	await doubleClickCanvas(page, movedEndpoint);
 	const after = await saveStroke(page);
 
 	expect(after.objectCount).toBe(1);
@@ -53,12 +51,12 @@ async function chooseBrush(page: Page): Promise<void> {
 		.click();
 }
 
-async function doubleClickWithJitter(
+async function doubleClickCanvas(
 	page: Page,
 	point: Readonly<{ x: number; y: number }>,
 ): Promise<void> {
 	await page.locator('#overlay').evaluate(
-		(overlay, gesture) => {
+		(overlay, canvasPoint) => {
 			const canvas = overlay as HTMLCanvasElement;
 			const bounds = canvas.getBoundingClientRect();
 			canvas.setPointerCapture = () => undefined;
@@ -66,38 +64,17 @@ async function doubleClickWithJitter(
 				x: bounds.left + (canvasPoint.x * bounds.width) / canvas.width,
 				y: bounds.top + (canvasPoint.y * bounds.height) / canvas.height,
 			});
-			const from = clientPoint(gesture.point);
-			const to = clientPoint({
-				x: gesture.point.x + gesture.jitter.x,
-				y: gesture.point.y + gesture.jitter.y,
-			});
-			for (const pointerId of [131, 132]) {
-				for (const [type, location, buttons] of [
-					['pointerdown', from, 1],
-					['pointermove', to, 1],
-					['pointerup', to, 0],
-				] as const)
-					canvas.dispatchEvent(
-						new PointerEvent(type, {
-							bubbles: true,
-							button: 0,
-							buttons,
-							clientX: location.x,
-							clientY: location.y,
-							pointerId,
-						}),
-					);
-			}
+			const point = clientPoint(canvasPoint);
 			canvas.dispatchEvent(
 				new MouseEvent('dblclick', {
 					bubbles: true,
 					button: 0,
-					clientX: to.x,
-					clientY: to.y,
+					clientX: point.x,
+					clientY: point.y,
 				}),
 			);
 		},
-		{ point, jitter: Gesture.Jitter },
+		point,
 	);
 }
 

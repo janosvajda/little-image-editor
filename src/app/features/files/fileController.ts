@@ -2,13 +2,18 @@ import { element } from '../../shared/dom/domHelpers';
 import {
 	ensureImageExtension,
 	hasValidExtension,
-	preferredExtension,
 } from './fileNameHelpers';
-import { CanvasDocument } from '../../core/document/imageDocument';
+import type { CanvasDocument } from '../../core/document/imageDocument';
 import type { ImageFormat } from '../../core/document/appTypes';
 import { DocumentType } from '../../core/document/appTypes';
 import { imageFormat } from '../../core/document/imageFormats';
-import { populateImageFormatSelect } from './formatSelectHelpers';
+import { PROJECT_MIME_TYPE } from '../projects/projectTypes';
+import {
+	isImageFileType,
+	isProjectFileType,
+	populateSaveFileTypeSelect,
+} from './formatSelectHelpers';
+import { EDITOR_OPEN_FILE_ACCEPT, isProjectFile } from './openFileTypes';
 
 type PickerWindow = Window & {
 	showSaveFilePicker?: (options: object) => Promise<FileSystemFileHandle>;
@@ -26,12 +31,13 @@ export class FileController {
 	readonly #saveButtons: HTMLButtonElement[];
 	readonly #beforeSaveListeners = new Set<() => void>();
 	#projectSave: ((saveAs: boolean) => Promise<void>) | null = null;
+	#projectOpen: ((file: File) => Promise<void>) | null = null;
 
 	constructor(
 		readonly documentModel: CanvasDocument,
 		private readonly hasEditableContent: EditableContentDetector = () => false,
 	) {
-		this.fileInput.accept = 'image/png,image/jpeg,image/webp';
+		this.fileInput.accept = EDITOR_OPEN_FILE_ACCEPT;
 		element('#saveAsButton').insertAdjacentHTML(
 			'afterend',
 			'<div class="menu-rule"></div><button id="exportButton" role="menuitem" disabled><span>Export…</span></button>',
@@ -40,7 +46,7 @@ export class FileController {
 			'afterend',
 			'<div class="menu-rule"></div><button id="closeImageButton" role="menuitem" disabled><span class="menu-action-copy"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h6l2 2h10v10H3zM8 12l8 6m0-6-8 6"/></svg><span>Close image</span></span></button>',
 		);
-		populateImageFormatSelect(this.#format);
+		populateSaveFileTypeSelect(this.#format);
 		this.#saveButtons = [
 			element<HTMLButtonElement>('#saveButton'),
 			element<HTMLButtonElement>('#saveAsButton'),
@@ -49,11 +55,16 @@ export class FileController {
 			element<HTMLButtonElement>('#closeImageButton'),
 			element<HTMLButtonElement>('#quickCloseImageButton'),
 		];
-		this.documentModel.onDocumentChange(({ hasImage }) =>
+		this.documentModel.onDocumentChange(({ hasImage }) => {
 			this.#saveButtons.forEach((button) => {
 				button.disabled = !hasImage;
-			}),
-		);
+			});
+			if (hasImage)
+				this.#format.value =
+					this.documentModel.documentType === DocumentType.Project
+						? PROJECT_MIME_TYPE
+						: this.documentModel.savedType;
+		});
 		this.bindEvents();
 	}
 
@@ -66,11 +77,16 @@ export class FileController {
 	setProjectSaveHandler(handler: (saveAs: boolean) => Promise<void>): void {
 		this.#projectSave = handler;
 	}
+	setProjectOpenHandler(handler: (file: File) => Promise<void>): void {
+		this.#projectOpen = handler;
+	}
 
 	async save(): Promise<void> {
 		if (!this.documentModel.hasImage) return;
-		if (this.documentModel.documentType === DocumentType.Project) {
-			await this.#projectSave?.(false);
+		if (isProjectFileType(this.#format.value)) {
+			await this.#projectSave?.(
+				this.documentModel.documentType !== DocumentType.Project,
+			);
 			return;
 		}
 		if (!this.documentModel.fileHandle) {
@@ -86,7 +102,7 @@ export class FileController {
 	}
 
 	async saveAs(): Promise<void> {
-		if (this.documentModel.documentType === DocumentType.Project) {
+		if (isProjectFileType(this.#format.value)) {
 			await this.#projectSave?.(true);
 			return;
 		}
@@ -108,7 +124,7 @@ export class FileController {
 
 	private async saveCopy(updateDocument: boolean): Promise<void> {
 		if (!this.documentModel.hasImage) return;
-		const type = this.#format.value as ImageFormat;
+		const type = this.selectedRasterFormat();
 		if (!this.canSaveRaster(type)) return;
 		try {
 			const picker = (window as PickerWindow).showSaveFilePicker;
@@ -151,6 +167,12 @@ export class FileController {
 		}
 	}
 
+	private selectedRasterFormat(): ImageFormat {
+		return isImageFileType(this.#format.value)
+			? this.#format.value
+			: this.documentModel.savedType;
+	}
+
 	private bindEvents(): void {
 		['#openButton', '#quickOpenButton', '#emptyOpenButton'].forEach(
 			(selector) =>
@@ -159,7 +181,10 @@ export class FileController {
 		this.fileInput.addEventListener('change', () => {
 			const file = this.fileInput.files?.[0];
 			if (!file) return;
-			void this.documentModel.load(file).finally(() => {
+			const openOperation = isProjectFile(file)
+				? this.#projectOpen?.(file)
+				: this.documentModel.load(file);
+			void Promise.resolve(openOperation).finally(() => {
 				this.fileInput.value = '';
 			});
 		});

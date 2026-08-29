@@ -1,7 +1,7 @@
 import type { ImageFormat } from '../../core/document/appTypes';
+import { ColorPalette } from '../../core/document/colorPalette';
 import { imageFormat } from '../../core/document/imageFormats';
 import { canvasContext } from '../../shared/dom/domHelpers';
-import { ColorPalette } from '../../core/document/colorPalette';
 
 const PIXEL_CHANNEL_COUNT = 4;
 const ALPHA_CHANNEL_OFFSET = 3;
@@ -29,6 +29,25 @@ export function hasTransparency(
 		if (pixels[index]! < OPAQUE_ALPHA) return true;
 	}
 	return false;
+}
+
+export function regionIsFullyTransparent(
+	context: CanvasRenderingContext2D,
+	x: number,
+	y: number,
+	width: number,
+	height: number,
+): boolean {
+	if (width <= 0 || height <= 0) return true;
+	const pixels = context.getImageData(x, y, width, height).data;
+	for (
+		let index = ALPHA_CHANNEL_OFFSET;
+		index < pixels.length;
+		index += PIXEL_CHANNEL_COUNT
+	) {
+		if (pixels[index]! > 0) return false;
+	}
+	return true;
 }
 
 export function encodeCanvas(
