@@ -19,7 +19,7 @@ function pointer(target: HTMLElement, type: string, x: number, y: number): void 
 }
 
 describe('retained stroke continuation', () => {
-	it('appends points to the selected stroke instead of adding an object', () => {
+	it('appends each brush gesture to the active paint layer', () => {
 		const model = new CanvasDocument(
 			document.querySelector<HTMLCanvasElement>('#canvas')!,
 			document.querySelector<HTMLCanvasElement>('#overlay')!,
@@ -44,7 +44,7 @@ describe('retained stroke continuation', () => {
 				toJSON: () => ({}),
 			}) satisfies DOMRect;
 		const objects = new AnnotationDocument();
-		new DrawingController(model, undefined, objects);
+		const drawing = new DrawingController(model, undefined, objects);
 		const id = 'stroke';
 		objects.add({
 			id,
@@ -64,11 +64,9 @@ describe('retained stroke continuation', () => {
 			seed: 1,
 			rotation: 0,
 		});
+		drawing.select(PaintToolId.Brush);
 
-		document
-			.querySelector<HTMLButtonElement>('.selected-object-continue')!
-			.click();
-		pointer(model.overlay, 'pointerdown', 40, 20);
+		pointer(model.overlay, 'pointerdown', 45, 20);
 		pointer(model.overlay, 'pointermove', 70, 30);
 		pointer(model.overlay, 'pointerup', 70, 30);
 
@@ -78,14 +76,13 @@ describe('retained stroke continuation', () => {
 		if (stroke?.type === AnnotationObjectTypeId.Stroke)
 			expect(stroke.points.at(-1)).toMatchObject({ x: 70, y: 30 });
 
-		document
-			.querySelector<HTMLButtonElement>('.selected-object-continue')!
-			.click();
-		pointer(model.overlay, 'pointerdown', 10, 20);
+		pointer(model.overlay, 'pointerdown', 10, 50);
 		pointer(model.overlay, 'pointermove', 5, 10);
 		pointer(model.overlay, 'pointerup', 5, 10);
 		const continuedFromStart = objects.object(id);
-		if (continuedFromStart?.type === AnnotationObjectTypeId.Stroke)
+		if (continuedFromStart?.type === AnnotationObjectTypeId.Stroke) {
 			expect(continuedFromStart.points.at(-1)).toMatchObject({ x: 5, y: 10 });
+			expect(continuedFromStart.pathStarts).toHaveLength(2);
+		}
 	});
 });

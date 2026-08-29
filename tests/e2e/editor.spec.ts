@@ -379,9 +379,9 @@ test("fills a contiguous region with the selected colour at 200% zoom and undoes
   });
   const overlay = page.locator("#overlay"), bounds = await overlay.boundingBox();
   await overlay.dispatchEvent("pointerdown", { clientX: bounds!.x + bounds!.width / 2, clientY: bounds!.y + bounds!.height / 2, pointerId: 1 });
-  expect(await page.locator("#canvas").evaluate(canvas => [...(canvas as HTMLCanvasElement).getContext("2d")!.getImageData(0, 0, 1, 1).data])).toEqual([255, 0, 0, 255]);
+  expect(await page.locator(".annotation-canvas").evaluate(canvas => [...(canvas as HTMLCanvasElement).getContext("2d")!.getImageData(0, 0, 1, 1).data])).toEqual([255, 0, 0, 255]);
   await page.locator("#undoButton").click();
-  expect(await page.locator("#canvas").evaluate(canvas => [...(canvas as HTMLCanvasElement).getContext("2d")!.getImageData(0, 0, 1, 1).data])).toEqual([255, 255, 255, 255]);
+  expect(await page.locator(".annotation-canvas").evaluate(canvas => [...(canvas as HTMLCanvasElement).getContext("2d")!.getImageData(0, 0, 1, 1).data])).toEqual([0, 0, 0, 0]);
   await page.locator(".palette-menu-trigger").first().click();
   await page.getByRole("menu", { name: "Brush tools" }).getByRole("menuitem", { name: "Brush", exact: true }).click();
   await expect(page.locator("#colorInput")).toHaveValue("#123456");

@@ -11,7 +11,7 @@ const StrokeId = 'paint-mode-double-click';
 const MovedEndpoint = { x: 160, y: 70 } as const;
 
 describe('paint-mode object editing gesture', () => {
-	it('double-clicks a moved stroke without creating or transforming paint', () => {
+	it('keeps new gestures in the moved paint layer instead of creating objects', () => {
 		const model = new CanvasDocument(
 			document.querySelector<HTMLCanvasElement>('#canvas')!,
 			document.querySelector<HTMLCanvasElement>('#overlay')!,
@@ -73,7 +73,15 @@ describe('paint-mode object editing gesture', () => {
 		);
 
 		expect(objects.state.objects).toHaveLength(1);
-		expect(objects.object(StrokeId)).toEqual(before);
+		const paintedLayer = objects.object(StrokeId);
+		expect(paintedLayer?.type).toBe(AnnotationObjectTypeId.Stroke);
+		if (
+			before?.type === AnnotationObjectTypeId.Stroke &&
+			paintedLayer?.type === AnnotationObjectTypeId.Stroke
+		) {
+			expect(paintedLayer.points.length).toBeGreaterThan(before.points.length);
+			expect(paintedLayer.pathStarts?.length).toBeGreaterThanOrEqual(1);
+		}
 		expect(objects.selectedId).toBe(StrokeId);
 	});
 });

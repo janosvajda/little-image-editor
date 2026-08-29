@@ -54,6 +54,9 @@ export class LayersController {
 		private readonly objects?: AnnotationDocument,
 		readonly panel = new LayersPanel(),
 	) {
+		this.panel.newPaintLayerButton.addEventListener('click', () =>
+			this.objects?.createPaintLayer(),
+		);
 		documentModel.layers.onChange((state) =>
 			this.render(state.layers, state.activeLayerId),
 		);
@@ -140,7 +143,7 @@ export class LayersController {
 			this.objects?.selectedId === object.id,
 			() => this.editObject(object),
 		);
-		const label = `${ObjectTypeLabel[object.type]} ${index + 1}`;
+		const label = `${object.type === AnnotationObjectTypeId.Stroke ? 'Paint layer' : ObjectTypeLabel[object.type]} ${index + 1}`;
 		const dragHandle = this.dragHandle(row, object.id, label);
 		const visibility = this.actionButton(
 			object.visible === false ? VisibilitySymbol.Hidden : VisibilitySymbol.Visible,

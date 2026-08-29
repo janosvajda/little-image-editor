@@ -56,7 +56,7 @@ test('a .limg brush stroke remains selectable, movable, saved, and editable afte
 	);
 	await expect(restoredStrokeLayer).toHaveCount(1);
 	await expect(
-		restoredStrokeLayer.getByRole('button', { name: /Edit Stroke/ }),
+		restoredStrokeLayer.getByRole('button', { name: /Edit Paint layer/ }),
 	).toBeEnabled();
 });
 

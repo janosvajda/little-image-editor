@@ -9,7 +9,7 @@ import {
 	UtilityToolId,
 } from '../../core/document/appTypes';
 import { ColorPalette } from '../../core/document/colorPalette';
-import { CanvasDocument } from '../../core/document/imageDocument';
+import type { CanvasDocument } from '../../core/document/imageDocument';
 import { genericShape } from '../../core/geometry/genericShape';
 import { normalizedRect } from '../../core/geometry/geometryHelpers';
 import type { ShapeHandle } from '../../core/geometry/shapeTransformHelpers';
@@ -17,17 +17,20 @@ import { CoreLayerId } from '../../core/layers/layerTypes';
 import { element } from '../../shared/dom/domHelpers';
 import type { AnnotationDocument } from '../annotations/annotationDocument';
 import {
-	AnnotationObjectTypeId,
 	type AnnotationObject,
-	type ShapeAnnotation,
+	AnnotationObjectTypeId,
 	type StrokeAnnotation,
 	type StrokePoint,
 } from '../annotations/annotationTypes';
 import {
 	materializeStrokeTransform,
+	maximumStrokeSize,
 	strokePointBounds,
-	transformedStrokePoints,
 } from '../annotations/strokeGeometry';
+import {
+	appendObjectErasurePoint,
+	createObjectErasurePath,
+} from '../annotations/objectErasures';
 import {
 	type CanvasViewportController,
 	ZoomDirection,
@@ -38,7 +41,6 @@ import { ToolbarId, toolbarSelector } from '../workspace/toolbarTypes';
 import {
 	canvasPoint,
 	configureStroke,
-	drawFreehandStroke,
 	drawShape,
 	type StrokeOptions,
 } from './drawingHelpers';
@@ -46,6 +48,7 @@ import {
 	DrawingToolKind,
 	drawingToolBehavior,
 	isToolKind,
+	ToolOptionSource,
 } from './drawingToolBehavior';
 import {
 	BRUSH_TOOL_DEFINITIONS,
@@ -57,8 +60,8 @@ import {
 } from './drawingToolCatalog';
 import {
 	createFloodFillMask,
-	floodFill,
 	type FloodFillRun,
+	floodFill,
 } from './floodFillHelpers';
 import { SelectedObjectPropertiesController } from './selectedObjectPropertiesController';
 
@@ -69,14 +72,27 @@ const HEX_CHANNEL_WIDTH = 2;
 const POINTER_NUDGE = 0.01;
 const POINTER_DRAG_THRESHOLD = 3;
 const MINIMUM_SHAPE_LENGTH = 2;
-const STROKE_ENDPOINT_HIT_TOLERANCE = 12;
-const DOUBLE_CLICK_GESTURE_TIMEOUT_MS = 500;
+const DrawingControlId = {
+	Color: 'colorInput',
+	Size: 'sizeInput',
+	Opacity: 'opacityInput',
+	Hardness: 'hardnessInput',
+	Fill: 'fillInput',
+	FillColor: 'fillColorInput',
+	FillTolerance: 'fillToleranceInput',
+} as const;
+const PROFILED_DRAWING_CONTROL_IDS = [
+	DrawingControlId.Size,
+	DrawingControlId.Opacity,
+	DrawingControlId.Hardness,
+] as const;
 
 export class DrawingController {
 	readonly #toolsPanel = element<HTMLElement>(toolbarSelector(ToolbarId.Tools));
 	readonly #canvasWrap = element<HTMLElement>('#canvasWrap');
 	readonly #color = element<HTMLInputElement>('#colorInput');
 	readonly #size = element<HTMLInputElement>('#sizeInput');
+	readonly #sizeLabel = element<HTMLElement>('#sizeLabel');
 	readonly #opacity = element<HTMLInputElement>('#opacityInput');
 	readonly #hardness = element<HTMLInputElement>('#hardnessInput');
 	readonly #fill = element<HTMLInputElement>('#fillInput');
@@ -93,6 +109,7 @@ export class DrawingController {
 	readonly #sampledColor: HTMLInputElement;
 	readonly #cropOptions: HTMLElement;
 	readonly #contextHint: HTMLElement;
+	readonly #selectedObjectProperties?: SelectedObjectPropertiesController;
 	#tool: Tool = PaintToolId.Brush;
 	#drawing = false;
 	#start: Point = { x: 0, y: 0 };
@@ -106,12 +123,9 @@ export class DrawingController {
 	#shapeHandle: ShapeHandle | null = null;
 	#pendingShapeSelectionId: string | null = null;
 	#pendingBodyMoveId: string | null = null;
-	#pendingStrokeContinuationId: string | null = null;
 	#pendingHandleInteraction = false;
-	#paintStrokeDragged = false;
-	readonly #pendingClickStrokeIds = new Set<string>();
-	#pendingClickCommitTimer: number | null = null;
-	#continuationStrokeId: string | null = null;
+	#erasureTargetId: string | null = null;
+	#erasurePathIndex: number | null = null;
 	#interactionsActive = true;
 	readonly #interactionListeners = new Set<() => void>();
 
@@ -131,10 +145,9 @@ export class DrawingController {
 		this.#cropOptions = this.createCropOptions();
 		this.#contextHint = this.createContextHint();
 		if (shapes)
-			new SelectedObjectPropertiesController(
+			this.#selectedObjectProperties = new SelectedObjectPropertiesController(
 				shapes,
 				element('.tool-options', this.#toolsPanel),
-				() => this.prepareSelectedStrokeContinuation(),
 			);
 		this.#toolbar = new GenericToolbar<Tool>({
 			root: this.#toolsPanel,
@@ -160,6 +173,7 @@ export class DrawingController {
 			defaultTool: PaintToolId.Brush,
 			documentModel,
 			stateKey: 'drawing',
+			profiledControlIds: PROFILED_DRAWING_CONTROL_IDS,
 		});
 		element('.tool-choosers').classList.add('hidden');
 		this.#palette = new GroupedToolPalette<Tool>(
@@ -180,7 +194,9 @@ export class DrawingController {
 			(tool) => this.#toolbar.select(tool),
 		);
 		if (viewport) this.createViewOptions(viewport);
-		this.#restoredColor = this.#toolbar.restoredControlIds.has('colorInput');
+		this.#restoredColor = this.#toolbar.restoredControlIds.has(
+			DrawingControlId.Color,
+		);
 		this.syncRangeLabels();
 		this.#toolbar.onSelection((tool) => {
 			this.#interactionsActive = true;
@@ -208,10 +224,6 @@ export class DrawingController {
 		const object = this.shapes?.object(objectId);
 		if (!object || !this.shapes?.isEditable(objectId)) return;
 		this.shapes.select(objectId);
-		if (object.type === AnnotationObjectTypeId.Stroke) {
-			this.activateStrokeEditing(object);
-			return;
-		}
 		this.#toolbar.select(UtilityToolId.Select);
 		this.shapes.select(objectId);
 	}
@@ -231,14 +243,17 @@ export class DrawingController {
 		this.#shapeHandle = null;
 		this.#pendingShapeSelectionId = null;
 		this.#pendingBodyMoveId = null;
-		this.#pendingStrokeContinuationId = null;
 		this.#pendingHandleInteraction = false;
-		this.#continuationStrokeId = null;
 	}
 
 	private activateTool(tool: Tool, clearSelection = true): void {
 		this.#tool = tool;
-		if (clearSelection && tool !== UtilityToolId.Select) this.shapes?.select(null);
+		if (
+			clearSelection &&
+			tool !== UtilityToolId.Select &&
+			tool !== PaintToolId.Eraser
+		)
+			this.shapes?.select(null);
 		this.documentModel.overlay.classList.toggle(
 			'fill-cursor',
 			tool === UtilityToolId.Fill,
@@ -279,7 +294,7 @@ export class DrawingController {
 		);
 		overlay.addEventListener('dblclick', (event) => {
 			event.preventDefault();
-			this.editPaintObjectAt(this.point(event));
+			this.selectPaintLayerAt(this.point(event));
 		});
 		overlay.addEventListener('pointerleave', () => {
 			if (!this.#drawing) this.restoreDrawingCursor();
@@ -325,12 +340,17 @@ export class DrawingController {
 	}
 
 	private updateToolOptions(): void {
-		const options = drawingToolBehavior(this.#tool).options;
+		const behavior = drawingToolBehavior(this.#tool);
+		const options = behavior.options;
+		this.#selectedObjectProperties?.setEnabled(
+			behavior.optionSource === ToolOptionSource.Contextual,
+		);
 		element('.shape-option').classList.toggle('hidden', !options.shapeFill);
 		this.#hardness
 			.closest('label')!
 			.classList.toggle('hidden', !options.hardness);
 		this.#size.closest('label')!.classList.toggle('hidden', !options.size);
+		if (behavior.sizeLabel) this.#sizeLabel.textContent = behavior.sizeLabel;
 		this.#color.closest('label')!.classList.toggle('hidden', !options.color);
 		this.#opacity
 			.closest('label')!
@@ -483,6 +503,10 @@ export class DrawingController {
 			return;
 		this.updateZoomCursor(event.altKey);
 		const point = this.point(event);
+		if (this.#tool === PaintToolId.Eraser) {
+			this.beginObjectErasure(point, event);
+			return;
+		}
 		if (this.beginShapeInteraction(point, event)) return;
 		if (this.runImmediateTool(point, event)) return;
 		this.beginDrawing(point, event);
@@ -490,7 +514,6 @@ export class DrawingController {
 
 	private beginShapeInteraction(point: Point, event: PointerEvent): boolean {
 		if (!this.shapes) return false;
-		if (this.beginStrokeContinuation(point, event)) return true;
 		if (this.beginSelectedInteraction(point, event)) return true;
 		if (
 			!isToolKind(this.#tool, DrawingToolKind.Shape) &&
@@ -524,10 +547,7 @@ export class DrawingController {
 		return true;
 	}
 
-	private beginSelectedInteraction(
-		point: Point,
-		event: PointerEvent,
-	): boolean {
+	private beginSelectedInteraction(point: Point, event: PointerEvent): boolean {
 		return (
 			this.beginSelectedHandleInteraction(point, event) ||
 			this.beginSelectedMoveHandleInteraction(point, event) ||
@@ -592,48 +612,16 @@ export class DrawingController {
 		return true;
 	}
 
-	private prepareSelectedStrokeContinuation(): void {
-		const selected = this.shapes?.selected;
-		if (!selected || selected.type !== AnnotationObjectTypeId.Stroke) return;
-		this.activateStrokeEditing(selected);
-	}
-
-	private activateStrokeEditing(stroke: StrokeAnnotation): void {
-		this.#toolbar.select(UtilityToolId.Select);
-		this.shapes?.select(stroke.id);
-		this.#continuationStrokeId = stroke.id;
-		this.documentModel.overlay.style.cursor = 'move';
-	}
-
-	private editPaintObjectAt(point: Point): void {
-		const object = this.shapes?.hitTest(point, this.#pendingClickStrokeIds);
+	private selectPaintLayerAt(point: Point): void {
+		const object = this.shapes?.hitTest(point);
 		if (
 			!object ||
 			object.type !== AnnotationObjectTypeId.Stroke ||
 			!this.shapes?.isEditable(object.id)
 		)
 			return;
-		this.discardPendingClickStrokes();
-		this.editObject(object.id);
-	}
-
-	private beginStrokeContinuation(point: Point, event: PointerEvent): boolean {
-		if (!this.shapes || !this.#continuationStrokeId) return false;
-		const stroke = this.shapes.object(this.#continuationStrokeId);
-		if (
-			!stroke ||
-			stroke.type !== AnnotationObjectTypeId.Stroke ||
-			!this.shapes.isEditable(stroke.id)
-		) {
-			this.#continuationStrokeId = null;
-			return false;
-		}
-		if (!this.isContinuationEndpoint(stroke, point)) return false;
-		this.#drawing = true;
-		this.#pendingStrokeContinuationId = stroke.id;
-		this.#start = this.#last = point;
-		this.documentModel.overlay.setPointerCapture(event.pointerId);
-		return true;
+		this.#toolbar.select(UtilityToolId.Select);
+		this.shapes.select(object.id);
 	}
 
 	private runImmediateTool(point: Point, event: PointerEvent): boolean {
@@ -733,9 +721,47 @@ export class DrawingController {
 		this.#activeStrokeOptions = this.strokeOptions();
 		this.documentModel.overlay.setPointerCapture(event.pointerId);
 		if (isPaintTool(this.#tool)) {
-			this.#paintStrokeDragged = false;
 			this.beginRetainedStroke(point, event.pressure);
 		}
+	}
+
+	private beginObjectErasure(point: Point, event: PointerEvent): void {
+		const selected = this.shapes?.selected;
+		if (!selected || !this.shapes?.isEditable(selected.id)) return;
+		if (
+			selected.type === AnnotationObjectTypeId.Stroke &&
+			selected.points.length === 0
+		)
+			return;
+		const options = this.strokeOptions();
+		this.#drawing = true;
+		this.#start = this.#last = point;
+		this.#lockedScroll = {
+			x: this.#canvasWrap.scrollLeft,
+			y: this.#canvasWrap.scrollTop,
+		};
+		this.#activeStrokeOptions = options;
+		this.#erasureTargetId = selected.id;
+		this.shapes.beginInteraction(selected.id);
+		this.shapes.update(
+			selected.id,
+			(object) => {
+				object.erasures ??= [];
+				const path = createObjectErasurePath(
+						genericShape(object).geometry,
+						point,
+						event.pressure,
+						options,
+					);
+				if (object.type === AnnotationObjectTypeId.Stroke)
+					path.strokePointLimit = object.points.length;
+				object.erasures.push(path);
+				object.erasureRevision = (object.erasureRevision ?? 0) + 1;
+				this.#erasurePathIndex = object.erasures.length - 1;
+			},
+			false,
+		);
+		this.documentModel.overlay.setPointerCapture(event.pointerId);
 	}
 
 	private onPointerMove(event: PointerEvent): void {
@@ -746,6 +772,11 @@ export class DrawingController {
 		event.preventDefault();
 		this.restoreLockedScroll();
 		const point = this.point(event);
+		if (this.#erasureTargetId) {
+			this.appendErasurePoint(point, event.pressure);
+			this.#last = point;
+			return;
+		}
 		if (this.isPendingClick(point)) return;
 		if (this.#shapeId && this.shapes) {
 			this.updateShapeInteraction(point);
@@ -761,7 +792,6 @@ export class DrawingController {
 		if (
 			!this.#pendingShapeSelectionId &&
 			!this.#pendingBodyMoveId &&
-			!this.#pendingStrokeContinuationId &&
 			!this.#pendingHandleInteraction
 		)
 			return false;
@@ -776,8 +806,6 @@ export class DrawingController {
 			this.#shapeId = this.#pendingBodyMoveId;
 			this.#pendingBodyMoveId = null;
 		}
-		if (this.#pendingStrokeContinuationId)
-			this.startPendingStrokeContinuation();
 		if (this.#pendingHandleInteraction) {
 			this.#pendingHandleInteraction = false;
 			this.#last = this.#start;
@@ -805,29 +833,6 @@ export class DrawingController {
 		);
 	}
 
-	private startPendingStrokeContinuation(): void {
-		if (!this.shapes || !this.#pendingStrokeContinuationId) return;
-		const stroke = this.shapes.object(this.#pendingStrokeContinuationId);
-		this.#pendingStrokeContinuationId = null;
-		if (stroke?.type !== AnnotationObjectTypeId.Stroke) return;
-		this.shapes.update(
-			stroke.id,
-			(object) => {
-				if (object.type === AnnotationObjectTypeId.Stroke)
-					materializeStrokeTransform(object, this.#start);
-			},
-			false,
-		);
-		this.#strokeId = stroke.id;
-		this.#activeStrokeOptions = {
-			color: stroke.color,
-			size: stroke.size,
-			opacity: stroke.opacity,
-			hardness: stroke.hardness,
-		};
-		this.#continuationStrokeId = null;
-	}
-
 	private updateShapeInteraction(point: Point): void {
 		if (!this.shapes || !this.#shapeId) return;
 		if (this.#shapeHandle)
@@ -842,11 +847,6 @@ export class DrawingController {
 	}
 
 	private continuePaintStroke(event: PointerEvent, point: Point): void {
-		if (
-			Math.hypot(point.x - this.#start.x, point.y - this.#start.y) >=
-			POINTER_DRAG_THRESHOLD
-		)
-			this.#paintStrokeDragged = true;
 		const samples = event.getCoalescedEvents?.() ?? [];
 		for (const sample of samples) {
 			const sampledPoint = this.point(sample);
@@ -876,7 +876,6 @@ export class DrawingController {
 			this.shapes.select(this.#pendingShapeSelectionId);
 		} else if (
 			!this.#pendingBodyMoveId &&
-			!this.#pendingStrokeContinuationId &&
 			!this.#pendingHandleInteraction
 		) {
 			if (this.#shapeId && this.shapes) this.shapes.commitCurrent();
@@ -889,19 +888,22 @@ export class DrawingController {
 		this.#shapeHandle = null;
 		this.#pendingShapeSelectionId = null;
 		this.#pendingBodyMoveId = null;
-		this.#pendingStrokeContinuationId = null;
 		this.#pendingHandleInteraction = false;
-		this.#continuationStrokeId = null;
+		this.#erasureTargetId = null;
+		this.#erasurePathIndex = null;
 	}
 
 	private completeNewAction(point: Point): void {
+		if (this.#erasureTargetId && this.shapes) {
+			this.shapes.commitCurrent();
+			return;
+		}
 		if (isToolKind(this.#tool, DrawingToolKind.Shape)) {
 			this.completeShape(point);
 			return;
 		}
 		if (this.#strokeId && this.shapes) {
-			if (this.#paintStrokeDragged) this.shapes.commitCurrent();
-			else this.scheduleClickStrokeCommit(this.#strokeId);
+			this.shapes.commitCurrent();
 			return;
 		}
 		if (this.#tool === UtilityToolId.Crop) {
@@ -909,25 +911,6 @@ export class DrawingController {
 			return;
 		}
 		this.documentModel.commit();
-	}
-
-	private scheduleClickStrokeCommit(strokeId: string): void {
-		this.#pendingClickStrokeIds.add(strokeId);
-		if (this.#pendingClickCommitTimer !== null)
-			window.clearTimeout(this.#pendingClickCommitTimer);
-		this.#pendingClickCommitTimer = window.setTimeout(() => {
-			this.#pendingClickCommitTimer = null;
-			this.#pendingClickStrokeIds.clear();
-			this.shapes?.commitCurrent();
-		}, DOUBLE_CLICK_GESTURE_TIMEOUT_MS);
-	}
-
-	private discardPendingClickStrokes(): void {
-		if (this.#pendingClickCommitTimer !== null)
-			window.clearTimeout(this.#pendingClickCommitTimer);
-		this.#pendingClickCommitTimer = null;
-		this.shapes?.discardUncommitted(this.#pendingClickStrokeIds);
-		this.#pendingClickStrokeIds.clear();
 	}
 
 	private completeShape(point: Point): void {
@@ -975,19 +958,74 @@ export class DrawingController {
 	}
 
 	private beginRetainedStroke(point: Point, pressure: number): void {
-		if (!this.shapes || !isPaintTool(this.#tool)) return;
+		if (
+			!this.shapes ||
+			!isPaintTool(this.#tool) ||
+			this.#tool === PaintToolId.Eraser
+		)
+			return;
 		const options = this.#activeStrokeOptions ?? this.strokeOptions();
 		const first = strokePoint(point, pressure);
 		const second = strokePoint(
 			{ x: point.x + POINTER_NUDGE, y: point.y + POINTER_NUDGE },
 			pressure,
 		);
+		const activeLayer = this.shapes.activePaintLayer;
+		if (activeLayer) {
+			if (!this.shapes.isEditable(activeLayer.id)) return;
+			this.shapes.beginInteraction(activeLayer.id);
+			this.shapes.update(
+				activeLayer.id,
+				(object) => {
+					if (object.type !== AnnotationObjectTypeId.Stroke) return;
+					if (object.points.length > 0)
+						materializeStrokeTransform(object, point, true);
+					const startIndex = object.points.length;
+					if (startIndex > 0) {
+						object.pathStarts ??= [];
+						object.pathStarts.push(startIndex);
+					}
+					object.pathStyles ??= [];
+					object.pathStyles.push({
+						startIndex,
+						tool: this.#tool as PaintTool,
+						color: options.color,
+						size: options.size,
+						opacity: options.opacity,
+						hardness: options.hardness,
+						seed: randomSeed(),
+					});
+					object.points.push(first, second);
+					const bounds = strokePointBounds(
+						object.points,
+						maximumStrokeSize(object),
+					);
+					object.sourceRect = bounds;
+					object.rect = { ...bounds };
+				},
+				false,
+			);
+			this.#strokeId = activeLayer.id;
+			this.shapes.select(activeLayer.id);
+			return;
+		}
 		const stroke: StrokeAnnotation = {
 			id: crypto.randomUUID(),
 			type: AnnotationObjectTypeId.Stroke,
 			layerId: CoreLayerId.Objects,
 			tool: this.#tool,
 			points: [first, second],
+			pathStyles: [
+				{
+					startIndex: 0,
+					tool: this.#tool,
+					color: options.color,
+					size: options.size,
+					opacity: options.opacity,
+					hardness: options.hardness,
+					seed: randomSeed(),
+				},
+			],
 			rect: strokePointBounds([first, second], options.size),
 			color: options.color,
 			size: options.size,
@@ -1021,6 +1059,31 @@ export class DrawingController {
 		);
 	}
 
+	private appendErasurePoint(point: Point, pressure: number): void {
+		if (
+			!this.shapes ||
+			!this.#erasureTargetId ||
+			this.#erasurePathIndex === null
+		)
+			return;
+		const pathIndex = this.#erasurePathIndex;
+		this.shapes.update(
+			this.#erasureTargetId,
+			(object) => {
+				const path = object.erasures?.[pathIndex];
+				if (!path) return;
+				appendObjectErasurePoint(
+					path,
+					genericShape(object).geometry,
+					point,
+					pressure,
+				);
+				object.erasureRevision = (object.erasureRevision ?? 0) + 1;
+			},
+			false,
+		);
+	}
+
 	private updatePickerSwatch(color: string): void {
 		element<HTMLElement>('i', this.#pickerSwatch).style.backgroundColor = color;
 		element<HTMLElement>('code', this.#pickerSwatch).textContent =
@@ -1036,14 +1099,6 @@ export class DrawingController {
 
 	private updateShapeCursor(point: Point): void {
 		if (!this.shapes) return;
-		const continuation = this.shapes.object(this.#continuationStrokeId);
-		if (
-			continuation?.type === AnnotationObjectTypeId.Stroke &&
-			this.isContinuationEndpoint(continuation, point)
-		) {
-			this.documentModel.overlay.style.cursor = 'crosshair';
-			return;
-		}
 		const transformCursor = this.selectedTransformCursor(point);
 		if (transformCursor) {
 			this.documentModel.overlay.style.cursor = transformCursor;
@@ -1086,23 +1141,9 @@ export class DrawingController {
 	}
 
 	private visualScale(): number {
-		const renderedWidth = this.documentModel.overlay.getBoundingClientRect().width;
+		const renderedWidth =
+			this.documentModel.overlay.getBoundingClientRect().width;
 		return renderedWidth > 0 ? this.documentModel.width / renderedWidth : 1;
-	}
-
-	private isContinuationEndpoint(
-		stroke: StrokeAnnotation,
-		point: Point,
-	): boolean {
-		const endpoints = transformedStrokePoints(stroke);
-		return [endpoints[0], endpoints.at(-1)].some(
-			(endpoint) =>
-				Boolean(
-					endpoint &&
-						Math.hypot(point.x - endpoint.x, point.y - endpoint.y) <=
-							STROKE_ENDPOINT_HIT_TOLERANCE * this.visualScale(),
-				),
-		);
 	}
 
 }

@@ -27,6 +27,7 @@ export const EditableObjectKind = {
 	Annotation: 'annotation',
 	Effect: 'effect',
 	Adjustment: 'adjustment',
+	ObjectMask: 'object-mask',
 } as const;
 export type EditableObjectKind =
 	(typeof EditableObjectKind)[keyof typeof EditableObjectKind];
@@ -106,7 +107,7 @@ export const DRAWING_TOOL_DOCUMENT_CONTRACT = {
 	[PaintToolId.Highlighter]: editable(EditableObjectKind.Stroke),
 	[PaintToolId.Calligraphy]: editable(EditableObjectKind.Stroke),
 	[PaintToolId.Spray]: editable(EditableObjectKind.Stroke),
-	[PaintToolId.Eraser]: editable(EditableObjectKind.Stroke),
+	[PaintToolId.Eraser]: editable(EditableObjectKind.ObjectMask),
 	[ShapeToolId.Line]: editable(EditableObjectKind.Shape),
 	[ShapeToolId.Arrow]: editable(EditableObjectKind.Shape),
 	[ShapeToolId.Rectangle]: editable(EditableObjectKind.Shape),

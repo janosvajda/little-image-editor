@@ -1,8 +1,8 @@
 import type { ManagedToolbarPanel } from './managedToolbarPanel';
-import {
-	type ToolbarLayoutBounds,
+import type {
+	ToolbarLayoutBounds,
 	ToolbarLayoutEngine,
-	type ToolbarRectangle,
+	ToolbarRectangle,
 } from './toolbarLayoutEngine';
 
 export interface ToolbarWorkspaceMetrics {

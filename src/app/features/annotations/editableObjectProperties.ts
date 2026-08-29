@@ -24,6 +24,7 @@ export interface EditableObjectPropertyValues {
 export function editableObjectProperties(
 	object: AnnotationObject,
 ): EditableObjectPropertyValues {
+	if (object.type === AnnotationObjectTypeId.Stroke) return {};
 	return {
 		...('color' in object ? { color: object.color } : {}),
 		...('size' in object
@@ -32,9 +33,6 @@ export function editableObjectProperties(
 				? { size: object.width }
 				: {}),
 		...('opacity' in object ? { opacity: object.opacity } : {}),
-		...(object.type === AnnotationObjectTypeId.Stroke
-			? { hardness: object.hardness }
-			: {}),
 		...(object.type === AnnotationObjectTypeId.Shape
 			? { fill: object.fill }
 			: {}),
@@ -46,6 +44,7 @@ export function setEditableObjectProperty(
 	property: EditableObjectProperty,
 	value: string | number | boolean,
 ): void {
+	if (object.type === AnnotationObjectTypeId.Stroke) return;
 	switch (property) {
 		case EditableObjectPropertyId.Color:
 			setColor(object, value);
@@ -66,25 +65,24 @@ export function setEditableObjectProperty(
 }
 
 function setColor(object: AnnotationObject, value: unknown): void {
-	if ('color' in object && typeof value === 'string') object.color = value;
+	if (!('color' in object) || typeof value !== 'string') return;
+	object.color = value;
 }
 
 function setSize(object: AnnotationObject, value: unknown): void {
 	if (typeof value !== 'number') return;
-	if ('size' in object) object.size = value;
-	else if ('width' in object) object.width = value;
+	if ('size' in object) {
+		object.size = value;
+	} else if ('width' in object) object.width = value;
 }
 
 function setOpacity(object: AnnotationObject, value: unknown): void {
-	if ('opacity' in object && typeof value === 'number') object.opacity = value;
+	if (!('opacity' in object) || typeof value !== 'number') return;
+	object.opacity = value;
 }
 
 function setHardness(object: AnnotationObject, value: unknown): void {
-	if (
-		object.type === AnnotationObjectTypeId.Stroke &&
-		typeof value === 'number'
-	)
-		object.hardness = value;
+	if ('hardness' in object && typeof value === 'number') object.hardness = value;
 }
 
 function setFill(object: AnnotationObject, value: unknown): void {

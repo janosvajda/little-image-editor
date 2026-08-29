@@ -5,6 +5,10 @@ import {
 } from '../../core/document/imageFormats';
 import { PROJECT_EXTENSION, PROJECT_MIME_TYPE } from '../projects/projectTypes';
 
+export type SaveFileType =
+	| (typeof IMAGE_FORMATS)[number]['mimeType']
+	| typeof PROJECT_MIME_TYPE;
+
 const RasterFlatteningMessage =
 	'Raster formats save a flattened image. Layers remain editable in the open document, but cannot be restored from the saved raster file.';
 
@@ -16,6 +20,25 @@ export function populateImageFormatSelect(
 		...IMAGE_FORMATS.map((format) => new Option(format.label, format.mimeType)),
 	);
 	select.value = imageFormat(selected).mimeType;
+}
+
+export function populateSaveFileTypeSelect(
+	select: HTMLSelectElement,
+	selected: SaveFileType = DEFAULT_IMAGE_FORMAT.mimeType,
+): void {
+	select.replaceChildren(
+		new Option(`Little Image Editor (.${PROJECT_EXTENSION})`, PROJECT_MIME_TYPE),
+		...IMAGE_FORMATS.map((format) => new Option(format.label, format.mimeType)),
+	);
+	select.value = selected;
+}
+
+export function isProjectFileType(value: string): value is typeof PROJECT_MIME_TYPE {
+	return value === PROJECT_MIME_TYPE;
+}
+
+export function isImageFileType(value: string): value is (typeof IMAGE_FORMATS)[number]['mimeType'] {
+	return IMAGE_FORMATS.some((format) => format.mimeType === value);
 }
 
 export function populateDocumentFileTypeSelect(select: HTMLSelectElement): void {

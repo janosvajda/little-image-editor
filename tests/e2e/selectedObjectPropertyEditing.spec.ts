@@ -22,20 +22,29 @@ test.beforeEach(async ({ page }) => {
 	await clickCanvas(page, midpoint());
 });
 
-test('selected object color edits the object while preserving brush defaults and project data', async ({
+test('brush settings affect only the next path in the selected paint layer', async ({
 	page,
 }) => {
-	const defaultColor = await page.locator('#colorInput').inputValue();
-	const objectColor = page.getByLabel('Selected object color');
-	await expect(objectColor).toBeVisible();
-	await objectColor.fill('#12ab34');
-	await expect(page.locator('#colorInput')).toHaveValue(defaultColor);
+	await expect(page.locator('.selected-object-options')).toBeHidden();
+	await selectBrush(page);
+	await page.locator('#colorInput').fill('#12ab34');
+	await page.locator('#sizeInput').fill('42');
+	await drag(page, { x: 580, y: 220 }, { x: 680, y: 300 });
 
 	await page.locator('#quickSaveButton').click();
 	const project = JSON.parse(await savedProject(page)) as {
-		editableObjects: { state: { objects: Array<{ color?: string }> } };
+		editableObjects: {
+			state: {
+				objects: Array<{
+					pathStyles?: Array<{ color: string; size: number }>;
+				}>;
+			};
+		};
 	};
-	expect(project.editableObjects.state.objects.at(-1)?.color).toBe('#12ab34');
+	const styles = project.editableObjects.state.objects.at(-1)?.pathStyles;
+	expect(styles).toHaveLength(2);
+	expect(styles?.[0]?.color).not.toBe('#12ab34');
+	expect(styles?.[1]).toMatchObject({ color: '#12ab34', size: 42 });
 });
 
 test('moving a retained stroke uses the same rendered result before and after commit', async ({

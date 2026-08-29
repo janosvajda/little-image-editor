@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { CanvasDocument } from "../../core/document/imageDocument";
+import { genericShape } from "../../core/geometry/genericShape";
 import { AnnotationController } from "./annotationController";
 
 describe("cross-type generic annotation editing", () => {
@@ -19,7 +20,8 @@ describe("cross-type generic annotation editing", () => {
 
     click(overlay, 45, 68);
     expect(controller.annotations.selectedId).toBe("text");
-    drag(overlay, { x: 45, y: 68 }, { x: 65, y: 78 });
+    const moveHandle = genericShape(controller.annotations.selected!).moveHandle();
+    drag(overlay, moveHandle, { x: moveHandle.x + 20, y: moveHandle.y + 10 });
     const movedText = controller.annotations.selected!;
     expect(movedText.type === "text" && movedText.at.x).toBeGreaterThan(20);
 

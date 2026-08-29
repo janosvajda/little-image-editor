@@ -14,7 +14,6 @@ const Stroke = {
 	Id: 'editable-stroke',
 	Start: { x: 20, y: 30 },
 	End: { x: 80, y: 30 },
-	EditedEnd: { x: 120, y: 50 },
 } as const;
 
 describe('paint object edit interaction', () => {
@@ -40,33 +39,19 @@ describe('paint object edit interaction', () => {
 		objects.add(strokeObject());
 	});
 
-	it('continues the same stroke after the Layers Edit action', () => {
+	it('selects the whole paint layer after the Layers Edit action', () => {
 		drawing.editObject(Stroke.Id);
-		continueFromEndpoint();
-
-		expectEditedStroke();
+		expect(objects.selectedId).toBe(Stroke.Id);
+		expect(document.querySelector('[data-tool="select"]')?.classList).toContain(
+			'active',
+		);
 	});
 
-	it('continues the same stroke after double-clicking the paint object', () => {
+	it('selects the whole paint layer after double-clicking its painted pixels', () => {
 		pointer('dblclick', 50, Stroke.Start.y);
-		continueFromEndpoint();
-
-		expectEditedStroke();
-	});
-
-	function continueFromEndpoint(): void {
-		pointer('pointerdown', Stroke.End.x, Stroke.End.y);
-		pointer('pointermove', Stroke.EditedEnd.x, Stroke.EditedEnd.y);
-		pointer('pointerup', Stroke.EditedEnd.x, Stroke.EditedEnd.y);
-	}
-
-	function expectEditedStroke(): void {
-		const edited = objects.object(Stroke.Id);
+		expect(objects.selectedId).toBe(Stroke.Id);
 		expect(objects.state.objects).toHaveLength(1);
-		expect(edited?.type).toBe(AnnotationObjectTypeId.Stroke);
-		if (edited?.type === AnnotationObjectTypeId.Stroke)
-			expect(edited.points.at(-1)).toMatchObject(Stroke.EditedEnd);
-	}
+	});
 
 	function pointer(type: string, x: number, y: number): void {
 		model.overlay.dispatchEvent(

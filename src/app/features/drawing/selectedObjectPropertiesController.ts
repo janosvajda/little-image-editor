@@ -1,4 +1,3 @@
-import { element } from '../../shared/dom/domHelpers';
 import {
 	type AnnotationDocument,
 	isEphemeralAnnotationChange,
@@ -29,11 +28,11 @@ export class SelectedObjectPropertiesController {
 	readonly #controls: Readonly<Record<EditableObjectProperty, PropertyControl>>;
 	readonly #dirtyProperties = new Set<EditableObjectProperty>();
 	#synchronizing = false;
+	#enabled = true;
 
 	constructor(
 		private readonly objects: AnnotationDocument,
 		private readonly parent: HTMLElement,
-		private readonly continueStroke: () => void = () => undefined,
 	) {
 		this.#root.className = 'selected-object-options hidden';
 		this.#root.setAttribute('aria-label', 'Selected object properties');
@@ -63,17 +62,16 @@ export class SelectedObjectPropertiesController {
 		this.#root.append(
 			...Object.values(this.#controls).map((control) => control.row),
 		);
-		const continueButton = document.createElement('button');
-		continueButton.type = 'button';
-		continueButton.className = 'compact-action selected-object-continue hidden';
-		continueButton.setAttribute('aria-label', 'Continue selected stroke');
-		continueButton.textContent = '↝ Continue stroke';
-		continueButton.addEventListener('click', this.continueStroke);
-		this.#root.append(continueButton);
 		parent.prepend(this.#root);
 		objects.onChange((_state, change) => {
 			if (!isEphemeralAnnotationChange(change)) this.sync();
 		});
+		this.sync();
+	}
+
+	setEnabled(enabled: boolean): void {
+		if (this.#enabled === enabled) return;
+		this.#enabled = enabled;
 		this.sync();
 	}
 
@@ -178,16 +176,16 @@ export class SelectedObjectPropertiesController {
 		this.#synchronizing = true;
 		const selected = this.objects.selected;
 		this.#dirtyProperties.clear();
-		this.#root.classList.toggle('hidden', !selected);
-		this.parent.classList.toggle('editing-selected-object', Boolean(selected));
-		if (selected) {
-			element<HTMLButtonElement>(
-				'.selected-object-continue',
-				this.#root,
-			).classList.toggle(
-				'hidden',
-				selected.type !== AnnotationObjectTypeId.Stroke,
-			);
+		const propertiesVisible =
+			this.#enabled &&
+			Boolean(selected) &&
+			selected?.type !== AnnotationObjectTypeId.Stroke;
+		this.#root.classList.toggle('hidden', !propertiesVisible);
+		this.parent.classList.toggle(
+			'editing-selected-object',
+			propertiesVisible,
+		);
+		if (selected && propertiesVisible) {
 			const values = editableObjectProperties(selected);
 			for (const [property, control] of Object.entries(this.#controls) as Array<
 				[EditableObjectProperty, PropertyControl]
@@ -200,11 +198,6 @@ export class SelectedObjectPropertiesController {
 				this.updateOutput(property, value);
 			}
 		}
-		if (!selected)
-			element<HTMLButtonElement>(
-				'.selected-object-continue',
-				this.#root,
-			).classList.add('hidden');
 		this.#synchronizing = false;
 	}
 

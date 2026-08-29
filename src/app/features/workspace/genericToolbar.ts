@@ -6,7 +6,7 @@ import {
 	type PersistedValue,
 } from './toolStatePersistence';
 import type { ToolDefinition } from '../drawing/drawingToolCatalog';
-import { CanvasDocument } from '../../core/document/imageDocument';
+import type { CanvasDocument } from '../../core/document/imageDocument';
 
 export interface SelectToolGroup<TTool extends string> {
 	control: HTMLElement;
@@ -25,12 +25,26 @@ export interface GenericToolbarOptions<TTool extends string> {
 	defaultTool: TTool;
 	documentModel?: CanvasDocument;
 	stateKey?: string;
+	profiledControlIds?: readonly string[];
+}
+
+interface GenericToolbarDocumentState {
+	readonly activeTool?: string;
+	readonly controls?: Record<string, PersistedValue>;
+	readonly controlProfiles?: Record<
+		string,
+		Record<string, PersistedValue>
+	>;
 }
 
 export class GenericToolbar<TTool extends string> {
 	readonly restoredControlIds: ReadonlySet<string>;
 	#activeTool: TTool;
 	#defaultControls: Record<string, PersistedValue> = {};
+	readonly #controlProfiles = new Map<
+		TTool,
+		Record<string, PersistedValue>
+	>();
 	#listeners = new Set<(tool: TTool) => void>();
 
 	constructor(readonly options: GenericToolbarOptions<TTool>) {
@@ -44,6 +58,7 @@ export class GenericToolbar<TTool extends string> {
 		this.#activeTool = this.hasTool(restored.activeTool)
 			? restored.activeTool
 			: options.defaultTool;
+		this.captureActiveProfile();
 		this.bindEvents();
 		this.updateSelection();
 		this.persist();
@@ -58,6 +73,10 @@ export class GenericToolbar<TTool extends string> {
 
 	select(tool: TTool): void {
 		if (!this.hasTool(tool)) return;
+		if (tool !== this.#activeTool) {
+			this.captureActiveProfile();
+			this.restoreProfile(tool);
+		}
 		this.#activeTool = tool;
 		this.updateSelection();
 		this.persist();
@@ -68,12 +87,14 @@ export class GenericToolbar<TTool extends string> {
 		this.#listeners.add(listener);
 	}
 	persist(): void {
+		this.captureActiveProfile();
 		if (this.options.documentModel) {
 			this.options.documentModel.setToolbarState(
 				this.options.stateKey ?? 'toolbar',
 				{
 					activeTool: this.#activeTool,
 					controls: captureControlState(this.options.root),
+					controlProfiles: Object.fromEntries(this.#controlProfiles),
 				},
 			);
 		} else saveToolState(this.options.root, this.#activeTool);
@@ -145,10 +166,13 @@ export class GenericToolbar<TTool extends string> {
 	}
 
 	private restoreDocumentState(): void {
-		const state = this.options.documentModel?.toolbarState<{
-			activeTool?: string;
-			controls?: Record<string, PersistedValue>;
-		}>(this.options.stateKey ?? 'toolbar');
+		const state =
+			this.options.documentModel?.toolbarState<GenericToolbarDocumentState>(
+				this.options.stateKey ?? 'toolbar',
+			);
+		this.#controlProfiles.clear();
+		for (const [tool, profile] of Object.entries(state?.controlProfiles ?? {}))
+			if (this.hasTool(tool)) this.#controlProfiles.set(tool, profile);
 		restoreControlState(
 			this.options.root,
 			state?.controls ?? this.#defaultControls,
@@ -156,6 +180,9 @@ export class GenericToolbar<TTool extends string> {
 		this.#activeTool = this.hasTool(state?.activeTool ?? null)
 			? (state!.activeTool! as TTool)
 			: this.options.defaultTool;
+		if (this.#controlProfiles.has(this.#activeTool))
+			this.restoreProfile(this.#activeTool);
+		else this.captureActiveProfile();
 		this.updateSelection();
 		this.#listeners.forEach((listener) => listener(this.#activeTool));
 	}
@@ -164,6 +191,32 @@ export class GenericToolbar<TTool extends string> {
 		return (
 			value !== null && this.options.tools.some((tool) => tool.id === value)
 		);
+	}
+
+	private captureActiveProfile(): void {
+		if (!this.options.profiledControlIds?.length) return;
+		const controls = captureControlState(this.options.root);
+		const profile: Record<string, PersistedValue> = {};
+		for (const id of this.options.profiledControlIds) {
+			const value = controls[id];
+			if (value !== undefined) profile[id] = value;
+		}
+		this.#controlProfiles.set(this.#activeTool, profile);
+	}
+
+	private restoreProfile(tool: TTool): void {
+		if (!this.options.profiledControlIds?.length) return;
+		const profile = this.#controlProfiles.get(tool);
+		if (profile) {
+			restoreControlState(this.options.root, profile);
+			return;
+		}
+		const defaults: Record<string, PersistedValue> = {};
+		for (const id of this.options.profiledControlIds) {
+			const value = this.#defaultControls[id];
+			if (value !== undefined) defaults[id] = value;
+		}
+		restoreControlState(this.options.root, defaults);
 	}
 }
 

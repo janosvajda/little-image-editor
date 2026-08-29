@@ -17,6 +17,20 @@ export const DrawingToolKind = {
 export type DrawingToolKind =
 	(typeof DrawingToolKind)[keyof typeof DrawingToolKind];
 
+export const ToolOptionSource = {
+	Contextual: 'contextual',
+	Tool: 'tool',
+} as const;
+export type ToolOptionSource =
+	(typeof ToolOptionSource)[keyof typeof ToolOptionSource];
+
+export const ToolSizeLabel = {
+	PaintWidth: 'Width',
+	EraserWidth: 'Eraser width',
+	ShapeStrokeWidth: 'Stroke width',
+} as const;
+export type ToolSizeLabel = (typeof ToolSizeLabel)[keyof typeof ToolSizeLabel];
+
 export interface DrawingToolOptions {
 	readonly color: boolean;
 	readonly size: boolean;
@@ -33,6 +47,8 @@ export interface DrawingToolBehavior {
 	readonly kind: DrawingToolKind;
 	readonly cursor: string;
 	readonly options: DrawingToolOptions;
+	readonly optionSource: ToolOptionSource;
+	readonly sizeLabel?: ToolSizeLabel;
 }
 
 const NO_OPTIONS: DrawingToolOptions = {
@@ -64,11 +80,19 @@ const SHAPE_OPTIONS: DrawingToolOptions = {
 const paint = (
 	options = PAINT_OPTIONS,
 	cursor = 'crosshair',
-): DrawingToolBehavior => ({ kind: DrawingToolKind.Paint, cursor, options });
+): DrawingToolBehavior => ({
+	kind: DrawingToolKind.Paint,
+	cursor,
+	options,
+	optionSource: ToolOptionSource.Contextual,
+	sizeLabel: ToolSizeLabel.PaintWidth,
+});
 const shape = (): DrawingToolBehavior => ({
 	kind: DrawingToolKind.Shape,
 	cursor: 'crosshair',
 	options: SHAPE_OPTIONS,
+	optionSource: ToolOptionSource.Contextual,
+	sizeLabel: ToolSizeLabel.ShapeStrokeWidth,
 });
 
 export const DRAWING_TOOL_BEHAVIORS: Readonly<
@@ -80,7 +104,11 @@ export const DRAWING_TOOL_BEHAVIORS: Readonly<
 	[PaintToolId.Highlighter]: paint(),
 	[PaintToolId.Calligraphy]: paint(),
 	[PaintToolId.Spray]: paint(),
-	[PaintToolId.Eraser]: paint({ ...PAINT_OPTIONS, color: false }, 'cell'),
+	[PaintToolId.Eraser]: {
+		...paint({ ...PAINT_OPTIONS, color: false }, 'cell'),
+		optionSource: ToolOptionSource.Tool,
+		sizeLabel: ToolSizeLabel.EraserWidth,
+	},
 	[ShapeToolId.Line]: shape(),
 	[ShapeToolId.Arrow]: shape(),
 	[ShapeToolId.Rectangle]: shape(),
@@ -93,26 +121,31 @@ export const DRAWING_TOOL_BEHAVIORS: Readonly<
 		kind: DrawingToolKind.Select,
 		cursor: 'default',
 		options: NO_OPTIONS,
+		optionSource: ToolOptionSource.Contextual,
 	},
 	[UtilityToolId.Picker]: {
 		kind: DrawingToolKind.Picker,
 		cursor: 'copy',
 		options: { ...NO_OPTIONS, picker: true },
+		optionSource: ToolOptionSource.Contextual,
 	},
 	[UtilityToolId.Crop]: {
 		kind: DrawingToolKind.Crop,
 		cursor: 'crosshair',
 		options: { ...NO_OPTIONS, crop: true },
+		optionSource: ToolOptionSource.Contextual,
 	},
 	[UtilityToolId.Zoom]: {
 		kind: DrawingToolKind.Zoom,
 		cursor: 'zoom-in',
 		options: { ...NO_OPTIONS, zoom: true },
+		optionSource: ToolOptionSource.Contextual,
 	},
 	[UtilityToolId.Fill]: {
 		kind: DrawingToolKind.Fill,
 		cursor: '',
 		options: { ...NO_OPTIONS, opacity: true, fill: true },
+		optionSource: ToolOptionSource.Contextual,
 	},
 };
 

@@ -7,6 +7,7 @@ import {
 	renderAnnotationObject,
 	renderAnnotationObjects,
 	renderAnnotationSelection,
+	renderObjectErasureTail,
 	renderStrokeTail,
 	supportsIncrementalStrokeRendering,
 } from './annotationRenderer';
@@ -48,6 +49,9 @@ export class AnnotationRenderCache {
 	readonly #interactiveContext = this.#interactiveCanvas.getContext('2d')!;
 	#interactiveStrokeKey: string | null = null;
 	#interactiveStrokePointCount = 0;
+	#interactiveErasurePathCount = 0;
+	#interactiveErasurePointCount = 0;
+	#interactiveErasureRevision = 0;
 	#transformedInteractiveStrokeId: string | null = null;
 	#cachedRevision = INITIAL_REVISION;
 	#cachedStaticRevision = INITIAL_REVISION;
@@ -79,6 +83,7 @@ export class AnnotationRenderCache {
 		this.#cachedStaticRevision = INITIAL_REVISION;
 		this.#interactiveStrokeKey = null;
 		this.#interactiveStrokePointCount = 0;
+		this.resetInteractiveErasure();
 		this.#transformedInteractiveStrokeId = null;
 		this.#cachedObjectIds.clear();
 		this.#excludedObjectCanPromote = false;
@@ -292,7 +297,7 @@ export class AnnotationRenderCache {
 		const objects = excludedId
 			? state.objects.filter((object) => object.id !== excludedId)
 			: state.objects;
-		renderAnnotationObjects(this.#context, baseCanvas, objects);
+		for (const object of objects) this.renderCachedObject(baseCanvas, object);
 		this.#cachedObjectIds.clear();
 		for (const object of objects) this.#cachedObjectIds.add(object.id);
 		this.#cachedRevision = revision;
@@ -302,6 +307,18 @@ export class AnnotationRenderCache {
 			excludedId !== null && state.objects.at(-1)?.id === excludedId;
 		this.#cacheBuilds += 1;
 		this.#cachedObjectsRendered += objects.length;
+	}
+
+	private renderCachedObject(
+		baseCanvas: HTMLCanvasElement,
+		object: AnnotationObject,
+	): void {
+		if (object.visible === false) return;
+		if (isTransformedStroke(object)) {
+			this.renderInteractiveObject(this.#context, baseCanvas, object);
+			return;
+		}
+		renderAnnotationObject(this.#context, baseCanvas, object);
 	}
 
 	private resetInteractiveFrame(): void {
@@ -403,7 +420,14 @@ export class AnnotationRenderCache {
 		].join(':');
 		if (
 			key === this.#interactiveStrokeKey &&
-			object.points.length === this.#interactiveStrokePointCount
+			object.points.length === this.#interactiveStrokePointCount &&
+			this.renderIncrementalErasure(object)
+		)
+			return;
+		if (
+			key === this.#interactiveStrokeKey &&
+			object.points.length === this.#interactiveStrokePointCount &&
+			(object.erasureRevision ?? 0) === this.#interactiveErasureRevision
 		)
 			return;
 		if (
@@ -432,11 +456,61 @@ export class AnnotationRenderCache {
 		});
 		this.#interactiveStrokeKey = key;
 		this.#interactiveStrokePointCount = object.points.length;
+		this.captureInteractiveErasureState(object);
+	}
+
+	private renderIncrementalErasure(
+		object: Extract<
+			AnnotationObject,
+			{ type: typeof AnnotationObjectTypeId.Stroke }
+		>,
+	): boolean {
+		const revision = object.erasureRevision ?? 0;
+		if (revision === this.#interactiveErasureRevision) return false;
+		if (revision !== this.#interactiveErasureRevision + 1) return false;
+		const paths = object.erasures ?? [];
+		const pathCount = paths.length;
+		const extendsCurrentPath = pathCount === this.#interactiveErasurePathCount;
+		const startsNewPath = pathCount === this.#interactiveErasurePathCount + 1;
+		if (!extendsCurrentPath && !startsNewPath) return false;
+		const path = paths.at(-1);
+		if (!path) return false;
+		const previousPointCount = startsNewPath
+			? 1
+			: this.#interactiveErasurePointCount;
+		if (path.points.length < previousPointCount) return false;
+		renderObjectErasureTail(
+			this.#interactiveContext,
+			{ ...object, rect: { ...(object.sourceRect ?? object.rect) }, rotation: 0 },
+			path,
+			previousPointCount,
+		);
+		this.captureInteractiveErasureState(object);
+		return true;
+	}
+
+	private captureInteractiveErasureState(
+		object: Extract<
+			AnnotationObject,
+			{ type: typeof AnnotationObjectTypeId.Stroke }
+		>,
+	): void {
+		const paths = object.erasures ?? [];
+		this.#interactiveErasurePathCount = paths.length;
+		this.#interactiveErasurePointCount = paths.at(-1)?.points.length ?? 0;
+		this.#interactiveErasureRevision = object.erasureRevision ?? 0;
+	}
+
+	private resetInteractiveErasure(): void {
+		this.#interactiveErasurePathCount = 0;
+		this.#interactiveErasurePointCount = 0;
+		this.#interactiveErasureRevision = 0;
 	}
 
 	private resetInteractiveStroke(): void {
 		this.#interactiveStrokeKey = null;
 		this.#interactiveStrokePointCount = 0;
+		this.resetInteractiveErasure();
 	}
 }
 
