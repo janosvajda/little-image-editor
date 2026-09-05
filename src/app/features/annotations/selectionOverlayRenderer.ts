@@ -1,18 +1,18 @@
 import type { Point } from '../../core/document/appTypes';
 import { genericShape } from '../../core/geometry/genericShape';
 import {
+	type ShapeHandle,
 	ShapeHandleId,
 	ShapeHandleMetrics,
+	shapeCenter,
 	shapeHandles,
 	shapeMoveHandle,
-	shapeCenter,
-	type ShapeHandle,
 } from '../../core/geometry/shapeTransformHelpers';
-import { transformedStrokePoints } from './strokeGeometry';
 import {
-	AnnotationObjectTypeId,
 	type AnnotationObject,
+	AnnotationObjectTypeId,
 } from './annotationTypes';
+import { transformedStrokePoints } from './strokeGeometry';
 
 const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
 const SelectionMetrics = {
@@ -74,10 +74,10 @@ export class SelectionOverlayRenderer {
 
 		this.element.append(
 			moveHandle(
-				shapeMoveHandle(
-					geometry,
-					ShapeHandleMetrics.Offset * visualScale,
-				),
+				shapeMoveHandle(geometry, ShapeHandleMetrics.Offset * visualScale, {
+					width,
+					height,
+				}),
 				visualScale,
 			),
 		);

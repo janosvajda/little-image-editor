@@ -117,7 +117,7 @@ describe("DrawingController preferences", () => {
     expect(document.querySelector("#opacityInput")!.closest("label")!.classList).not.toContain("hidden");
   });
 
-  it("maps shapes, picker pixels, and crops to image coordinates at 200% zoom", () => {
+  it("maps shapes, picker pixels, and cut selections to image coordinates at 200% zoom", () => {
     const model = new CanvasDocument(document.querySelector("#canvas")!, document.querySelector("#overlay")!);
     const controller = new DrawingController(model);
     model.create({ name: "scaled", width: 200, height: 100, transparent: true, background: "#fff" });
@@ -135,8 +135,8 @@ describe("DrawingController preferences", () => {
 
     controller.select("crop");
     pointer("pointerdown", 110, 70); pointer("pointerup", 310, 170);
-    document.querySelector<HTMLButtonElement>("#applyCropButton")!.click();
-    expect([model.width, model.height]).toEqual([100, 50]);
+    expect([model.width, model.height]).toEqual([200, 100]);
+		expect(document.querySelector("#applyCropButton")).toBeNull();
   });
 
   it("fills a zoomed contiguous region and records undo and persistent tolerance", async () => {

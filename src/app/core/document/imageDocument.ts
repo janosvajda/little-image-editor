@@ -23,6 +23,25 @@ import { EditorLimit } from './editorLimits';
 const HISTORY_LIMIT = EditorLimit.RasterHistory;
 const EMPTY_HISTORY_INDEX = -1;
 
+export const DocumentGeometryChangeKind = {
+	Crop: 'crop',
+	Resize: 'resize',
+	Transform: 'transform',
+	Rebase: 'rebase',
+} as const;
+export type DocumentGeometryChange =
+	| Readonly<{ kind: typeof DocumentGeometryChangeKind.Crop; rect: CropRect }>
+	| Readonly<{ kind: typeof DocumentGeometryChangeKind.Resize }>
+	| Readonly<{ kind: typeof DocumentGeometryChangeKind.Transform }>
+	| Readonly<{
+			kind: typeof DocumentGeometryChangeKind.Rebase;
+			delta: Readonly<{ x: number; y: number }>;
+	  }>;
+type GeometryHistoryEntry = Readonly<{
+	kind: typeof DocumentGeometryChangeKind.Crop;
+	rect: CropRect;
+}> | null;
+
 export class CanvasDocument {
 	readonly context: CanvasRenderingContext2D;
 	readonly overlayContext: CanvasRenderingContext2D;
@@ -34,8 +53,10 @@ export class CanvasDocument {
 	savedType: ImageFormat = DEFAULT_IMAGE_FORMAT.mimeType;
 	resolution = PIXELS_PER_INCH;
 	documentType: DocumentType = DocumentType.Image;
+	#opaqueBackgroundColor: string | null = null;
 
 	#history: ImageData[] = [];
+	#geometryHistory: GeometryHistoryEntry[] = [];
 	#historyIndex = EMPTY_HISTORY_INDEX;
 	#historyListeners = new Set<(canUndo: boolean, canRedo: boolean) => void>();
 	#documentListeners = new Set<
@@ -46,7 +67,9 @@ export class CanvasDocument {
 	#contentListeners = new Set<(hasImage: boolean) => void>();
 	#toolbarStates: Record<string, unknown> = {};
 	#compositeRenderers = new Set<(context: CanvasRenderingContext2D) => void>();
-	#beforeGeometryChangeListeners = new Set<() => void>();
+	#beforeGeometryChangeListeners = new Set<
+		(change: DocumentGeometryChange) => void
+	>();
 
 	constructor(
 		readonly canvas: HTMLCanvasElement,
@@ -100,7 +123,7 @@ export class CanvasDocument {
 		return () => this.#compositeRenderers.delete(renderer);
 	}
 
-	onBeforeGeometryChange(listener: () => void): void {
+	onBeforeGeometryChange(listener: (change: DocumentGeometryChange) => void): void {
 		this.#beforeGeometryChangeListeners.add(listener);
 	}
 
@@ -142,6 +165,7 @@ export class CanvasDocument {
 		this.savedType = snapshot.savedType;
 		this.resolution = snapshot.resolution ?? PIXELS_PER_INCH;
 		this.documentType = snapshot.documentType ?? DocumentType.Image;
+		this.#opaqueBackgroundColor = this.containsTransparency() ? null : '#ffffff';
 		this.activate(snapshot.baseName);
 	}
 
@@ -155,6 +179,7 @@ export class CanvasDocument {
 					state.height,
 				),
 		);
+		this.#geometryHistory = this.#history.map(() => null);
 		this.#historyIndex = Math.min(
 			Math.max(snapshot.historyIndex, 0),
 			this.#history.length - 1,
@@ -172,6 +197,7 @@ export class CanvasDocument {
 		}
 		this.savedType = snapshot.savedType;
 		this.resolution = snapshot.resolution ?? PIXELS_PER_INCH;
+		this.#opaqueBackgroundColor = this.containsTransparency() ? null : '#ffffff';
 		this.hasImage = true;
 		this.fileHandle = null;
 		this.baseName = snapshot.baseName;
@@ -196,6 +222,7 @@ export class CanvasDocument {
 		this.context.drawImage(bitmap, 0, 0);
 		this.resolution = PIXELS_PER_INCH;
 		this.documentType = DocumentType.Image;
+		this.#opaqueBackgroundColor = '#ffffff';
 		bitmap.close();
 		this.activate(file.name.replace(/\.[^.]+$/, '') || 'little-image');
 	}
@@ -210,6 +237,7 @@ export class CanvasDocument {
 		this.savedType = options.format ?? DEFAULT_IMAGE_FORMAT.mimeType;
 		this.resolution = options.resolution ?? PIXELS_PER_INCH;
 		this.documentType = options.documentType ?? DocumentType.Image;
+		this.#opaqueBackgroundColor = options.transparent ? null : options.background;
 		this.activate(options.name.trim() || DEFAULT_DOCUMENT_NAME);
 	}
 
@@ -220,7 +248,9 @@ export class CanvasDocument {
 		this.#toolbarStates = {};
 		this.layers.reset();
 		this.#history = [];
+		this.#geometryHistory = [];
 		this.#historyIndex = EMPTY_HISTORY_INDEX;
+		this.#opaqueBackgroundColor = null;
 		this.#toolbarStates = {};
 		this.clearOverlay();
 		this.commit();
@@ -231,6 +261,7 @@ export class CanvasDocument {
 		this.hasImage = false;
 		this.fileHandle = null;
 		this.#history = [];
+		this.#geometryHistory = [];
 		this.#historyIndex = EMPTY_HISTORY_INDEX;
 		this.layers.reset();
 		this.context.clearRect(0, 0, this.width, this.height);
@@ -240,13 +271,18 @@ export class CanvasDocument {
 		this.#emitContentChange();
 	}
 
-	commit(): void {
+	commit(geometry: GeometryHistoryEntry = null): void {
 		if (!this.hasImage && this.#history.length > 0) return;
 		this.#history.splice(this.#historyIndex + 1);
+		this.#geometryHistory.splice(this.#historyIndex + 1);
 		this.#history.push(
 			this.context.getImageData(0, 0, this.width, this.height),
 		);
-		if (this.#history.length > HISTORY_LIMIT) this.#history.shift();
+		this.#geometryHistory.push(geometry);
+		if (this.#history.length > HISTORY_LIMIT) {
+			this.#history.shift();
+			this.#geometryHistory.shift();
+		}
 		this.#historyIndex = this.#history.length - 1;
 		this.#emitHistory();
 		if (this.hasImage) this.#emitContentChange();
@@ -280,7 +316,10 @@ export class CanvasDocument {
 
 	crop(rect: CropRect): void {
 		if (rect.width < 1 || rect.height < 1) return;
-		this.#emitBeforeGeometryChange();
+		this.#emitBeforeGeometryChange({
+			kind: DocumentGeometryChangeKind.Crop,
+			rect,
+		});
 		const image = this.context.getImageData(
 			rect.x,
 			rect.y,
@@ -290,7 +329,7 @@ export class CanvasDocument {
 		this.setSize(image.width, image.height);
 		this.context.putImageData(image, 0, 0);
 		this.clearOverlay();
-		this.commit();
+		this.commit({ kind: DocumentGeometryChangeKind.Crop, rect });
 	}
 
 	resize(
@@ -299,7 +338,7 @@ export class CanvasDocument {
 		historyMode: 'commit' | 'reset' = 'commit',
 	): void {
 		if (!this.hasImage || width < 1 || height < 1) return;
-		this.#emitBeforeGeometryChange();
+		this.#emitBeforeGeometryChange({ kind: DocumentGeometryChangeKind.Resize });
 		const source = this.copyCanvas();
 		this.setSize(Math.round(width), Math.round(height));
 		this.context.imageSmoothingEnabled = true;
@@ -307,6 +346,7 @@ export class CanvasDocument {
 		this.context.drawImage(source, 0, 0, this.width, this.height);
 		if (historyMode === 'reset') {
 			this.#history = [];
+			this.#geometryHistory = [];
 			this.#historyIndex = EMPTY_HISTORY_INDEX;
 		}
 		this.commit();
@@ -314,7 +354,7 @@ export class CanvasDocument {
 
 	transform(rotation: number, flipX = 1, flipY = 1): void {
 		if (!this.hasImage) return;
-		this.#emitBeforeGeometryChange();
+		this.#emitBeforeGeometryChange({ kind: DocumentGeometryChangeKind.Transform });
 		const source = this.copyCanvas();
 		const swap =
 			Math.abs(rotation) % Numeric.DegreesPerHalfTurn ===
@@ -334,6 +374,17 @@ export class CanvasDocument {
 
 	containsTransparency(): boolean {
 		return hasTransparency(this.context, this.width, this.height);
+	}
+
+	cropReplacementPixel(): Uint8ClampedArray | null {
+		if (this.containsTransparency()) return null;
+		const sample = document.createElement('canvas');
+		sample.width = 1;
+		sample.height = 1;
+		const context = sample.getContext('2d')!;
+		context.fillStyle = this.#opaqueBackgroundColor ?? '#ffffff';
+		context.fillRect(0, 0, sample.width, sample.height);
+		return context.getImageData(0, 0, sample.width, sample.height).data;
 	}
 
 	compositeCanvas(): HTMLCanvasElement {
@@ -363,6 +414,18 @@ export class CanvasDocument {
 	#restore(index: number): void {
 		const state = this.#history[index];
 		if (!state) return;
+		const movingBackward = index < this.#historyIndex;
+		const geometry = movingBackward
+			? this.#geometryHistory[this.#historyIndex]
+			: this.#geometryHistory[index];
+		if (geometry?.kind === DocumentGeometryChangeKind.Crop)
+			this.#emitBeforeGeometryChange({
+				kind: DocumentGeometryChangeKind.Rebase,
+				delta: {
+					x: movingBackward ? geometry.rect.x : -geometry.rect.x,
+					y: movingBackward ? geometry.rect.y : -geometry.rect.y,
+				},
+			});
 		this.setSize(state.width, state.height);
 		this.context.putImageData(state, 0, 0);
 		this.#historyIndex = index;
@@ -402,7 +465,7 @@ export class CanvasDocument {
 		this.#contentListeners.forEach((listener) => listener(this.hasImage));
 	}
 
-	#emitBeforeGeometryChange(): void {
-		this.#beforeGeometryChangeListeners.forEach((listener) => listener());
+	#emitBeforeGeometryChange(change: DocumentGeometryChange): void {
+		this.#beforeGeometryChangeListeners.forEach((listener) => listener(change));
 	}
 }

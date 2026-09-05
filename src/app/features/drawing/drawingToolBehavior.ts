@@ -3,6 +3,8 @@ import {
 	ShapeToolId,
 	UtilityToolId,
 	type Tool,
+	type PaintTool,
+	type ShapeTool,
 } from '../../core/document/appTypes';
 
 export const DrawingToolKind = {
@@ -133,7 +135,7 @@ export const DRAWING_TOOL_BEHAVIORS: Readonly<
 		kind: DrawingToolKind.Crop,
 		cursor: 'crosshair',
 		options: { ...NO_OPTIONS, crop: true },
-		optionSource: ToolOptionSource.Contextual,
+		optionSource: ToolOptionSource.Tool,
 	},
 	[UtilityToolId.Zoom]: {
 		kind: DrawingToolKind.Zoom,
@@ -155,4 +157,11 @@ export function drawingToolBehavior(tool: Tool): DrawingToolBehavior {
 
 export function isToolKind(tool: Tool, kind: DrawingToolKind): boolean {
 	return drawingToolBehavior(tool).kind === kind;
+}
+
+export function isPaintTool(tool: Tool): tool is PaintTool {
+	return isToolKind(tool, DrawingToolKind.Paint);
+}
+export function isShapeTool(tool: Tool): tool is ShapeTool {
+	return isToolKind(tool, DrawingToolKind.Shape);
 }

@@ -5,11 +5,6 @@ interface PanelActionDefinition {
 }
 
 const PANEL_ACTIONS: Readonly<Record<string, PanelActionDefinition>> = {
-	applyCropButton: {
-		label: 'Apply',
-		title: 'Apply crop',
-		path: 'm3 8 3 3 7-7',
-	},
 	resetFiltersButton: {
 		label: 'Reset',
 		title: 'Reset adjustments',

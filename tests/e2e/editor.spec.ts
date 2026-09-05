@@ -142,10 +142,10 @@ test("keeps edit pixel math independent from 200% zoom", async ({ page }) => {
   await page.locator('[data-tool="crop"]').click();
   await overlay.dispatchEvent("pointerdown", { clientX: bounds!.x + bounds!.width * .25, clientY: bounds!.y + bounds!.height * .25, pointerId: 1 });
   await overlay.dispatchEvent("pointerup", { clientX: bounds!.x + bounds!.width * .75, clientY: bounds!.y + bounds!.height * .75, pointerId: 1 });
-  await page.locator("#applyCropButton").click();
-  await expect(page.locator("#dimensions")).toHaveText("400 × 300 px");
-  await expect(page.locator(".canvas-stage")).toHaveCSS("width", "800px");
-  await expect(page.locator(".canvas-stage")).toHaveCSS("height", "600px");
+	await expect(page.locator("#applyCropButton")).toHaveCount(0);
+  await expect(page.locator("#dimensions")).toHaveText("800 × 600 px");
+  await expect(page.locator(".canvas-stage")).toHaveCSS("width", "1600px");
+  await expect(page.locator(".canvas-stage")).toHaveCSS("height", "1200px");
 
   await page.locator("#toolbarPickerButton").click();
   await page.getByLabel("Transform", { exact: true }).check();

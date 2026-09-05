@@ -1,11 +1,11 @@
 import type { Point } from '../../core/document/appTypes';
 import { PaintToolId } from '../../core/document/appTypes';
-import { annotationBounds } from './annotationDocument';
 import {
 	AnnotationObjectTypeId,
 	type AnnotationObject,
 	type AnnotationState,
 	type ObjectErasurePath,
+	type ObjectPixelMask,
 	type RectAnnotation,
 	type StrokeAnnotation,
 } from './annotationTypes';
@@ -28,6 +28,7 @@ import {
 	objectErasureCanvasPoint,
 	objectErasureSize,
 } from './objectErasures';
+import { decodePixelBytes } from '../../shared/image/pixelDataCodec';
 
 const AnnotationRendering = {
 	ArrowMinimumHead: 10,
@@ -67,6 +68,10 @@ const AnnotationRendering = {
 
 const erasedObjectCanvas = document.createElement('canvas');
 const erasedObjectContext = erasedObjectCanvas.getContext('2d')!;
+const rasterFragmentCache = new Map<
+	string,
+	Readonly<{ encodedPixels: string; canvas: HTMLCanvasElement }>
+>();
 
 export function renderAnnotations(
 	context: CanvasRenderingContext2D,
@@ -98,7 +103,11 @@ export function renderAnnotationObject(
 	baseCanvas: HTMLCanvasElement,
 	object: AnnotationObject,
 ): void {
-	if (!object.erasures?.length) {
+	if (
+		!object.erasures?.length &&
+		!object.pixelCutouts?.length &&
+		!object.pixelClips?.length
+	) {
 		renderAnnotationObjectContent(context, baseCanvas, object);
 		return;
 	}
@@ -109,13 +118,69 @@ export function renderAnnotationObject(
 		erasedObjectCanvas.width,
 		erasedObjectCanvas.height,
 	);
-	if (object.type === AnnotationObjectTypeId.Stroke)
-		renderChronologicallyErasedStroke(erasedObjectContext, object);
+	if (
+		object.type === AnnotationObjectTypeId.Stroke &&
+		(object.erasures?.length || object.pixelCutouts?.length)
+	)
+		renderChronologicallyModifiedStroke(erasedObjectContext, object);
 	else {
 		renderAnnotationObjectContent(erasedObjectContext, baseCanvas, object);
 		applyObjectErasures(erasedObjectContext, object);
+		applyPixelCutouts(erasedObjectContext, object);
 	}
+	applyPixelClips(erasedObjectContext, object);
 	context.drawImage(erasedObjectCanvas, 0, 0);
+}
+
+function applyPixelCutouts(
+	context: CanvasRenderingContext2D,
+	object: AnnotationObject,
+): void {
+	const geometry = genericShape(object).geometry;
+	context.save();
+	withShapeTransform(context, geometry, () => {
+		for (const mask of object.pixelCutouts ?? []) {
+			context.globalCompositeOperation = 'destination-out';
+			fillPixelMask(context, geometry.rect, mask);
+		}
+	});
+	context.restore();
+}
+
+function applyPixelClips(
+	context: CanvasRenderingContext2D,
+	object: AnnotationObject,
+): void {
+	const geometry = genericShape(object).geometry;
+	context.save();
+	withShapeTransform(context, geometry, () => {
+		for (const mask of object.pixelClips ?? []) {
+			context.globalCompositeOperation = 'destination-in';
+			fillPixelMask(context, geometry.rect, mask);
+		}
+	});
+	context.restore();
+}
+
+function fillPixelMask(
+	context: CanvasRenderingContext2D,
+	rect: Readonly<{ x: number; y: number; width: number; height: number }>,
+	mask: ObjectPixelMask,
+): void {
+	const first = mask.points[0];
+	if (!first) return;
+	context.beginPath();
+	context.moveTo(
+		rect.x + first.xRatio * rect.width,
+		rect.y + first.yRatio * rect.height,
+	);
+	for (const point of mask.points.slice(1))
+		context.lineTo(
+			rect.x + point.xRatio * rect.width,
+			rect.y + point.yRatio * rect.height,
+		);
+	context.closePath();
+	context.fill();
 }
 
 function renderAnnotationObjectContent(
@@ -173,6 +238,17 @@ function renderAnnotationObjectContent(
 					scaleY,
 				);
 		});
+	else if (object.type === AnnotationObjectTypeId.RasterFragment)
+		withShapeTransform(context, object, () => {
+			const fragment = rasterFragmentCanvas(object);
+			context.drawImage(
+				fragment,
+				object.rect.x,
+				object.rect.y,
+				object.rect.width,
+				object.rect.height,
+			);
+		});
 	else if (object.type === AnnotationObjectTypeId.Blur)
 		withShapeTransform(context, object, () =>
 			drawBlur(context, baseCanvas, object),
@@ -211,6 +287,33 @@ function renderAnnotationObjectContent(
 		});
 	}
 	context.restore();
+}
+
+function rasterFragmentCanvas(
+	object: Extract<
+		AnnotationObject,
+		{ type: typeof AnnotationObjectTypeId.RasterFragment }
+	>,
+): HTMLCanvasElement {
+	const cached = rasterFragmentCache.get(object.id);
+	if (cached?.encodedPixels === object.pixels) return cached.canvas;
+	const pixels = decodePixelBytes(object.pixels);
+	const canvas = document.createElement('canvas');
+	canvas.width = object.pixelWidth;
+	canvas.height = object.pixelHeight;
+	canvas
+		.getContext('2d')!
+		.putImageData(
+			new ImageData(
+				new Uint8ClampedArray(pixels),
+				object.pixelWidth,
+				object.pixelHeight,
+			),
+			0,
+			0,
+		);
+	rasterFragmentCache.set(object.id, { encodedPixels: object.pixels, canvas });
+	return canvas;
 }
 
 function applyObjectErasures(
@@ -266,7 +369,7 @@ export function renderObjectErasureTail(
 	);
 }
 
-function renderChronologicallyErasedStroke(
+function renderChronologicallyModifiedStroke(
 	context: CanvasRenderingContext2D,
 	object: StrokeAnnotation,
 ): void {
@@ -277,13 +380,27 @@ function renderChronologicallyErasedStroke(
 	const pathStarts = new Set(object.pathStarts);
 	withShapeTransform(context, geometry, () => {
 		let firstSegmentIndex = 1;
-		for (const erasure of object.erasures ?? []) {
+		const events = [
+			...(object.erasures ?? []).map((erasure, order) => ({
+				kind: 'erasure' as const,
+				pointLimit: erasure.strokePointLimit ?? object.points.length,
+				order,
+				erasure,
+			})),
+			...(object.pixelCutouts ?? []).map((mask, order) => ({
+				kind: 'cutout' as const,
+				pointLimit: mask.strokePointLimit ?? object.points.length,
+				order,
+				mask,
+			})),
+		].sort(
+			(left, right) =>
+				left.pointLimit - right.pointLimit || left.order - right.order,
+		);
+		for (const event of events) {
 			const pointLimit = Math.min(
 				object.points.length,
-				Math.max(
-					AnnotationRendering.MinimumStrokePointCount,
-					erasure.strokePointLimit ?? object.points.length,
-				),
+				Math.max(AnnotationRendering.MinimumStrokePointCount, event.pointLimit),
 			);
 			drawStrokeRange(
 				context,
@@ -292,7 +409,13 @@ function renderChronologicallyErasedStroke(
 				pointLimit,
 				pathStarts,
 			);
-			applyObjectErasure(context, geometry, erasure);
+			if (event.kind === 'erasure')
+				applyObjectErasure(context, geometry, event.erasure);
+			else {
+				context.globalCompositeOperation = 'destination-out';
+				fillStrokePixelMask(context, object, event.mask);
+				context.globalCompositeOperation = 'source-over';
+			}
 			firstSegmentIndex = pointLimit;
 		}
 		drawStrokeRange(
@@ -304,6 +427,40 @@ function renderChronologicallyErasedStroke(
 		);
 	});
 	context.restore();
+}
+
+function fillStrokePixelMask(
+	context: CanvasRenderingContext2D,
+	stroke: StrokeAnnotation,
+	mask: ObjectPixelMask,
+): void {
+	const reference = mask.strokeSourceRect;
+	if (!reference) {
+		fillPixelMask(context, stroke.rect, mask);
+		return;
+	}
+	const source = stroke.sourceRect ?? stroke.rect;
+	const scaleX = source.width === 0 ? 1 : stroke.rect.width / source.width;
+	const scaleY = source.height === 0 ? 1 : stroke.rect.height / source.height;
+	const first = mask.points[0];
+	if (!first) return;
+	const canvasPoint = (point: Readonly<{ xRatio: number; yRatio: number }>) => ({
+		x:
+			stroke.rect.x +
+			(reference.x + point.xRatio * reference.width - source.x) * scaleX,
+		y:
+			stroke.rect.y +
+			(reference.y + point.yRatio * reference.height - source.y) * scaleY,
+	});
+	const start = canvasPoint(first);
+	context.beginPath();
+	context.moveTo(start.x, start.y);
+	for (const point of mask.points.slice(1)) {
+		const next = canvasPoint(point);
+		context.lineTo(next.x, next.y);
+	}
+	context.closePath();
+	context.fill();
 }
 
 function resizeErasedObjectCanvas(width: number, height: number): void {
@@ -541,7 +698,7 @@ export function renderAnnotationSelection(
 	context: CanvasRenderingContext2D,
 	object: AnnotationObject,
 ): void {
-	const bounds = annotationBounds(object);
+	const bounds = genericShape(object).geometry.rect;
 	const visualScale = canvasVisualScale(context.canvas);
 	context.save();
 	const geometry = genericShape(object).geometry;

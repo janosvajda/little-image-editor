@@ -1,8 +1,12 @@
 import { CanvasDocument } from './app/core/document/imageDocument';
 import { AnnotationController } from './app/features/annotations/annotationController';
-import { AnnotationDocument } from './app/features/annotations/annotationDocument';
+import {
+	AnnotationDocument,
+	LinkedHistoryDirection,
+} from './app/features/annotations/annotationDocument';
 import { AnnotationPanel } from './app/features/annotations/annotationPanel';
 import type { AnnotationTool } from './app/features/annotations/annotationTypes';
+import { LinkedHistoryDomain } from './app/features/annotations/annotationTypes';
 import { BrowserCaptureImporter } from './app/features/capture/browserCaptureImporter';
 import { DrawingController } from './app/features/drawing/drawingController';
 import { EffectsController } from './app/features/effects/effectsController';
@@ -13,6 +17,7 @@ import { NewImageController } from './app/features/files/newImageController';
 import { SessionPersistence } from './app/features/files/sessionPersistence';
 import { SpriteController } from './app/features/files/spriteController';
 import { LayersController } from './app/features/layers/layersController';
+import { RasterSelection } from './app/features/selection/rasterSelection';
 import { ProjectController } from './app/features/projects/projectController';
 import { DocumentLimitController } from './app/features/projects/documentLimitController';
 import { CanvasToolCoordinator } from './app/features/workspace/canvasToolCoordinator';
@@ -59,13 +64,19 @@ const workspaceUi = new WorkspaceUi([
 ]);
 workspaceUi.bindToolbarAvailability(documentModel);
 const viewport = new CanvasViewportController(documentModel);
+const rasterSelection = new RasterSelection(documentModel, viewport);
 new DocumentLimitController(documentModel, vectorShapes);
-const drawing = new DrawingController(documentModel, viewport, vectorShapes);
+const drawing = new DrawingController(
+	documentModel,
+	viewport,
+	vectorShapes,
+	rasterSelection,
+);
 layers.onEditRequested((objectId) => {
 	drawing.editObject(objectId);
 });
-new ImageOperations(documentModel);
-new EffectsController(documentModel);
+new ImageOperations(documentModel, rasterSelection);
+new EffectsController(documentModel, rasterSelection);
 const toolbarManager = new ToolbarManager(documentModel);
 const annotationPreferences = toolbarManager.get<{
 	tool: AnnotationTool;
@@ -172,6 +183,11 @@ vectorShapes.onHistoryChange((canUndo, canRedo) => {
 	objectCanRedo = canRedo;
 	historyDomain = 'objects';
 	updateHistoryButtons();
+});
+vectorShapes.onLinkedHistoryAction((domain, direction) => {
+	if (domain !== LinkedHistoryDomain.Document) return;
+	if (direction === LinkedHistoryDirection.Undo) documentModel.undo();
+	else documentModel.redo();
 });
 const undo = () =>
 	historyDomain === 'objects'

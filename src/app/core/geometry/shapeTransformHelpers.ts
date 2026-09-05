@@ -1,5 +1,5 @@
+import { degreesToRadians, Numeric } from '../../shared/math/numericConstants';
 import type { CropRect, Point } from '../document/appTypes';
-import { Numeric, degreesToRadians } from '../../shared/math/numericConstants';
 
 export const ShapeHandleId = {
 	NorthWest: 'northWest',
@@ -19,16 +19,28 @@ export const ShapeHandleMetrics = {
 	HitTolerance: 10,
 } as const;
 
+export type SelectionBounds = Readonly<Pick<CropRect, 'width' | 'height'>>;
+
 export function shapeMoveHandle(
 	shape: TransformableGeometry,
 	offset: number = ShapeHandleMetrics.Offset,
+	bounds?: SelectionBounds,
 ): Point {
 	const center = shapeCenter(shape);
-	return rotatePoint(
+	const point = rotatePoint(
 		{ x: center.x + offset, y: shape.rect.y - offset },
 		center,
 		radians(shape.rotation),
 	);
+	if (!bounds) return point;
+	const margin =
+		(ShapeHandleMetrics.HitTolerance * offset) / ShapeHandleMetrics.Offset;
+	const insetX = Math.min(margin, bounds.width / 2);
+	const insetY = Math.min(margin, bounds.height / 2);
+	return {
+		x: Math.max(insetX, Math.min(bounds.width - insetX, point.x)),
+		y: Math.max(insetY, Math.min(bounds.height - insetY, point.y)),
+	};
 }
 
 export function hitShapeMoveHandle(
@@ -36,8 +48,9 @@ export function hitShapeMoveHandle(
 	point: Point,
 	tolerance: number = ShapeHandleMetrics.HitTolerance,
 	offset: number = ShapeHandleMetrics.Offset,
+	bounds?: SelectionBounds,
 ): boolean {
-	return distance(shapeMoveHandle(shape, offset), point) <= tolerance;
+	return distance(shapeMoveHandle(shape, offset, bounds), point) <= tolerance;
 }
 
 export function shapeCenter(shape: TransformableGeometry): Point {

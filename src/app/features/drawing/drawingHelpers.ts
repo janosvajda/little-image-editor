@@ -1,12 +1,11 @@
 import {
 	PaintToolId,
 	ShapeToolId,
-	UtilityToolId,
 	type PaintTool,
 	type Point,
 	type Tool,
 } from '../../core/document/appTypes';
-import { ColorPalette } from '../../core/document/colorPalette';
+import { renderPixelPencilSegment } from './pixelPencilRenderer';
 
 export interface StrokeOptions {
 	color: string;
@@ -17,7 +16,6 @@ export interface StrokeOptions {
 
 const PRESSURE_BASE = 0.35;
 const PRESSURE_RANGE = 0.65;
-const PENCIL_WIDTH_FACTOR = 0.22;
 const MARKER_WIDTH_FACTOR = 1.35;
 const MARKER_OPACITY_FACTOR = 0.55;
 const HIGHLIGHTER_WIDTH_FACTOR = 2;
@@ -42,8 +40,7 @@ const MAXIMUM_CORNER_RADIUS = 16;
 const CORNER_RADIUS_DIVISOR = 4;
 const STAR_POINT_COUNT = 10;
 const STAR_ANGLE_STEP_DIVISOR = 5;
-const CROP_DASH_LENGTH = 6;
-const CROP_DASH_GAP = 4;
+const PIXEL_CENTER_OFFSET = 0.5;
 
 export function canvasPoint(
 	event: Pick<PointerEvent, 'clientX' | 'clientY'>,
@@ -63,6 +60,35 @@ export function canvasPoint(
 			Math.min(height, ((event.clientY - bounds.top) * height) / bounds.height),
 		),
 	};
+}
+
+/**
+ * Places a pixel-precise stroke on the document pixel grid. Canvas strokes with
+ * an odd whole-pixel width must be centred on half-pixel coordinates; even
+ * widths must be centred on whole-pixel coordinates. The conversion happens in
+ * document space, so its result is independent of viewport zoom.
+ */
+export function pixelAlignedPoint(
+	point: Point,
+	width: number,
+	height: number,
+	strokeWidth: number,
+): Point {
+	const offset =
+		Math.round(strokeWidth) % 2 === 0 ? 0 : PIXEL_CENTER_OFFSET;
+	return {
+		x: alignedCoordinate(point.x, width, offset),
+		y: alignedCoordinate(point.y, height, offset),
+	};
+}
+
+function alignedCoordinate(
+	coordinate: number,
+	limit: number,
+	offset: number,
+): number {
+	const maximum = Math.max(offset, limit - offset);
+	return Math.max(offset, Math.min(maximum, Math.round(coordinate - offset) + offset));
 }
 
 export function configureStroke(
@@ -94,15 +120,13 @@ export function drawFreehandStroke(
 	context.lineWidth = pressureSize;
 	context.globalCompositeOperation =
 		tool === PaintToolId.Eraser ? 'destination-out' : 'source-over';
-	if (tool === PaintToolId.Spray)
+	if (tool === PaintToolId.Pencil)
+		renderPixelPencilSegment(context, from, to, pressureSize);
+	else if (tool === PaintToolId.Spray)
 		drawSpray(context, to, pressureSize, options.hardness, random);
 	else if (tool === PaintToolId.Calligraphy)
 		drawCalligraphy(context, from, to, pressureSize);
 	else {
-		if (tool === PaintToolId.Pencil) {
-			context.lineWidth = Math.max(1, pressureSize * PENCIL_WIDTH_FACTOR);
-			context.lineCap = 'square';
-		}
 		if (tool === PaintToolId.Marker) {
 			context.lineWidth = pressureSize * MARKER_WIDTH_FACTOR;
 			context.globalAlpha *= MARKER_OPACITY_FACTOR;
@@ -137,7 +161,7 @@ export function drawShape(
 		context.moveTo(from.x, from.y);
 		context.lineTo(to.x, to.y);
 		if (tool === ShapeToolId.Arrow) addArrowHead(context, from, to);
-	} else if (tool === ShapeToolId.Rectangle || tool === UtilityToolId.Crop)
+	} else if (tool === ShapeToolId.Rectangle)
 		context.rect(from.x, from.y, to.x - from.x, to.y - from.y);
 	else if (tool === ShapeToolId.RoundedRectangle)
 		addRoundedRectangle(context, from, to);
@@ -167,15 +191,7 @@ export function drawShape(
 		context.lineTo(from.x, center.y);
 		context.closePath();
 	} else if (tool === ShapeToolId.Star) addStar(context, from, to);
-	if (tool === UtilityToolId.Crop) {
-		context.save();
-		context.strokeStyle = ColorPalette.White;
-		context.globalAlpha = 1;
-		context.lineWidth = 1;
-		context.setLineDash([CROP_DASH_LENGTH, CROP_DASH_GAP]);
-		context.stroke();
-		context.restore();
-	} else if (fill && tool !== ShapeToolId.Line && tool !== ShapeToolId.Arrow)
+	if (fill && tool !== ShapeToolId.Line && tool !== ShapeToolId.Arrow)
 		context.fill();
 	else context.stroke();
 }

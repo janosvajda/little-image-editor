@@ -50,9 +50,10 @@ describe('editor tool document enforcement contract', () => {
 		] as const)
 			expect(DRAWING_TOOL_DOCUMENT_CONTRACT).not.toHaveProperty(tool);
 
-		expect(DRAWING_TOOL_DOCUMENT_CONTRACT[UtilityToolId.Crop].impact).toBe(
-			EditorToolImpact.DocumentOperation,
-		);
+		expect(DRAWING_TOOL_DOCUMENT_CONTRACT[UtilityToolId.Crop]).toEqual({
+			impact: EditorToolImpact.EditableObject,
+			objectKind: EditableObjectKind.PixelSelection,
+		});
 		for (const registration of Object.values(TRANSFORM_DOCUMENT_CONTRACT))
 			expect(registration.impact).toBe(
 				EditorToolImpact.DocumentOperation,

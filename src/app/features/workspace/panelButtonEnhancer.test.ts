@@ -9,6 +9,6 @@ describe("enhancePanelButtons", () => {
     expect(reset.querySelector("svg")).not.toBeNull();
     expect(reset.textContent).toBe("Reset");
     expect(document.querySelector("#resizeButton svg")).not.toBeNull();
-    expect(document.querySelector("#applyCropButton svg")).not.toBeNull();
+		expect(document.querySelector("#applyCropButton")).toBeNull();
   });
 });

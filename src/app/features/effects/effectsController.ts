@@ -5,10 +5,18 @@ import {
 	EffectId,
 	type ColorEffect,
 } from './imageFilterHelpers';
-import type { HistorySnapshot } from '../../core/document/appTypes';
+import type {
+	CropRect,
+	HistorySnapshot,
+} from '../../core/document/appTypes';
 import type { CanvasDocument } from '../../core/document/imageDocument';
 import { PersistentDocumentToolbar } from '../workspace/genericToolbar';
 import { ToolbarId, toolbarSelector } from '../workspace/toolbarTypes';
+import type { RasterSelection } from '../selection/rasterSelection';
+import {
+	mergeSelectedPixels,
+	transformSelectedPixels,
+} from './selectionAwareImageData';
 
 type Effect = ColorEffect | typeof EffectId.Sharpen;
 interface EffectState {
@@ -57,7 +65,10 @@ export class EffectsController {
 	#lastAppliedBase: ImageData | null = null;
 	#changingHistory = false;
 
-	constructor(readonly documentModel: CanvasDocument) {
+	constructor(
+		readonly documentModel: CanvasDocument,
+		readonly rasterSelection?: RasterSelection,
+	) {
 		this.initializeUi();
 		this.#toolbar = new PersistentDocumentToolbar(
 			this.#root,
@@ -188,16 +199,30 @@ export class EffectsController {
 	}
 
 	private renderEffect(base: ImageData): void {
-		const result = new ImageData(
+		const amount = Number(this.#amount.value) / PERCENT_SCALE;
+		const effect = this.#effect.value as Effect;
+		const selection = this.rasterSelection?.value ?? null;
+		const result =
+			effect === EffectId.Sharpen
+				? this.renderSharpen(base, selection, amount)
+				: transformSelectedPixels(base, selection, (region) =>
+						applyColorEffect(region, effect, amount),
+					);
+		this.documentModel.context.putImageData(result, 0, 0);
+	}
+
+	private renderSharpen(
+		base: ImageData,
+		selection: CropRect | null,
+		amount: number,
+	): ImageData {
+		const sharpened = new ImageData(
 			new Uint8ClampedArray(base.data),
 			base.width,
 			base.height,
 		);
-		const amount = Number(this.#amount.value) / PERCENT_SCALE;
-		const effect = this.#effect.value as Effect;
-		if (effect === EffectId.Sharpen) applySharpen(result, amount);
-		else applyColorEffect(result, effect, amount);
-		this.documentModel.context.putImageData(result, 0, 0);
+		applySharpen(sharpened, amount);
+		return mergeSelectedPixels(base, sharpened, selection);
 	}
 
 	private captureCurrent(): ImageData {

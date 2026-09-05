@@ -36,7 +36,11 @@ describe("drawingHelpers", () => {
     drawFreehandStroke(target, tool, from, to, options, tool === "pencil" ? -1 : 2, () => .5);
     expect(vi.mocked(target.save)).toHaveBeenCalled();
     expect(vi.mocked(target.restore)).toHaveBeenCalled();
-    if (tool === "spray") expect(vi.mocked(target.fillRect)).toHaveBeenCalled();
+    if (tool === "pencil") {
+      expect(vi.mocked(target.fillRect)).toHaveBeenCalled();
+      expect(vi.mocked(target.stroke)).not.toHaveBeenCalled();
+    }
+    else if (tool === "spray") expect(vi.mocked(target.fillRect)).toHaveBeenCalled();
     else if (tool === "calligraphy") expect(vi.mocked(target.ellipse)).toHaveBeenCalled();
     else expect(vi.mocked(target.stroke)).toHaveBeenCalled();
   });
@@ -54,12 +58,10 @@ describe("drawingHelpers", () => {
     expect(vi.mocked(target.stroke)).toHaveBeenCalled();
   });
 
-  it("fills closed shapes and renders the crop marquee independently", () => {
+  it("fills only closed drawing shapes", () => {
     const target = context();
     drawShape(target, "rectangle", from, to, true);
     drawShape(target, "line", from, to, true);
-    drawShape(target, "crop", from, to, false);
     expect(vi.mocked(target.fill)).toHaveBeenCalledOnce();
-    expect(vi.mocked(target.setLineDash)).toHaveBeenCalledWith([6, 4]);
   });
 });

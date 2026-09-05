@@ -1329,6 +1329,54 @@ html[data-theme=dark] .transparency-warning strong {
     pointer-events: none
 }
 
+.raster-selection-overlay {
+    overflow: visible;
+    pointer-events: none
+}
+
+.crop-selection-overlay {
+    overflow: visible;
+    pointer-events: none
+}
+
+.crop-selection-shade {
+    fill: rgb(0 0 0 / 48%)
+}
+
+.crop-selection-contrast,
+.crop-selection-frame {
+    fill: none;
+    vector-effect: non-scaling-stroke
+}
+
+.crop-selection-contrast {
+    stroke: #000;
+    stroke-width: 3
+}
+
+.crop-selection-frame {
+    stroke: #fff;
+    stroke-width: 1;
+    stroke-dasharray: 6 4
+}
+
+.raster-selection-contrast,
+.raster-selection-frame {
+    fill: none;
+    vector-effect: non-scaling-stroke
+}
+
+.raster-selection-contrast {
+    stroke: var(--surface);
+    stroke-width: 3
+}
+
+.raster-selection-frame {
+    stroke: var(--accent);
+    stroke-width: 1;
+    stroke-dasharray: 5 4
+}
+
 .selection-frame-contrast,
 .selection-frame {
     fill: none;
