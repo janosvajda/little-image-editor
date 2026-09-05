@@ -1,17 +1,18 @@
+import type { Point } from '../document/appTypes';
 import {
 	containsTransformedPoint,
 	hitShapeHandle,
 	hitShapeMoveHandle,
 	resizeGeometry,
 	rotateGeometry,
+	type SelectionBounds,
+	type ShapeHandle,
 	ShapeHandleId,
 	ShapeHandleMetrics,
 	shapeHandles,
 	shapeMoveHandle,
-	type ShapeHandle,
 	type TransformableGeometry,
 } from './shapeTransformHelpers';
-import type { Point } from '../document/appTypes';
 
 export interface ShapeInteractionPolicy {
 	handles(
@@ -22,11 +23,16 @@ export interface ShapeInteractionPolicy {
 		point: Point,
 		visualScale?: number,
 	): ShapeHandle | null;
-	moveHandle(geometry: TransformableGeometry, visualScale?: number): Point;
+	moveHandle(
+		geometry: TransformableGeometry,
+		visualScale?: number,
+		bounds?: SelectionBounds,
+	): Point;
 	hitMoveHandle(
 		geometry: TransformableGeometry,
 		point: Point,
 		visualScale?: number,
+		bounds?: SelectionBounds,
 	): boolean;
 	contains(
 		geometry: TransformableGeometry,
@@ -73,19 +79,29 @@ export class DefaultShapeInteractionPolicy implements ShapeInteractionPolicy {
 			ShapeHandleMetrics.Offset * visualScale,
 		);
 	}
-	moveHandle(geometry: TransformableGeometry, visualScale = 1): Point {
-		return shapeMoveHandle(geometry, ShapeHandleMetrics.Offset * visualScale);
+	moveHandle(
+		geometry: TransformableGeometry,
+		visualScale = 1,
+		bounds?: SelectionBounds,
+	): Point {
+		return shapeMoveHandle(
+			geometry,
+			ShapeHandleMetrics.Offset * visualScale,
+			bounds,
+		);
 	}
 	hitMoveHandle(
 		geometry: TransformableGeometry,
 		point: Point,
 		visualScale = 1,
+		bounds?: SelectionBounds,
 	): boolean {
 		return hitShapeMoveHandle(
 			geometry,
 			point,
 			ShapeHandleMetrics.HitTolerance * visualScale,
 			ShapeHandleMetrics.Offset * visualScale,
+			bounds,
 		);
 	}
 	contains(

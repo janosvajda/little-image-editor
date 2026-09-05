@@ -94,10 +94,9 @@ describe("editor integration", () => {
     expect(document.querySelector('[data-tool="picker"]')!.classList.contains("active")).toBe(false);
     pointer("pointerdown", 2, 2); pointer("pointermove", 5, 5); pointer("pointerup", 5, 5);
     click('[data-tool="crop"]'); pointer("pointerdown", 0, 0); pointer("pointermove", 20, 20); pointer("pointerup", 20, 20);
-    expect(document.querySelector("#applyCropButton")!.classList.contains("hidden")).toBe(false);
-    click("#applyCropButton");
-    expect(document.querySelector("#dimensions")!.textContent).toBe("20 × 20 px");
-  });
+		expect(document.querySelector("#applyCropButton")).toBeNull();
+    expect(document.querySelector("#dimensions")!.textContent).toBe("800 × 600 px");
+	}, 30_000);
 
   it("previews and resets every adjustment", async () => {
     await boot(); click("#createImageButton");

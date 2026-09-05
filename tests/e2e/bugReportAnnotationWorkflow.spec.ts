@@ -42,13 +42,15 @@ test("number shortcut places an incrementing sequence and persists it across rel
   await expect(page.locator(".annotation-next-step")).toHaveText("Next marker: 4");
 });
 
-test("all annotation tools switch immediately and crop requires explicit apply", async ({ page }) => {
+test("all annotation tools switch immediately and crop uses the shared immediate extraction tool", async ({ page }) => {
   await createImage(page);
   const annotations = page.locator('[data-panel="annotations"]');
   for (const tool of ["Select", "Arrow", "Number", "Box", "Highlight", "Text", "Blur", "Redact", "Crop"]) {
     const button = annotations.getByRole("button", { name: tool, exact: true });
     await button.click();
-    await expect(button).toHaveClass(/active/);
+		if (tool === "Crop")
+			await expect(page.locator('[data-tool="crop"]')).toHaveClass(/active/);
+		else await expect(button).toHaveClass(/active/);
   }
   const overlay = page.locator("#overlay");
   const bounds = await overlay.boundingBox();
@@ -56,9 +58,8 @@ test("all annotation tools switch immediately and crop requires explicit apply",
   await page.mouse.down();
   await page.mouse.move(bounds!.x + bounds!.width * .75, bounds!.y + bounds!.height * .6);
   await page.mouse.up();
-  await expect(page.getByRole("button", { name: "Apply crop", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Cancel crop", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Apply crop", exact: true })).toBeHidden();
+	await expect(page.getByRole("button", { name: "Apply crop", exact: true })).toHaveCount(0);
+	await expect(page.locator('[data-tool="select"]')).toHaveClass(/active/);
 });
 
 test("metadata privacy controls change the exact copy preview", async ({ page }) => {

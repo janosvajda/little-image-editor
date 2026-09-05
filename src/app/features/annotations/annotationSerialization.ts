@@ -1,15 +1,19 @@
 import { PaintToolId, ShapeToolId } from '../../core/document/appTypes';
 import {
 	AnnotationObjectTypeId,
+	LinkedHistoryDomain,
 	type AnnotationObject,
 	type AnnotationSessionState,
 	type AnnotationState,
 } from './annotationTypes';
 import { EditorLimit } from '../../core/document/editorLimits';
 import { CoreLayerId } from '../../core/layers/layerTypes';
+import { decodePixelBytes } from '../../shared/image/pixelDataCodec';
 
 const MINIMUM_HISTORY_LENGTH = 1;
 const MINIMUM_INDEX = 0;
+const MINIMUM_POLYGON_POINTS = 3;
+const RGBA_CHANNEL_COUNT = 4;
 
 export function isAnnotationSessionState(
 	value: unknown,
@@ -19,6 +23,7 @@ export function isAnnotationSessionState(
 		Array.isArray(value.history) &&
 		value.history.length >= MINIMUM_HISTORY_LENGTH &&
 		value.history.every(isAnnotationState) &&
+		isOptionalHistoryLinks(value.historyLinks, value.history.length) &&
 		Number.isInteger(value.historyIndex) &&
 		Number(value.historyIndex) >= MINIMUM_INDEX &&
 		Number(value.historyIndex) < value.history.length
@@ -54,6 +59,8 @@ function isAnnotationObject(value: unknown): value is AnnotationObject {
 		!isOptionalBoolean(value.visible) ||
 		!isOptionalBoolean(value.locked) ||
 		!isOptionalObjectErasures(value.erasures) ||
+		!isOptionalPixelMasks(value.pixelCutouts) ||
+		!isOptionalPixelMasks(value.pixelClips) ||
 		!(value.erasureRevision === undefined || isFiniteNumber(value.erasureRevision))
 	)
 		return false;
@@ -119,9 +126,73 @@ function isAnnotationObject(value: unknown): value is AnnotationObject {
 				isFiniteNumber(value.tolerance) &&
 				isOptionalRotation(value.rotation)
 			);
+		case AnnotationObjectTypeId.RasterFragment:
+			return (
+				isRect(value.rect) &&
+				isExactRasterPixelData(
+					value.pixels,
+					value.pixelWidth,
+					value.pixelHeight,
+				) &&
+				isOptionalRotation(value.rotation)
+			);
 		default:
 			return false;
 	}
+}
+
+function isExactRasterPixelData(
+	value: unknown,
+	width: unknown,
+	height: unknown,
+): value is string {
+	if (
+		typeof value !== 'string' ||
+		!isPositiveInteger(width) ||
+		!isPositiveInteger(height)
+	)
+		return false;
+	try {
+		return (
+			decodePixelBytes(value).length === width * height * RGBA_CHANNEL_COUNT
+		);
+	} catch {
+		return false;
+	}
+}
+
+function isOptionalHistoryLinks(value: unknown, historyLength: number): boolean {
+	return (
+		value === undefined ||
+		(Array.isArray(value) &&
+			value.length === historyLength &&
+			value.every(
+				(link) => link === null || link === LinkedHistoryDomain.Document,
+			))
+	);
+}
+
+function isOptionalPixelMasks(value: unknown): boolean {
+	return (
+		value === undefined ||
+		(Array.isArray(value) &&
+			value.every(
+				(mask) =>
+					isRecord(mask) &&
+					Array.isArray(mask.points) &&
+					mask.points.length >= MINIMUM_POLYGON_POINTS &&
+					mask.points.every(
+						(point) =>
+							isRecord(point) &&
+							isFiniteNumber(point.xRatio) &&
+							isFiniteNumber(point.yRatio),
+					) &&
+					(mask.strokePointLimit === undefined ||
+						(Number.isInteger(mask.strokePointLimit) &&
+							Number(mask.strokePointLimit) >= 2)) &&
+					(mask.strokeSourceRect === undefined || isRect(mask.strokeSourceRect)),
+			))
+	);
 }
 
 function isStrokeAnnotation(value: Record<string, unknown>): boolean {
@@ -232,6 +303,10 @@ function isOptionalRotation(value: unknown): boolean {
 
 function isFiniteNumber(value: unknown): boolean {
 	return typeof value === 'number' && Number.isFinite(value);
+}
+
+function isPositiveInteger(value: unknown): value is number {
+	return Number.isInteger(value) && Number(value) > 0;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

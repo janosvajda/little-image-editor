@@ -64,7 +64,7 @@ describe('DrawingController uncovered behavior', () => {
 		expect(model.overlay.style.cursor).toBe('crosshair');
 	});
 
-	it('supports zoom modifier cursors and cancellation of a pending crop', () => {
+	it('supports zoom modifier cursors and cancellation of an unfinished crop', () => {
 		drawing.select(UtilityToolId.Zoom);
 		model.overlay.dispatchEvent(pointerEvent('pointerenter', 40, 30, true));
 		expect(model.overlay.style.cursor).toBe('zoom-out');
@@ -76,10 +76,9 @@ describe('DrawingController uncovered behavior', () => {
 
 		drawing.select(UtilityToolId.Crop);
 		pointer('pointerdown', 10, 10);
-		pointer('pointerup', 80, 60);
-		expect(document.querySelector<HTMLButtonElement>('#applyCropButton')!.classList).not.toContain('hidden');
 		document.querySelector<HTMLButtonElement>('[data-cancel-crop]')!.click();
-		expect(document.querySelector<HTMLButtonElement>('#applyCropButton')!.classList).toContain('hidden');
+		pointer('pointerup', 80, 60);
+		expect(editableObjects.state.objects).toHaveLength(0);
 	});
 
 	it('clears shape selection when Select clicks empty canvas', () => {

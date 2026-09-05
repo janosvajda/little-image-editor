@@ -2,6 +2,7 @@ import type { CropRect, Point } from '../../core/document/appTypes';
 import type { CaptureSourceMetadata } from '../../core/document/browserCapture';
 import { ColorPalette } from '../../core/document/colorPalette';
 import type { CanvasDocument } from '../../core/document/imageDocument';
+import { DocumentGeometryChangeKind } from '../../core/document/imageDocument';
 import { genericShape } from '../../core/geometry/genericShape';
 import type { ShapeHandle } from '../../core/geometry/shapeTransformHelpers';
 import {
@@ -9,6 +10,7 @@ import {
 	textFrame,
 } from '../../core/geometry/textShapeMetrics';
 import { CoreLayerId } from '../../core/layers/layerTypes';
+import { CUT_MOVE_CROP_REQUEST_EVENT } from '../drawing/cropEvents';
 import { canvasPoint } from '../drawing/drawingHelpers';
 import type { CanvasViewportController } from '../workspace/canvasViewportController';
 import { PersistentDocumentToolbar } from '../workspace/genericToolbar';
@@ -162,7 +164,23 @@ export class AnnotationController {
 			if (!documentModel.layers.isEditable(CoreLayerId.Objects)) this.disable();
 			this.render();
 		});
-		documentModel.onBeforeGeometryChange(() => this.flattenShapes(false));
+		documentModel.onBeforeGeometryChange((change) => {
+			if (change.kind === DocumentGeometryChangeKind.Crop) {
+				this.annotations.translateAll(
+					{
+						x: -change.rect.x,
+						y: -change.rect.y,
+					},
+					false,
+				);
+				return;
+			}
+			if (change.kind === DocumentGeometryChangeKind.Rebase) {
+				this.annotations.translateAll(change.delta, false);
+				return;
+			}
+			this.flattenShapes(false);
+		});
 		documentModel.onDocumentChange((snapshot) =>
 			this.onDocumentChange(snapshot.hasImage, snapshot.width, snapshot.height),
 		);
@@ -243,6 +261,10 @@ export class AnnotationController {
 	private bindPanel(): void {
 		this.panel.toolButtons.forEach((button, tool) =>
 			button.addEventListener('click', () => {
+				if (tool === AnnotationToolId.Crop) {
+					document.dispatchEvent(new Event(CUT_MOVE_CROP_REQUEST_EVENT));
+					return;
+				}
 				this.requestInteractions();
 				this.enable();
 				this.selectTool(tool);
@@ -372,16 +394,17 @@ export class AnnotationController {
 	): boolean {
 		const shape = genericShape(selected);
 		const visualScale = this.viewportVisualScale();
+		if (shape.hitMoveHandle(point, visualScale, this.documentModel)) {
+			this.beginObjectDrag(selected.id);
+			return true;
+		}
 		const handle = shape.hitHandle(point, visualScale);
 		if (handle) {
 			this.#transformHandle = handle;
 			this.beginObjectDrag(selected.id);
 			return true;
 		}
-		if (
-			shape.hitMoveHandle(point, visualScale) ||
-			(this.#tool === AnnotationToolId.Select && shape.contains(point))
-		) {
+		if (this.#tool === AnnotationToolId.Select && shape.contains(point)) {
 			this.beginObjectDrag(selected.id);
 			return true;
 		}
@@ -627,10 +650,14 @@ export class AnnotationController {
 		const selected = this.annotations.selected;
 		const selectedShape = selected ? genericShape(selected) : null;
 		const selectedCursor = selectedShape
-			? (selectedShape.handleCursorAt(point, this.viewportVisualScale()) ??
-				(selectedShape.hitMoveHandle(point, this.viewportVisualScale())
-					? 'move'
-					: this.#tool === AnnotationToolId.Select
+			? selectedShape.hitMoveHandle(
+					point,
+					this.viewportVisualScale(),
+					this.documentModel,
+				)
+				? 'move'
+				: (selectedShape.handleCursorAt(point, this.viewportVisualScale()) ??
+					(this.#tool === AnnotationToolId.Select
 						? selectedShape.cursorAt(point, this.viewportVisualScale())
 						: null))
 			: null;
@@ -670,20 +697,23 @@ export class AnnotationController {
 			this.selectTool(AnnotationToolId.Select);
 			return;
 		}
-		const shortcut = (
-			{
-				v: AnnotationToolId.Select,
-				a: AnnotationToolId.Arrow,
-				b: AnnotationToolId.Box,
-				h: AnnotationToolId.Highlight,
-				t: AnnotationToolId.Text,
-				u: AnnotationToolId.Blur,
-				r: AnnotationToolId.Redact,
-				c: AnnotationToolId.Crop,
-			} as const
-		)[event.key.toLowerCase() as 'v'];
+		const shortcuts: Readonly<Record<string, AnnotationTool>> = {
+			v: AnnotationToolId.Select,
+			a: AnnotationToolId.Arrow,
+			b: AnnotationToolId.Box,
+			h: AnnotationToolId.Highlight,
+			t: AnnotationToolId.Text,
+			u: AnnotationToolId.Blur,
+			r: AnnotationToolId.Redact,
+			c: AnnotationToolId.Crop,
+		};
+		const shortcut = shortcuts[event.key.toLowerCase()];
 		if (shortcut) {
 			consume(event);
+			if (shortcut === AnnotationToolId.Crop) {
+				document.dispatchEvent(new Event(CUT_MOVE_CROP_REQUEST_EVENT));
+				return;
+			}
 			this.selectTool(shortcut);
 		}
 	}

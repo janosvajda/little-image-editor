@@ -11,7 +11,7 @@ const StrokeId = 'paint-mode-double-click';
 const MovedEndpoint = { x: 160, y: 70 } as const;
 
 describe('paint-mode object editing gesture', () => {
-	it('keeps new gestures in the moved paint layer instead of creating objects', () => {
+	it('selects the moved paint layer without adding points or undo entries', () => {
 		const model = new CanvasDocument(
 			document.querySelector<HTMLCanvasElement>('#canvas')!,
 			document.querySelector<HTMLCanvasElement>('#overlay')!,
@@ -47,6 +47,7 @@ describe('paint-mode object editing gesture', () => {
 		new DrawingController(model, undefined, objects);
 		objects.select(null);
 		const before = structuredClone(objects.object(StrokeId));
+		const beforeSession = objects.snapshotSession();
 
 		for (const pointerId of [51, 52]) {
 			pointer(model.overlay, 'pointerdown', MovedEndpoint, pointerId);
@@ -79,10 +80,12 @@ describe('paint-mode object editing gesture', () => {
 			before?.type === AnnotationObjectTypeId.Stroke &&
 			paintedLayer?.type === AnnotationObjectTypeId.Stroke
 		) {
-			expect(paintedLayer.points.length).toBeGreaterThan(before.points.length);
-			expect(paintedLayer.pathStarts?.length).toBeGreaterThanOrEqual(1);
+			expect(paintedLayer.points).toEqual(before.points);
+			expect(paintedLayer.pathStarts).toEqual(before.pathStarts);
+			expect(paintedLayer.pathStyles).toEqual(before.pathStyles);
 		}
 		expect(objects.selectedId).toBe(StrokeId);
+		expect(objects.snapshotSession()).toEqual(beforeSession);
 	});
 });
 

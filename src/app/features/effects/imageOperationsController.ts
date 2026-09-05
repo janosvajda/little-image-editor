@@ -4,6 +4,8 @@ import type { HistorySnapshot } from '../../core/document/appTypes';
 import type { CanvasDocument } from '../../core/document/imageDocument';
 import { PersistentDocumentToolbar } from '../workspace/genericToolbar';
 import { ToolbarId, toolbarSelector } from '../workspace/toolbarTypes';
+import type { RasterSelection } from '../selection/rasterSelection';
+import { transformSelectedPixels } from './selectionAwareImageData';
 
 interface AdjustmentState {
 	base: HistorySnapshot;
@@ -17,7 +19,10 @@ export class ImageOperations {
 	#adjustmentBase: ImageData | null = null;
 	#committingAdjustment = false;
 
-	constructor(readonly documentModel: CanvasDocument) {
+	constructor(
+		readonly documentModel: CanvasDocument,
+		readonly rasterSelection?: RasterSelection,
+	) {
 		this.#toolbar = new PersistentDocumentToolbar(
 			element(toolbarSelector(ToolbarId.Adjust)),
 			documentModel,
@@ -90,11 +95,16 @@ export class ImageOperations {
 				this.#filters.find((input) => input.dataset.filter === name)?.value ??
 					0,
 			);
-		const result = applyToneAdjustments(this.#adjustmentBase, {
-			brightness: value('brightness'),
-			contrast: value('contrast'),
-			saturation: value('saturation'),
-		});
+		const result = transformSelectedPixels(
+			this.#adjustmentBase,
+			this.rasterSelection?.value ?? null,
+			(region) =>
+				applyToneAdjustments(region, {
+					brightness: value('brightness'),
+					contrast: value('contrast'),
+					saturation: value('saturation'),
+				}),
+		);
 		context.putImageData(result, 0, 0);
 		this.#toolbar.setExtra({ base: snapshot(this.#adjustmentBase) });
 	}

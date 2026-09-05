@@ -1,12 +1,9 @@
-import type {
-	ShapeHandle,
-	TransformableGeometry,
-} from './shapeTransformHelpers';
 import {
-	AnnotationObjectTypeId,
 	type AnnotationObject,
+	AnnotationObjectTypeId,
 	type ArrowAnnotation,
 	type FillAnnotation,
+	type RasterFragmentAnnotation,
 	type RectAnnotation,
 	type ShapeAnnotation,
 	type StepAnnotation,
@@ -19,7 +16,12 @@ import {
 	DEFAULT_SHAPE_INTERACTION,
 	type ShapeInteractionPolicy,
 } from './shapeInteraction';
-import { textFrame, TextShapeMetrics } from './textShapeMetrics';
+import type {
+	SelectionBounds,
+	ShapeHandle,
+	TransformableGeometry,
+} from './shapeTransformHelpers';
+import { TextShapeMetrics, textFrame } from './textShapeMetrics';
 
 const MINIMUM_STEP_SIZE = 12;
 
@@ -45,11 +47,20 @@ export abstract class GenericShape<
 	hitHandle(point: Point, visualScale = 1): ShapeHandle | null {
 		return this.interaction.hitHandle(this.geometry, point, visualScale);
 	}
-	moveHandle(visualScale = 1): Point {
-		return this.interaction.moveHandle(this.geometry, visualScale);
+	moveHandle(visualScale = 1, bounds?: SelectionBounds): Point {
+		return this.interaction.moveHandle(this.geometry, visualScale, bounds);
 	}
-	hitMoveHandle(point: Point, visualScale = 1): boolean {
-		return this.interaction.hitMoveHandle(this.geometry, point, visualScale);
+	hitMoveHandle(
+		point: Point,
+		visualScale = 1,
+		bounds?: SelectionBounds,
+	): boolean {
+		return this.interaction.hitMoveHandle(
+			this.geometry,
+			point,
+			visualScale,
+			bounds,
+		);
 	}
 	contains(point: Point, padding?: number): boolean {
 		return this.interaction.contains(this.geometry, point, padding);
@@ -75,7 +86,7 @@ export abstract class GenericShape<
 }
 
 export class RectShape extends GenericShape<
-	RectAnnotation | ShapeAnnotation | FillAnnotation
+	RectAnnotation | ShapeAnnotation | FillAnnotation | RasterFragmentAnnotation
 > {
 	protected readRect(): CropRect {
 		return this.object.rect;
@@ -174,6 +185,10 @@ const DEFAULT_SHAPE_FACTORY = new GenericShapeFactory([
 		(object) => new StrokeShape(object),
 	),
 	registration(AnnotationObjectTypeId.Fill, (object) => new RectShape(object)),
+	registration(
+		AnnotationObjectTypeId.RasterFragment,
+		(object) => new RectShape(object),
+	),
 	registration(AnnotationObjectTypeId.Box, (object) => new RectShape(object)),
 	registration(
 		AnnotationObjectTypeId.Highlight,

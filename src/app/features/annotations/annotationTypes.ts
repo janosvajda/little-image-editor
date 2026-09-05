@@ -36,6 +36,7 @@ export const AnnotationObjectTypeId = {
 	Shape: 'shape',
 	Stroke: 'stroke',
 	Fill: 'fill',
+	RasterFragment: 'rasterFragment',
 } as const;
 
 export interface ObjectErasurePoint {
@@ -55,6 +56,14 @@ export interface ObjectErasurePath {
 interface ErasableAnnotation {
 	erasures?: ObjectErasurePath[];
 	erasureRevision?: number;
+	pixelCutouts?: ObjectPixelMask[];
+	pixelClips?: ObjectPixelMask[];
+}
+
+export interface ObjectPixelMask {
+	readonly points: ReadonlyArray<Readonly<{ xRatio: number; yRatio: number }>>;
+	strokePointLimit?: number;
+	strokeSourceRect?: CropRect;
 }
 
 interface AnnotationBase extends ErasableAnnotation {
@@ -62,7 +71,8 @@ interface AnnotationBase extends ErasableAnnotation {
 	type:
 		| AnnotationObjectType
 		| typeof AnnotationObjectTypeId.Stroke
-		| typeof AnnotationObjectTypeId.Fill;
+		| typeof AnnotationObjectTypeId.Fill
+		| typeof AnnotationObjectTypeId.RasterFragment;
 	rotation?: number;
 	visible?: boolean;
 	locked?: boolean;
@@ -106,6 +116,14 @@ export interface FillAnnotation extends AnnotationBase {
 	color: string;
 	opacity: number;
 	tolerance: number;
+}
+
+export interface RasterFragmentAnnotation extends AnnotationBase {
+	type: typeof AnnotationObjectTypeId.RasterFragment;
+	rect: CropRect;
+	pixelWidth: number;
+	pixelHeight: number;
+	pixels: string;
 }
 
 export interface ArrowAnnotation extends AnnotationBase {
@@ -168,7 +186,14 @@ export type AnnotationObject =
 	| TextAnnotation
 	| ShapeAnnotation
 	| StrokeAnnotation
-	| FillAnnotation;
+	| FillAnnotation
+	| RasterFragmentAnnotation;
+
+export const LinkedHistoryDomain = {
+	Document: 'document',
+} as const;
+export type LinkedHistoryDomain =
+	(typeof LinkedHistoryDomain)[keyof typeof LinkedHistoryDomain];
 
 export interface AnnotationState {
 	objects: AnnotationObject[];
@@ -179,6 +204,7 @@ export interface AnnotationSessionState {
 	state: AnnotationState;
 	history: AnnotationState[];
 	historyIndex: number;
+	historyLinks?: Array<LinkedHistoryDomain | null>;
 }
 
 export interface AnnotationStyle {

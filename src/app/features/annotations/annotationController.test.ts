@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CanvasDocument } from "../../core/document/imageDocument";
 import { AnnotationController } from "./annotationController";
+import { CUT_MOVE_CROP_REQUEST_EVENT } from "../drawing/cropEvents";
 
 describe("annotation UI controller", () => {
   let model: CanvasDocument;
@@ -41,21 +42,17 @@ describe("annotation UI controller", () => {
     expect(controller.annotations.state.objects).toHaveLength(0);
   });
 
-  it("creates each drag annotation and handles crop apply/cancel", () => {
+  it("creates each drag annotation and routes crop to the shared cut-and-move tool", () => {
     for (const tool of ["arrow", "box", "highlight", "blur", "redact"] as const) {
       controller.panel.toolButtons.get(tool)!.click();
       pointer("pointerdown", 30, 20); pointer("pointermove", 70, 60); pointer("pointerup", 70, 60);
     }
     expect(controller.annotations.state.objects.map(object => object.type)).toEqual(["arrow", "box", "highlight", "blur", "redact"]);
+    const cropRequested = vi.fn();
+    document.addEventListener(CUT_MOVE_CROP_REQUEST_EVENT, cropRequested, { once: true });
     controller.panel.toolButtons.get("crop")!.click();
-    pointer("pointerdown", 10, 10); pointer("pointermove", 150, 80); pointer("pointerup", 150, 80);
-    expect(controller.panel.cropActions.classList.contains("hidden")).toBe(false);
-    controller.panel.cancelCrop.click();
-    expect(controller.panel.cropActions.classList.contains("hidden")).toBe(true);
-    controller.panel.toolButtons.get("crop")!.click();
-    pointer("pointerdown", 10, 10); pointer("pointerup", 150, 80);
-    controller.panel.applyCrop.click();
-    expect(model.width).toBe(140); expect(model.height).toBe(70);
+    expect(cropRequested).toHaveBeenCalledOnce();
+    expect(model.width).toBe(200); expect(model.height).toBe(100);
   });
 
   it("creates text, restarts numbered markers, updates privacy preview, and flattens", async () => {

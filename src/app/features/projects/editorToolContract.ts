@@ -28,6 +28,7 @@ export const EditableObjectKind = {
 	Effect: 'effect',
 	Adjustment: 'adjustment',
 	ObjectMask: 'object-mask',
+	PixelSelection: 'pixel-selection',
 } as const;
 export type EditableObjectKind =
 	(typeof EditableObjectKind)[keyof typeof EditableObjectKind];
@@ -116,7 +117,7 @@ export const DRAWING_TOOL_DOCUMENT_CONTRACT = {
 	[ShapeToolId.Triangle]: editable(EditableObjectKind.Shape),
 	[ShapeToolId.Diamond]: editable(EditableObjectKind.Shape),
 	[ShapeToolId.Star]: editable(EditableObjectKind.Shape),
-	[UtilityToolId.Crop]: documentOperation(DocumentOperationKind.Crop),
+	[UtilityToolId.Crop]: editable(EditableObjectKind.PixelSelection),
 	[UtilityToolId.Fill]: editable(EditableObjectKind.Fill),
 } as const satisfies Record<
 	ImageAffectingDrawingTool,
@@ -132,7 +133,7 @@ export const ANNOTATION_TOOL_DOCUMENT_CONTRACT = {
 	[AnnotationToolId.Text]: editable(EditableObjectKind.Annotation),
 	[AnnotationToolId.Blur]: editable(EditableObjectKind.Annotation),
 	[AnnotationToolId.Redact]: editable(EditableObjectKind.Annotation),
-	[AnnotationToolId.Crop]: documentOperation(DocumentOperationKind.Crop),
+	[AnnotationToolId.Crop]: editable(EditableObjectKind.PixelSelection),
 } as const satisfies Record<
 	ImageAffectingAnnotationTool,
 	ToolDocumentRegistration

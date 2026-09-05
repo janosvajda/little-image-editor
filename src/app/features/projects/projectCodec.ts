@@ -26,7 +26,7 @@ import {
 	encodePixelBytes,
 	encodePixelReference,
 	PixelBufferRegistry,
-} from './pixelDataCodec';
+} from '../../shared/image/pixelDataCodec';
 import type { AnnotationSessionState } from '../annotations/annotationTypes';
 import { isSafeProjectAnnotationSession } from '../annotations/annotationSerialization';
 import type { EditorProjectState } from './projectEditorAdapter';

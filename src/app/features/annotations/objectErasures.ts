@@ -4,6 +4,7 @@ import { degreesToRadians } from '../../shared/math/numericConstants';
 import type {
 	ObjectErasurePath,
 	ObjectErasurePoint,
+	ObjectPixelMask,
 } from './annotationTypes';
 
 const DEFAULT_PRESSURE = 1;
@@ -13,6 +14,18 @@ export interface ObjectEraserOptions {
 	readonly size: number;
 	readonly opacity: number;
 	readonly hardness: number;
+}
+
+export function createObjectPixelMask(
+	geometry: TransformableGeometry,
+	points: readonly Point[],
+): ObjectPixelMask {
+	return {
+		points: points.map((point) => {
+			const local = objectLocalPoint(geometry, point, DEFAULT_PRESSURE);
+			return { xRatio: local.xRatio, yRatio: local.yRatio };
+		}),
+	};
 }
 
 export function createObjectErasurePath(
@@ -71,7 +84,7 @@ export function objectErasureSize(
 	);
 }
 
-function objectLocalPoint(
+export function objectLocalPoint(
 	geometry: TransformableGeometry,
 	point: Point,
 	pressure: number,

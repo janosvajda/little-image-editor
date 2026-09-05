@@ -42,6 +42,7 @@ const ObjectTypeLabel: Readonly<Record<AnnotationObject['type'], string>> = {
 	[AnnotationObjectTypeId.Shape]: 'Shape',
 	[AnnotationObjectTypeId.Stroke]: 'Stroke',
 	[AnnotationObjectTypeId.Fill]: 'Fill',
+	[AnnotationObjectTypeId.RasterFragment]: 'Raster fragment',
 };
 
 export class LayersController {
@@ -84,7 +85,7 @@ export class LayersController {
 				);
 				continue;
 			}
-			rows.push(this.createLayerRow(layer, layer.id === activeLayerId));
+			rows.push(this.createLayerRow(layer, layer.id === activeLayerId && !this.objects?.selectedId));
 		}
 		this.panel.list.replaceChildren(...rows);
 	}
@@ -94,9 +95,7 @@ export class LayersController {
 		row.className = 'layer-row';
 		row.dataset.layerId = layer.id;
 		row.classList.toggle('locked', layer.locked);
-		this.bindSelectableRow(row, selected, () =>
-			this.documentModel.layers.select(layer.id),
-		);
+		this.bindSelectableRow(row, selected, () => this.selectLayer(layer.id));
 
 		const visibility = document.createElement('button');
 		visibility.type = 'button';
@@ -114,9 +113,7 @@ export class LayersController {
 		name.type = 'button';
 		name.className = 'layer-name';
 		name.textContent = layer.name;
-		name.addEventListener('click', () =>
-			this.documentModel.layers.select(layer.id),
-		);
+		name.addEventListener('click', () => this.selectLayer(layer.id));
 		const lock = this.actionButton(
 			layer.locked ? LayerActionSymbol.Locked : LayerActionSymbol.Unlocked,
 			`${layer.locked ? 'Unlock' : 'Lock'} ${layer.name}`,
@@ -124,12 +121,19 @@ export class LayersController {
 		);
 		lock.className = 'layer-lock';
 		lock.setAttribute('aria-pressed', String(layer.locked));
-		const edit = this.actionButton(LayerActionSymbol.Edit, `Edit ${layer.name}`, () =>
-			this.documentModel.layers.select(layer.id),
+		const edit = this.actionButton(
+			LayerActionSymbol.Edit,
+			`Edit ${layer.name}`,
+			() => this.selectLayer(layer.id),
 		);
 		edit.className = 'layer-edit';
 		row.append(visibility, name, lock, edit);
 		return row;
+	}
+
+	private selectLayer(layerId: string): void {
+		this.objects?.select(null);
+		this.documentModel.layers.select(layerId);
 	}
 
 	private createObjectRow(object: AnnotationObject, index: number): HTMLElement {
@@ -333,7 +337,7 @@ export class LayersController {
 			if (event.target === row) select();
 		});
 		row.addEventListener('keydown', (event) => {
-			if (event.key !== 'Enter' && event.key !== ' ') return;
+			if (event.target !== row || (event.key !== 'Enter' && event.key !== ' ')) return;
 			event.preventDefault();
 			select();
 		});

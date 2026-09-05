@@ -4,6 +4,8 @@ import {
 	type AnnotationObject,
 	type AnnotationSessionState,
 	type AnnotationState,
+	type LinkedHistoryDomain,
+	type RasterFragmentAnnotation,
 } from './annotationTypes';
 import {
 	ShapeHandleId,
@@ -15,10 +17,13 @@ import { EditorLimit } from '../../core/document/editorLimits';
 import { ObjectSpatialIndex } from './objectSpatialIndex';
 import { strokeContainsPoint } from './strokeGeometry';
 import { createPaintLayer } from './paintLayerFactory';
+import { RasterFragmentSurface } from './rasterFragmentSurface';
+import { createObjectPixelMask } from './objectErasures';
 
 const HISTORY_LIMIT = EditorLimit.EditableObjectHistory;
 const ARROW_HIT_MINIMUM = 8;
 const ARROW_HIT_WIDTH_FACTOR = 2;
+const MINIMUM_POLYGON_POINTS = 3;
 
 export interface AnnotationRenderState {
 	readonly revision: number;
@@ -43,15 +48,27 @@ export const AnnotationStackDirection = {
 export type AnnotationStackDirection =
 	(typeof AnnotationStackDirection)[keyof typeof AnnotationStackDirection];
 
+export const LinkedHistoryDirection = {
+	Undo: 'undo',
+	Redo: 'redo',
+} as const;
+export type LinkedHistoryDirection =
+	(typeof LinkedHistoryDirection)[keyof typeof LinkedHistoryDirection];
+
 export class AnnotationDocument {
 	#state: AnnotationState = { objects: [], nextStep: 1 };
 	#history: AnnotationState[] = [cloneState(this.#state)];
+	#historyLinks: Array<LinkedHistoryDomain | null> = [null];
 	#historyIndex = 0;
 	#listeners = new Set<
 		(state: Readonly<AnnotationState>, change: AnnotationChangeKind) => void
 	>();
 	#historyListeners = new Set<(canUndo: boolean, canRedo: boolean) => void>();
+	#linkedHistoryListeners = new Set<
+		(domain: LinkedHistoryDomain, direction: LinkedHistoryDirection) => void
+	>();
 	readonly #objectsById = new Map<string, AnnotationObject>();
+	readonly #rasterHitSurfaces = new Map<string, RasterFragmentSurface>();
 	readonly #objectOrder = new Map<string, number>();
 	readonly #spatialIndex = new ObjectSpatialIndex();
 	#renderState: AnnotationRenderState = {
@@ -61,7 +78,7 @@ export class AnnotationDocument {
 		interactionActive: false,
 	};
 	selectedId: string | null = null;
-	#activePaintLayerId: string | null = null;
+	#activePaintTargetId: string | null = null;
 
 	get state(): Readonly<AnnotationState> {
 		return this.#state;
@@ -75,21 +92,37 @@ export class AnnotationDocument {
 	get selected(): AnnotationObject | null {
 		return this.selectedId ? (this.#objectsById.get(this.selectedId) ?? null) : null;
 	}
-	get activePaintLayer(): Extract<
-		AnnotationObject,
-		{ type: typeof AnnotationObjectTypeId.Stroke }
-	> | null {
-		const active = this.object(this.#activePaintLayerId);
-		if (active?.type === AnnotationObjectTypeId.Stroke) return active;
-		for (let index = this.#state.objects.length - 1; index >= 0; index -= 1) {
-			const object = this.#state.objects[index];
-			if (object?.type === AnnotationObjectTypeId.Stroke) {
-				this.#activePaintLayerId = object.id;
-				return object;
-			}
-		}
-		return null;
+	/** Restores an input gesture, including its history, when it becomes a selection. */
+	createCheckpoint(): () => void {
+		const state = cloneState(this.#state);
+		const history = [...this.#history];
+		const historyLinks = [...this.#historyLinks];
+		const historyIndex = this.#historyIndex;
+		const selectedId = this.selectedId;
+		const activePaintTargetId = this.#activePaintTargetId;
+		return () => {
+			this.#state = cloneState(state);
+			this.#history = [...history];
+			this.#historyLinks = [...historyLinks];
+			this.#historyIndex = historyIndex;
+			this.selectedId = selectedId;
+			this.#activePaintTargetId = activePaintTargetId;
+			this.rebuildObjectIndex();
+			this.markRenderedContentChanged(null, false);
+			this.emit(AnnotationChangeKind.Committed);
+			this.emitHistory();
+		};
 	}
+
+	get activePaintTarget(): AnnotationObject | null {
+		return this.object(this.#activePaintTargetId) ?? this.#state.objects.at(-1) ?? null;
+	}
+
+	get activePaintLayer(): Extract<AnnotationObject, { type: typeof AnnotationObjectTypeId.Stroke }> | null {
+		const target = this.activePaintTarget;
+		return target?.type === AnnotationObjectTypeId.Stroke ? target : null;
+	}
+
 	get renderState(): AnnotationRenderState {
 		return this.#renderState;
 	}
@@ -112,21 +145,34 @@ export class AnnotationDocument {
 		this.#historyListeners.add(listener);
 		listener(this.canUndo, this.canRedo);
 	}
+	onLinkedHistoryAction(
+		listener: (
+			domain: LinkedHistoryDomain,
+			direction: LinkedHistoryDirection,
+		) => void,
+	): void {
+		this.#linkedHistoryListeners.add(listener);
+	}
 
 	snapshotSession(): AnnotationSessionState {
+		const historyLinks = this.#historyLinks.some(Boolean)
+			? [...this.#historyLinks]
+			: undefined;
 		return {
 			state: cloneState(this.#state),
 			history: this.#history.map(cloneState),
 			historyIndex: this.#historyIndex,
+			...(historyLinks ? { historyLinks } : {}),
 		};
 	}
 
 	restore(state?: AnnotationState): void {
 		this.#state = state ? cloneState(state) : { objects: [], nextStep: 1 };
 		this.#history = [cloneState(this.#state)];
+		this.#historyLinks = [null];
 		this.#historyIndex = 0;
 		this.selectedId = null;
-		this.#activePaintLayerId = null;
+		this.#activePaintTargetId = null;
 		this.rebuildObjectIndex();
 		this.markRenderedContentChanged(null, false);
 		this.emit(AnnotationChangeKind.Committed);
@@ -144,24 +190,31 @@ export class AnnotationDocument {
 		);
 		this.#state = cloneState(session.state);
 		this.#history[this.#historyIndex] = cloneState(this.#state);
+		this.#historyLinks = normalizeHistoryLinks(
+			session.historyLinks,
+			this.#history.length,
+		);
 		this.selectedId = null;
-		this.#activePaintLayerId = null;
+		this.#activePaintTargetId = null;
 		this.rebuildObjectIndex();
 		this.markRenderedContentChanged(null, false);
 		this.emit(AnnotationChangeKind.Committed);
 		this.emitHistory();
 	}
 
-	add(object: AnnotationObject, commit = true): void {
+	add(
+		object: AnnotationObject,
+		commit = true,
+		historyLink: LinkedHistoryDomain | null = null,
+	): void {
 		this.#state.objects.push(structuredClone(object));
 		this.indexObject(this.#state.objects.at(-1)!, this.#state.objects.length - 1);
 		this.markRenderedContentChanged(object.id, !commit);
 		if (object.type === AnnotationObjectTypeId.Step)
 			this.#state.nextStep = Math.max(this.#state.nextStep, object.value + 1);
 		this.selectedId = object.id;
-		if (object.type === AnnotationObjectTypeId.Stroke)
-			this.#activePaintLayerId = object.id;
-		if (commit) this.commit();
+		this.#activePaintTargetId = object.id;
+		if (commit) this.commit(historyLink);
 		else this.emit(AnnotationChangeKind.Transient);
 	}
 
@@ -182,8 +235,7 @@ export class AnnotationDocument {
 	select(id: string | null): void {
 		if (this.selectedId === id) return;
 		this.selectedId = id;
-		if (this.object(id)?.type === AnnotationObjectTypeId.Stroke)
-			this.#activePaintLayerId = id;
+		if (this.object(id)) this.#activePaintTargetId = id;
 		this.emit(AnnotationChangeKind.Selection);
 	}
 
@@ -221,7 +273,7 @@ export class AnnotationDocument {
 		this.rebuildObjectIndex();
 		this.markRenderedContentChanged(null, false);
 		if (this.selectedId === id) this.selectedId = null;
-		if (this.#activePaintLayerId === id) this.#activePaintLayerId = null;
+		if (this.#activePaintTargetId === id) this.#activePaintTargetId = null;
 		this.commit();
 	}
 
@@ -278,14 +330,14 @@ export class AnnotationDocument {
 		return Boolean(object && object.visible !== false && object.locked !== true);
 	}
 
-	clear(): void {
+	clear(historyLink: LinkedHistoryDomain | null = null): void {
 		if (this.#state.objects.length === 0) return;
 		this.#state = { objects: [], nextStep: 1 };
 		this.rebuildObjectIndex();
 		this.markRenderedContentChanged(null, false);
 		this.selectedId = null;
-		this.#activePaintLayerId = null;
-		this.commit();
+		this.#activePaintTargetId = null;
+		this.commit(historyLink);
 	}
 
 	restartSteps(value = 1): void {
@@ -295,6 +347,10 @@ export class AnnotationDocument {
 
 	undo(): void {
 		if (!this.canUndo) return;
+		this.emitLinkedHistory(
+			this.#historyLinks[this.#historyIndex],
+			LinkedHistoryDirection.Undo,
+		);
 		this.#historyIndex -= 1;
 		this.#state = cloneState(this.#history[this.#historyIndex]!);
 		this.rebuildObjectIndex();
@@ -306,6 +362,10 @@ export class AnnotationDocument {
 
 	redo(): void {
 		if (!this.canRedo) return;
+		this.emitLinkedHistory(
+			this.#historyLinks[this.#historyIndex + 1],
+			LinkedHistoryDirection.Redo,
+		);
 		this.#historyIndex += 1;
 		this.#state = cloneState(this.#history[this.#historyIndex]!);
 		this.rebuildObjectIndex();
@@ -330,13 +390,18 @@ export class AnnotationDocument {
 				excludedIds.has(id) ||
 				object.visible === false ||
 				object.locked === true ||
-				!containsPoint(object, point)
+				!this.containsPoint(object, point)
 			)
 				continue;
 			topmost = object;
 			topmostOrder = order;
 		}
 		return topmost;
+	}
+
+	containsObjectPoint(id: string, point: Point): boolean {
+		const object = this.object(id);
+		return object !== null && this.isEditable(id) && this.containsPoint(object, point);
 	}
 
 	discardUncommitted(ids: ReadonlySet<string>): void {
@@ -356,6 +421,74 @@ export class AnnotationDocument {
 
 	move(id: string, delta: Point, commit = true): void {
 		this.update(id, (object) => genericShape(object).move(delta), commit);
+	}
+
+	/** Re-bases retained content after a document crop without flattening it. */
+	translateAll(delta: Point, recordHistory = true): void {
+		if (this.#state.objects.length === 0) return;
+		for (const object of this.#state.objects) genericShape(object).move(delta);
+		this.rebuildObjectIndex();
+		this.markRenderedContentChanged(null, false);
+		if (recordHistory) this.commit();
+		else this.emit(AnnotationChangeKind.Committed);
+	}
+
+	cutAndMove(id: string, selection: readonly Point[], delta: Point): string | null {
+		const source = this.#objectsById.get(id);
+		const sourceIndex = this.#objectOrder.get(id);
+		if (
+			!source ||
+			sourceIndex === undefined ||
+			selection.length < MINIMUM_POLYGON_POINTS
+		)
+			return null;
+		const fragment = structuredClone(source);
+		const mask = createObjectPixelMask(genericShape(source).geometry, selection);
+		source.pixelCutouts ??= [];
+		source.pixelCutouts.push(mask);
+		fragment.id = crypto.randomUUID();
+		fragment.pixelClips ??= [];
+		fragment.pixelClips.push(mask);
+		genericShape(fragment).move(delta);
+		this.#state.objects.splice(sourceIndex + 1, 0, fragment);
+		this.selectedId = fragment.id;
+		this.#activePaintTargetId = fragment.id;
+		this.rebuildObjectIndex();
+		this.markRenderedContentChanged(null, false);
+		this.commit();
+		return fragment.id;
+	}
+
+	cutToRasterFragment(
+		id: string,
+		selection: readonly Point[],
+		fragment: RasterFragmentAnnotation,
+	): string | null {
+		const source = this.#objectsById.get(id);
+		const sourceIndex = this.#objectOrder.get(id);
+		if (
+			!source ||
+			sourceIndex === undefined ||
+			selection.length < MINIMUM_POLYGON_POINTS
+		)
+			return null;
+		source.pixelCutouts ??= [];
+		const mask = createObjectPixelMask(
+			genericShape(source).geometry,
+			selection,
+		);
+		if (source.type === AnnotationObjectTypeId.Stroke) {
+			mask.strokePointLimit = source.points.length;
+			mask.strokeSourceRect = { ...(source.sourceRect ?? source.rect) };
+		}
+		source.pixelCutouts.push(mask);
+		this.#state.objects.splice(sourceIndex + 1, 0, fragment);
+		this.selectedId = fragment.id;
+		this.#activePaintTargetId = fragment.id;
+		this.rebuildObjectIndex();
+		this.markRenderedContentChanged(null, false);
+		this.commit();
+		return fragment.id;
 	}
 
 	resizeSelected(to: Point, commit = true): void {
@@ -387,10 +520,15 @@ export class AnnotationDocument {
 		this.commit();
 	}
 
-	private commit(): void {
+	private commit(historyLink: LinkedHistoryDomain | null = null): void {
 		this.#history.splice(this.#historyIndex + 1);
+		this.#historyLinks.splice(this.#historyIndex + 1);
 		this.#history.push(cloneState(this.#state));
-		if (this.#history.length > HISTORY_LIMIT) this.#history.shift();
+		this.#historyLinks.push(historyLink);
+		if (this.#history.length > HISTORY_LIMIT) {
+			this.#history.shift();
+			this.#historyLinks.shift();
+		}
 		this.#historyIndex = this.#history.length - 1;
 		this.emit(AnnotationChangeKind.Committed);
 		this.emitHistory();
@@ -404,8 +542,29 @@ export class AnnotationDocument {
 			listener(this.canUndo, this.canRedo),
 		);
 	}
+	private emitLinkedHistory(
+		domain: LinkedHistoryDomain | null | undefined,
+		direction: LinkedHistoryDirection,
+	): void {
+		if (!domain) return;
+		this.#linkedHistoryListeners.forEach((listener) =>
+			listener(domain, direction),
+		);
+	}
+
+	private containsPoint(object: AnnotationObject, point: Point): boolean {
+		if (object.type !== AnnotationObjectTypeId.RasterFragment) return containsPoint(object, point);
+		if (!genericShape(object).contains(point)) return false;
+		let surface = this.#rasterHitSurfaces.get(object.id);
+		if (!surface) {
+			surface = new RasterFragmentSurface(object);
+			this.#rasterHitSurfaces.set(object.id, surface);
+		}
+		return surface.contains(object, point);
+	}
 
 	private rebuildObjectIndex(): void {
+		this.#rasterHitSurfaces.clear();
 		this.#objectsById.clear();
 		this.#objectOrder.clear();
 		this.#spatialIndex.clear();
@@ -415,6 +574,7 @@ export class AnnotationDocument {
 	}
 
 	private indexObject(object: AnnotationObject, order: number): void {
+		this.#rasterHitSurfaces.delete(object.id);
 		this.#objectsById.set(object.id, object);
 		this.#objectOrder.set(object.id, order);
 		this.#spatialIndex.set(
@@ -493,6 +653,13 @@ function distanceToSegment(point: Point, from: Point, to: Point): number {
 
 function cloneState(state: AnnotationState): AnnotationState {
 	return structuredClone(state);
+}
+
+function normalizeHistoryLinks(
+	links: readonly (LinkedHistoryDomain | null)[] | undefined,
+	length: number,
+): Array<LinkedHistoryDomain | null> {
+	return Array.from({ length }, (_, index) => links?.[index] ?? null);
 }
 
 const EMPTY_OBJECT_IDS: ReadonlySet<string> = new Set<string>();
