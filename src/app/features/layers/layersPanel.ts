@@ -9,8 +9,7 @@ import { ToolbarId } from '../workspace/toolbarTypes';
 
 const OPACITY_SLIDER_STEP = 1;
 
-/** Layers toolbar view: active-layer properties, 
- * layer actions and the layer stack. */
+/** Layers toolbar view: active-layer properties, layer actions, and the layers with their items. */
 export class LayersPanel {
 	readonly element: HTMLElement;
 	readonly list = document.createElement('div');
@@ -34,7 +33,7 @@ export class LayersPanel {
 		this.list.setAttribute('aria-label', 'Image layers');
 		const orderHint = document.createElement('p');
 		orderHint.className = 'layer-order-hint';
-		orderHint.textContent = 'Top objects render in front.';
+		orderHint.textContent = 'Top layers and items render in front.';
 		panel.body.append(
 			this.createProperties(),
 			this.createActions(),
@@ -80,8 +79,8 @@ export class LayersPanel {
 		actions.className = 'layer-actions';
 		this.newPaintLayerButton.type = 'button';
 		this.newPaintLayerButton.className = 'icon-text-button layer-new-paint';
-		this.newPaintLayerButton.textContent = '+ New paint layer';
-		this.newPaintLayerButton.title = 'Create a new paint layer';
+		this.newPaintLayerButton.textContent = '+ New layer';
+		this.newPaintLayerButton.title = 'Create a new layer above the active layer';
 		this.duplicateLayerButton.type = 'button';
 		this.duplicateLayerButton.className = 'icon-text-button layer-duplicate';
 		this.duplicateLayerButton.textContent = 'Duplicate';

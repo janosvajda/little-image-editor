@@ -4,7 +4,8 @@ import {
 	LinkedHistoryDomain,
 	type AnnotationObject,
 	type AnnotationSessionState,
-	type AnnotationState,
+	type AnnotationStateInput,
+	type ContentLayer,
 } from './annotationTypes';
 import { EditorLimit } from '../../core/document/editorLimits';
 import {
@@ -39,20 +40,41 @@ export function isSafeProjectAnnotationSession(
 ): value is AnnotationSessionState {
 	return (
 		isAnnotationSessionState(value) &&
-		value.state.objects.length <= EditorLimit.EditableObjectImportMaximum &&
-		value.history.every(
-			(state) =>
-				state.objects.length <= EditorLimit.EditableObjectImportMaximum,
-		)
+		withinImportLimit(value.state) &&
+		value.history.every(withinImportLimit)
 	);
 }
 
-function isAnnotationState(value: unknown): value is AnnotationState {
+function withinImportLimit(state: AnnotationStateInput): boolean {
+	return (
+		state.objects.length <= EditorLimit.EditableObjectImportMaximum &&
+		(state.layers?.length ?? 0) <= EditorLimit.EditableObjectImportMaximum
+	);
+}
+
+function isAnnotationState(value: unknown): value is AnnotationStateInput {
 	return (
 		isRecord(value) &&
 		Array.isArray(value.objects) &&
 		value.objects.every(isAnnotationObject) &&
+		(value.layers === undefined ||
+			(Array.isArray(value.layers) && value.layers.every(isContentLayer))) &&
 		isFiniteNumber(value.nextStep)
+	);
+}
+
+function isContentLayer(value: unknown): value is ContentLayer {
+	return (
+		isRecord(value) &&
+		typeof value.id === 'string' &&
+		typeof value.name === 'string' &&
+		Array.isArray(value.itemIds) &&
+		value.itemIds.every((id) => typeof id === 'string') &&
+		isOptionalBoolean(value.visible) &&
+		isOptionalBoolean(value.locked) &&
+		(value.opacity === undefined || isLayerOpacity(value.opacity)) &&
+		(value.blendMode === undefined || isBlendMode(value.blendMode)) &&
+		isOptionalRotation(value.rotation)
 	);
 }
 

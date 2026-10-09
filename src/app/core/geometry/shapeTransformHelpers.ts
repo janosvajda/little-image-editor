@@ -66,6 +66,108 @@ export function shapeHandles(
 }
 
 /**
+ * Places a shape that sat in frame `from` at the matching position of frame
+ * `to`: its centre keeps its relative place, its size scales with the frame
+ * and it turns with the frame. Groups transform through their frame this way.
+ */
+export function mapGeometryBetweenFrames(
+	shape: TransformableGeometry,
+	from: TransformableGeometry,
+	to: TransformableGeometry,
+): TransformableGeometry {
+	const scaleX = from.rect.width === 0 ? 1 : to.rect.width / from.rect.width;
+	const scaleY = from.rect.height === 0 ? 1 : to.rect.height / from.rect.height;
+	const fromCenter = shapeCenter(from);
+	const toCenter = shapeCenter(to);
+	const local = rotatePoint(shapeCenter(shape), fromCenter, -radians(from.rotation));
+	const center = rotatePoint(
+		{
+			x: toCenter.x + (local.x - fromCenter.x) * scaleX,
+			y: toCenter.y + (local.y - fromCenter.y) * scaleY,
+		},
+		toCenter,
+		radians(to.rotation),
+	);
+	const width = shape.rect.width * scaleX;
+	const height = shape.rect.height * scaleY;
+	return {
+		rect: { x: center.x - width / 2, y: center.y - height / 2, width, height },
+		rotation:
+			(shape.rotation ?? 0) + (to.rotation ?? 0) - (from.rotation ?? 0),
+	};
+}
+
+const PIXEL_CENTER = 0.5;
+
+/**
+ * Tests whether pixels lie inside a frame, rotation included. The rotation is
+ * worked out once, so the test stays cheap when run for every pixel of a fill.
+ */
+export function framePixelTest(
+	frame: TransformableGeometry,
+): (x: number, y: number) => boolean {
+	const center = shapeCenter(frame);
+	const angle = -radians(frame.rotation);
+	const cosine = Math.cos(angle);
+	const sine = Math.sin(angle);
+	const halfWidth = frame.rect.width / 2;
+	const halfHeight = frame.rect.height / 2;
+	return (x, y) => {
+		const offsetX = x + PIXEL_CENTER - center.x;
+		const offsetY = y + PIXEL_CENTER - center.y;
+		return (
+			Math.abs(offsetX * cosine - offsetY * sine) <= halfWidth &&
+			Math.abs(offsetX * sine + offsetY * cosine) <= halfHeight
+		);
+	};
+}
+
+/** The axis-aligned rectangle covering several shapes, rotation included; `null` for none. */
+export function enclosingBounds(
+	shapes: Iterable<TransformableGeometry>,
+): CropRect | null {
+	return orientedBounds(shapes, 0)?.rect ?? null;
+}
+
+/**
+ * The smallest frame turned by `rotation` degrees that covers several shapes,
+ * so a rotated group keeps a frame that turns with it; `null` for none.
+ */
+export function orientedBounds(
+	shapes: Iterable<TransformableGeometry>,
+	rotation: number,
+): TransformableGeometry | null {
+	const origin = { x: 0, y: 0 };
+	const unturn = -radians(rotation);
+	let left = Number.POSITIVE_INFINITY;
+	let top = Number.POSITIVE_INFINITY;
+	let right = Number.NEGATIVE_INFINITY;
+	let bottom = Number.NEGATIVE_INFINITY;
+	for (const shape of shapes) {
+		const corners = shapeHandles(shape);
+		for (const handle of RESIZE_HANDLES) {
+			const corner = rotatePoint(corners[handle], origin, unturn);
+			left = Math.min(left, corner.x);
+			top = Math.min(top, corner.y);
+			right = Math.max(right, corner.x);
+			bottom = Math.max(bottom, corner.y);
+		}
+	}
+	if (left > right) return null;
+	const width = right - left;
+	const height = bottom - top;
+	const center = rotatePoint(
+		{ x: left + width / 2, y: top + height / 2 },
+		origin,
+		radians(rotation),
+	);
+	return {
+		rect: { x: center.x - width / 2, y: center.y - height / 2, width, height },
+		rotation,
+	};
+}
+
+/**
  * Corner handles resize; the band just outside the frame rotates. Points
  * inside the frame are left to moving the shape.
  */

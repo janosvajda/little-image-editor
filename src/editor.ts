@@ -84,9 +84,8 @@ const drawing = new DrawingController(
 drawing.onToolChange((tool) =>
 	annotationPanel.reflectSharedCropTool(tool === UtilityToolId.Crop),
 );
-layers.onEditRequested((objectId) => {
-	drawing.editObject(objectId);
-});
+layers.onEditRequested((layerId) => drawing.editLayer(layerId));
+layers.onItemChosen((itemId) => drawing.revealItem(itemId));
 new ImageOperations(documentModel, rasterSelection);
 new EffectsController(documentModel, rasterSelection);
 const toolbarManager = new ToolbarManager(documentModel);

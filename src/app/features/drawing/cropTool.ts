@@ -8,7 +8,7 @@ import { normalizedRect } from '../../core/geometry/geometryHelpers';
 import { CoreLayerId } from '../../core/layers/layerTypes';
 import type { AnnotationDocument } from '../annotations/annotationDocument';
 import { renderAnnotationObject } from '../annotations/annotationRenderer';
-import { createRasterFragmentLayer } from '../annotations/paintLayerFactory';
+import { createRasterFragmentItem } from '../annotations/paintLayerFactory';
 import type { AnnotationObject } from '../annotations/annotationTypes';
 import type { CanvasViewportController } from '../workspace/canvasViewportController';
 import { BaseImageCropSelection } from './baseImageCropSelection';
@@ -135,7 +135,7 @@ export class CropTool implements DrawingGesture {
 					this.shapes.cutToRasterFragment(
 						target.id,
 						selection,
-						createRasterFragmentLayer(fragment),
+						createRasterFragmentItem(fragment),
 					)
 				)
 					return true;
@@ -147,7 +147,7 @@ export class CropTool implements DrawingGesture {
 	/** With no retained layer under the selection, pixels move within the image layer. */
 	private extractBaseImageSelection(selection: readonly Point[]): boolean {
 		if (!this.documentModel.layers.isEditable(CoreLayerId.Image)) return false;
-		this.shapes?.select(null);
+		this.shapes?.activate(null);
 		this.documentModel.layers.select(CoreLayerId.Image);
 		this.#baseSelection.select(selection);
 		return true;

@@ -9,21 +9,22 @@ import {
 	type StrokeAnnotation,
 } from './annotationTypes';
 
-const EmptyPaintLayerGeometry = {
+const EmptyStrokeGeometry = {
 	x: 0,
 	y: 0,
 	width: 0,
 	height: 0,
 } as const;
 
-const PaintLayerDefault = {
+const EmptyStrokeDefault = {
 	Size: 1,
 	Opacity: 1,
 	Hardness: 1,
 	Seed: 0,
 } as const;
 
-export function createPaintLayer(): StrokeAnnotation {
+/** A stroke item with no points yet; a paint gesture fills in its style and path. */
+export function createEmptyStroke(): StrokeAnnotation {
 	return {
 		id: crypto.randomUUID(),
 		type: AnnotationObjectTypeId.Stroke,
@@ -32,19 +33,19 @@ export function createPaintLayer(): StrokeAnnotation {
 		points: [],
 		pathStarts: [],
 		pathStyles: [],
-		sourceRect: { ...EmptyPaintLayerGeometry },
-		rect: { ...EmptyPaintLayerGeometry },
+		sourceRect: { ...EmptyStrokeGeometry },
+		rect: { ...EmptyStrokeGeometry },
 		color: ColorPalette.Black,
-		size: PaintLayerDefault.Size,
-		opacity: PaintLayerDefault.Opacity,
-		hardness: PaintLayerDefault.Hardness,
-		seed: PaintLayerDefault.Seed,
+		size: EmptyStrokeDefault.Size,
+		opacity: EmptyStrokeDefault.Opacity,
+		hardness: EmptyStrokeDefault.Hardness,
+		seed: EmptyStrokeDefault.Seed,
 		rotation: 0,
 	};
 }
 
-/** A pixel layer holding exactly the given pixels at their document position. */
-export function createRasterFragmentLayer(
+/** A pixel item holding exactly the given pixels at their document position. */
+export function createRasterFragmentItem(
 	fragment: ExtractedPixelFragment,
 ): RasterFragmentAnnotation {
 	const { left, top, width, height } = fragment.bounds;

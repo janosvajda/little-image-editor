@@ -225,6 +225,16 @@
   "src/app/features/layers/layerStackModel.test.ts": "d47e5a0d867f8e13ee091ec92c25d509a6d093a0b56f06a660b94c074bfb5a72",
   "tests/e2e/layerEditingWorkflow.spec.ts": "d0adc86ca4a38ccb394be957dc260b6ae6172bc0c1143bc30a1d2b78761afbe8",
   "src/app/core/geometry/selectToolTransformGeometry.test.ts": "988523c4321ad31990fd206d19559d27598774f388a96e883bfcf58b303443a6",
-  "tests/e2e/layerTransformWithSelectTool.spec.ts": "4c5fc5a8d6abdace76f31ab715f2bf15c00e33c019f3c3704786af07875100bd",
-  "src/app/features/drawing/pixelPencilSpanEquivalence.test.ts": "4353d8e9a75834ed3d659a8ad1e83c31b6c48f97471f26238169ea7f1188baee"
+  "tests/e2e/layerTransformWithSelectTool.spec.ts": "acb9539c9fe8d45ef35cd13357458ceb47d8699e8fdbced9f331cae65711b6fb",
+  "src/app/features/drawing/pixelPencilSpanEquivalence.test.ts": "4353d8e9a75834ed3d659a8ad1e83c31b6c48f97471f26238169ea7f1188baee",
+  "src/app/features/drawing/shapeToolObjectEditing.test.ts": "bb5f88f5bb658f6c9dc945d11812956ff3bf7e7679cf011f545ea15766cf8916",
+  "tests/e2e/layerRowRevealsItem.spec.ts": "649caa33e7f27f02952b015dffe7e24389bef6647c3275c47e0b3f489e31f73e",
+  "src/app/features/annotations/contentLayerModel.test.ts": "c1630568cfe0115f58c762a6f1fd31a841998f1ad2900c4cc31cf5cb8eccd0ba",
+  "src/app/features/layers/layerContainerInteractions.test.ts": "a526a390fd87e92d9011dcd580f8219b606fe4103ecda29640055db723ad71d5",
+  "tests/e2e/layerContainerWorkflow.spec.ts": "c8f344a1504fd44a2a13068468cf6d02f03948d299d1fee680e7d4e09703c1b4",
+  "src/app/features/annotations/layerMotionPreview.test.ts": "d4fd1b68b5b71692c8b8187d641a96ad81f7ed40302b300aae6c5df39f8be5a9",
+  "tests/e2e/layerDragPreviewQuality.spec.ts": "b69366e9023b32e89cfb3d875e9c634e3bcc05a6bf31368a7b85384eb5c8b28b",
+  "src/app/features/annotations/resizedStrokeSharpness.test.ts": "d8cf86015562d532411ad35a74cf910b61fe95d5a78d8ea535ea70ca8adb456c",
+  "tests/e2e/layerListScrolling.spec.ts": "ff9b30074dcbd65fae49767bf0d2294c2d434abc97ad5d2656d94bb71b1a6938",
+  "src/app/features/drawing/selectionScopedFill.test.ts": "4544724a5fd9e7450044123c15a59272f8ce799bb4e21ce3756955a4b3f50d40"
 }

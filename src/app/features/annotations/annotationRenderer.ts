@@ -4,6 +4,7 @@ import {
 	AnnotationObjectTypeId,
 	type AnnotationObject,
 	type AnnotationState,
+	type AnnotationStateInput,
 	type ObjectErasurePath,
 	type ObjectPixelMask,
 	type RectAnnotation,
@@ -28,7 +29,8 @@ import {
 	objectErasureSize,
 } from './objectErasures';
 import { decodePixelBytes } from '../../shared/image/pixelDataCodec';
-import { compositeLayer } from '../layers/layerCompositing';
+import { compositeLayers } from '../layers/layerCompositing';
+import { withContentLayers } from './contentLayerStructure';
 import { EditorLimit } from '../../core/document/editorLimits';
 
 const AnnotationRendering = {
@@ -72,14 +74,16 @@ const rasterFragmentCache = new Map<
 	Readonly<{ encodedPixels: string; canvas: HTMLCanvasElement }>
 >();
 
+/** Draws every layer's items, then the selected item's frame. */
 export function renderAnnotations(
 	context: CanvasRenderingContext2D,
 	baseCanvas: HTMLCanvasElement,
-	state: Readonly<AnnotationState>,
+	state: Readonly<AnnotationStateInput>,
 	selectedId: string | null = null,
 ): void {
-	renderAnnotationObjects(context, baseCanvas, state.objects);
-	const selected = state.objects.find((object) => object.id === selectedId);
+	const layered = withContentLayers(state);
+	renderContentLayers(context, baseCanvas, layered);
+	const selected = layered.objects.find((object) => object.id === selectedId);
 	if (
 		selected &&
 		!(selected.type === AnnotationObjectTypeId.Stroke && selected.points.length === 0)
@@ -87,16 +91,15 @@ export function renderAnnotations(
 		renderAnnotationSelection(context, selected);
 }
 
-export function renderAnnotationObjects(
+/** Draws every visible layer as one composited group. */
+export function renderContentLayers(
 	context: CanvasRenderingContext2D,
 	baseCanvas: HTMLCanvasElement,
-	objects: readonly AnnotationObject[],
+	state: Readonly<AnnotationState>,
 ): void {
-	for (const object of objects)
-		if (object.visible !== false)
-			compositeLayer(context, object, (layerContext) =>
-				renderAnnotationObject(layerContext, baseCanvas, object),
-			);
+	compositeLayers(context, state, (layerContext, item) =>
+		renderAnnotationObject(layerContext, baseCanvas, item),
+	);
 }
 
 export function renderAnnotationObject(

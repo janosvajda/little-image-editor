@@ -1,14 +1,19 @@
+import { type Tool, UtilityToolId } from '../../core/document/appTypes';
 import {
 	type AnnotationDocument,
 	isEphemeralAnnotationChange,
 } from '../annotations/annotationDocument';
+import {
+	type AnnotationObject,
+	AnnotationObjectTypeId,
+} from '../annotations/annotationTypes';
+import { drawingToolBehavior, ToolOptionSource } from './drawingToolBehavior';
 import {
 	EditableObjectPropertyId,
 	editableObjectProperties,
 	setEditableObjectProperty,
 	type EditableObjectProperty,
 } from '../annotations/editableObjectProperties';
-import { AnnotationObjectTypeId } from '../annotations/annotationTypes';
 
 const Percentage = {
 	Scale: 100,
@@ -28,7 +33,7 @@ export class SelectedObjectPropertiesController {
 	readonly #controls: Readonly<Record<EditableObjectProperty, PropertyControl>>;
 	readonly #dirtyProperties = new Set<EditableObjectProperty>();
 	#synchronizing = false;
-	#enabled = true;
+	#tool: Tool | null = null;
 
 	constructor(
 		private readonly objects: AnnotationDocument,
@@ -69,10 +74,27 @@ export class SelectedObjectPropertiesController {
 		this.sync();
 	}
 
-	setEnabled(enabled: boolean): void {
-		if (this.#enabled === enabled) return;
-		this.#enabled = enabled;
+	/**
+	 * Item properties follow the tool: tools with contextual options show them,
+	 * and brush strokes are restyled only with Select, so paint tools keep
+	 * their own brush settings in view.
+	 */
+	setTool(tool: Tool): void {
+		if (this.#tool === tool) return;
+		this.#tool = tool;
 		this.sync();
+	}
+
+	private showsPropertiesOf(item: AnnotationObject): boolean {
+		if (
+			this.#tool !== null &&
+			drawingToolBehavior(this.#tool).optionSource !== ToolOptionSource.Contextual
+		)
+			return false;
+		return (
+			item.type !== AnnotationObjectTypeId.Stroke ||
+			this.#tool === UtilityToolId.Select
+		);
 	}
 
 	private heading(): HTMLElement {
@@ -176,10 +198,7 @@ export class SelectedObjectPropertiesController {
 		this.#synchronizing = true;
 		const selected = this.objects.selected;
 		this.#dirtyProperties.clear();
-		const propertiesVisible =
-			this.#enabled &&
-			Boolean(selected) &&
-			selected?.type !== AnnotationObjectTypeId.Stroke;
+		const propertiesVisible = selected !== null && this.showsPropertiesOf(selected);
 		this.#root.classList.toggle('hidden', !propertiesVisible);
 		this.parent.classList.toggle(
 			'editing-selected-object',

@@ -104,7 +104,7 @@ export class DrawingToolRouter {
 				cancel: () => undefined,
 			};
 		const target = this.shapes.activeLayer;
-		if (target && !this.shapes.isEditable(target.id)) return null;
+		if (target && !this.shapes.isLayerEditable(target.id)) return null;
 		return new PaintStrokeGesture(
 			this.shapes,
 			this.documentModel,
@@ -115,19 +115,23 @@ export class DrawingToolRouter {
 		);
 	}
 
-	/** Erases the active layer; with the image layer active, erases image pixels. */
+	/** Erases the active layer's items; with the image layer active, erases image pixels. */
 	private beginErasure(point: Point, pressure: number): DrawingGesture | null {
-		const selected = this.shapes?.activeLayer;
-		if (!selected) return this.beginImageErasure(point, pressure);
-		if (!this.shapes?.isEditable(selected.id)) return null;
-		if (
-			selected.type === AnnotationObjectTypeId.Stroke &&
-			selected.points.length === 0
-		)
-			return null;
+		const layer = this.shapes?.activeLayer;
+		if (!this.shapes || !layer) return this.beginImageErasure(point, pressure);
+		if (!this.shapes.isLayerEditable(layer.id)) return null;
+		const itemIds = this.shapes
+			.layerItems(layer.id)
+			.filter(
+				(item) =>
+					this.shapes?.isEditable(item.id) &&
+					!(item.type === AnnotationObjectTypeId.Stroke && item.points.length === 0),
+			)
+			.map((item) => item.id);
+		if (itemIds.length === 0) return null;
 		return new ObjectErasureGesture(
 			this.shapes,
-			selected.id,
+			itemIds,
 			point,
 			pressure,
 			this.settings.strokeOptions(),

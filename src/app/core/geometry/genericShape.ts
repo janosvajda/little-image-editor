@@ -62,6 +62,12 @@ export abstract class GenericShape<
 		this.writeRect({ ...rect, x: rect.x + delta.x, y: rect.y + delta.y });
 	}
 
+	/** Puts the shape at a new frame and rotation, as group transforms do. */
+	setGeometry(geometry: TransformableGeometry): void {
+		this.writeRect(geometry.rect);
+		this.object.rotation = geometry.rotation ?? 0;
+	}
+
 	transform(handle: ShapeHandle, point: Point, rotation?: RotationDrag): void {
 		const geometry = this.geometry;
 		this.interaction.transform(geometry, handle, point, rotation);

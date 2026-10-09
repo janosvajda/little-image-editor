@@ -787,7 +787,7 @@ export class AnnotationController {
 				? this.annotations.renderState.changedObjectId
 				: null);
 		const imageBackdrop =
-			requiresImageBackdrop(this.annotations.state.objects) &&
+			requiresImageBackdrop(this.annotations.state.layers) &&
 			this.documentModel.layers.isVisible(CoreLayerId.Image)
 				? this.documentModel.canvas
 				: null;
@@ -816,15 +816,31 @@ export class AnnotationController {
 		this.renderSelection();
 	}
 
+	/** Shows the selected item's controls, or the frame around a whole selected layer. */
 	private renderSelection(
 		object: AnnotationObject | null = this.annotations.selected,
 	): void {
+		const { width, height } = this.documentModel;
+		const visualScale = this.viewportVisualScale();
+		const layer = object ? null : this.annotations.selectedLayer;
+		if (layer) {
+			this.#selectionOverlay.renderLayerFrame(
+				this.annotations.layerFrame(layer.id),
+				width,
+				height,
+				visualScale,
+				this.selectionPresentation(),
+			);
+			return;
+		}
+		const itemLayer = object ? this.annotations.layerOf(object.id) : null;
 		this.#selectionOverlay.render(
 			object,
-			this.documentModel.width,
-			this.documentModel.height,
-			this.viewportVisualScale(),
+			width,
+			height,
+			visualScale,
 			this.selectionPresentation(),
+			itemLayer ? this.annotations.layerFrame(itemLayer.id) : null,
 		);
 	}
 

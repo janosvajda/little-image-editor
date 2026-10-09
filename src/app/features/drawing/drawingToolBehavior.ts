@@ -6,6 +6,10 @@ import {
 	type PaintTool,
 	type ShapeTool,
 } from '../../core/document/appTypes';
+import {
+	type AnnotationObject,
+	AnnotationObjectTypeId,
+} from '../annotations/annotationTypes';
 import { SelectionPresentation } from '../annotations/selectionOverlayRenderer';
 
 export const DrawingToolKind = {
@@ -167,9 +171,24 @@ export function isShapeTool(tool: Tool): tool is ShapeTool {
 	return isToolKind(tool, DrawingToolKind.Shape);
 }
 
-/** Only Select shows transform controls; Crop outlines the cut piece it moves. */
+/**
+ * Select and shape tools show transform controls; Crop outlines the cut piece
+ * it moves, and Fill outlines the selection it is limited to.
+ */
 export function selectionPresentationFor(tool: Tool): SelectionPresentation {
-	if (tool === UtilityToolId.Select) return SelectionPresentation.Transform;
-	if (tool === UtilityToolId.Crop) return SelectionPresentation.Frame;
+	if (tool === UtilityToolId.Select || isShapeTool(tool))
+		return SelectionPresentation.Transform;
+	if (tool === UtilityToolId.Crop || tool === UtilityToolId.Fill)
+		return SelectionPresentation.Frame;
 	return SelectionPresentation.Hidden;
+}
+
+/** Whether a tool edits a layer of this type in place, without switching to Select. */
+export function toolEditsLayer(
+	tool: Tool,
+	type: AnnotationObject['type'],
+): boolean {
+	if (tool === UtilityToolId.Select || tool === PaintToolId.Eraser) return true;
+	if (isShapeTool(tool)) return type === AnnotationObjectTypeId.Shape;
+	return isPaintTool(tool) && type === AnnotationObjectTypeId.Stroke;
 }

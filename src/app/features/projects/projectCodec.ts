@@ -1,3 +1,4 @@
+import { emptyAnnotationSession } from '../annotations/contentLayerStructure';
 import {
 	DocumentType,
 	type DocumentSessionSnapshot,
@@ -35,11 +36,6 @@ import {
 } from './projectCompatibility';
 
 const RGBA_CHANNEL_COUNT = 4;
-const EMPTY_EDITABLE_OBJECTS: AnnotationSessionState = {
-	state: { objects: [], nextStep: 1 },
-	history: [{ objects: [], nextStep: 1 }],
-	historyIndex: 0,
-};
 
 export class ProjectFormatError extends Error {
 	constructor(message: string) {
@@ -71,7 +67,7 @@ export class ProjectCodec {
 	serialize(
 		session: DocumentSessionSnapshot,
 		guides: readonly ProjectGuide[] = [],
-		editableObjects: AnnotationSessionState = EMPTY_EDITABLE_OBJECTS,
+		editableObjects: AnnotationSessionState = emptyAnnotationSession(),
 	): string {
 		const document = serializeSession(session);
 		const project: LittleImageProject = {
