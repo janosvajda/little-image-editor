@@ -16,6 +16,7 @@ describe("generic drawing-shape editing", () => {
 
     pointer(overlay, "pointerdown", 10, 20); pointer(overlay, "pointermove", 50, 50); pointer(overlay, "pointerup", 50, 50);
     expect(shapes.selected).toEqual(expect.objectContaining({ type: "shape", shape: "rectangle", rect: { x: 10, y: 20, width: 40, height: 30 } }));
+    drawing.select("select");
 
     pointer(overlay, "pointerdown", 50, 50); pointer(overlay, "pointermove", 70, 80); pointer(overlay, "pointerup", 70, 80);
     expect(shapes.selected).toEqual(expect.objectContaining({ rect: { x: 10, y: 20, width: 60, height: 60 } }));

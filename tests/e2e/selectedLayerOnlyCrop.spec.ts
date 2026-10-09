@@ -18,7 +18,7 @@ test('crop extracts only the selected object layer', async ({ page }) => {
 	await drag(page, bounds.x + 580, bounds.y + 220, bounds.x + 380, bounds.y + 100);
 	await page
 		.locator('.layer-object-row')
-		.filter({ hasText: 'Shape 2' })
+		.filter({ hasText: 'Shape 1' })
 		.evaluate((row) => (row as HTMLElement).click());
 
 	await page.locator('[data-tool="crop"]').click();

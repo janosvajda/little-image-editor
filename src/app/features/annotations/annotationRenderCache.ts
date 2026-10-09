@@ -13,6 +13,7 @@ import {
 } from './annotationRenderer';
 import type { AnnotationObject, AnnotationState } from './annotationTypes';
 import { AnnotationObjectTypeId } from './annotationTypes';
+import { compositeLayer } from '../layers/layerCompositing';
 
 const INITIAL_REVISION = -1;
 const REQUIRED_CACHE_CONTEXT_METHODS = [
@@ -64,6 +65,7 @@ export class AnnotationRenderCache {
 	#previousInteractiveBounds: RenderRegion | null = null;
 	#previousInteractiveId: string | null = null;
 	#previousSelectedId: string | null = null;
+	#imageBackdrop: HTMLCanvasElement | null = null;
 	readonly #cachedObjectIds = new Set<string>();
 	readonly #cacheSupported = REQUIRED_CACHE_CONTEXT_METHODS.every(
 		(method) => typeof this.#context[method] === 'function',
@@ -97,12 +99,23 @@ export class AnnotationRenderCache {
 		renderState: AnnotationRenderState,
 		selected: AnnotationObject | null,
 		interactive: AnnotationObject | null,
+		imageBackdrop: HTMLCanvasElement | null = null,
 	): void {
 		if (!this.#cacheSupported) {
-			this.renderWithoutCache(target, baseCanvas, state, selected);
+			this.renderWithoutCache(
+				target,
+				baseCanvas,
+				state,
+				selected,
+				imageBackdrop,
+			);
 			return;
 		}
 		this.resize(target.canvas.width, target.canvas.height);
+		if (imageBackdrop !== this.#imageBackdrop) {
+			this.#imageBackdrop = imageBackdrop;
+			this.invalidate();
+		}
 		const excludedId = interactive?.id ?? null;
 		const promoted = this.promoteCommittedInteractive(
 			baseCanvas,
@@ -147,8 +160,10 @@ export class AnnotationRenderCache {
 		baseCanvas: HTMLCanvasElement,
 		state: Readonly<AnnotationState>,
 		selected: AnnotationObject | null,
+		imageBackdrop: HTMLCanvasElement | null,
 	): void {
 		target.clearRect(0, 0, target.canvas.width, target.canvas.height);
+		if (imageBackdrop) target.drawImage(imageBackdrop, 0, 0);
 		renderAnnotationObjects(target, baseCanvas, state.objects);
 		if (selected) renderAnnotationSelection(target, selected);
 		this.#fullComposites += 1;
@@ -189,7 +204,7 @@ export class AnnotationRenderCache {
 		target.clearRect(0, 0, target.canvas.width, target.canvas.height);
 		target.drawImage(this.#canvas, 0, 0);
 		if (interactive)
-			this.renderInteractiveObject(target, baseCanvas, interactive);
+			this.compositeInteractiveObject(target, baseCanvas, interactive);
 		if (selected) renderAnnotationSelection(target, selected);
 		this.#fullComposites += 1;
 	}
@@ -217,7 +232,7 @@ export class AnnotationRenderCache {
 		target.beginPath();
 		target.rect(region.x, region.y, region.width, region.height);
 		target.clip();
-		this.renderInteractiveObject(target, baseCanvas, interactive);
+		this.compositeInteractiveObject(target, baseCanvas, interactive);
 		if (selected) renderAnnotationSelection(target, selected);
 		target.restore();
 		this.#dirtyComposites += 1;
@@ -277,7 +292,7 @@ export class AnnotationRenderCache {
 			isTransformedStroke(committed)
 		)
 			return false;
-		this.renderInteractiveObject(this.#context, baseCanvas, committed);
+		this.compositeInteractiveObject(this.#context, baseCanvas, committed);
 		this.#cachedRevision = renderState.revision;
 		this.#cachedStaticRevision = renderState.staticRevision;
 		this.#excludedObjectId = null;
@@ -294,6 +309,7 @@ export class AnnotationRenderCache {
 		excludedId: string | null,
 	): void {
 		this.#context.clearRect(0, 0, this.#canvas.width, this.#canvas.height);
+		if (this.#imageBackdrop) this.#context.drawImage(this.#imageBackdrop, 0, 0);
 		const objects = excludedId
 			? state.objects.filter((object) => object.id !== excludedId)
 			: state.objects;
@@ -315,10 +331,22 @@ export class AnnotationRenderCache {
 	): void {
 		if (object.visible === false) return;
 		if (isTransformedStroke(object)) {
-			this.renderInteractiveObject(this.#context, baseCanvas, object);
+			this.compositeInteractiveObject(this.#context, baseCanvas, object);
 			return;
 		}
-		renderAnnotationObject(this.#context, baseCanvas, object);
+		compositeLayer(this.#context, object, (layerContext) =>
+			renderAnnotationObject(layerContext, baseCanvas, object),
+		);
+	}
+
+	private compositeInteractiveObject(
+		target: CanvasRenderingContext2D,
+		baseCanvas: HTMLCanvasElement,
+		object: AnnotationObject,
+	): void {
+		compositeLayer(target, object, (layerContext) =>
+			this.renderInteractiveObject(layerContext, baseCanvas, object),
+		);
 	}
 
 	private resetInteractiveFrame(): void {

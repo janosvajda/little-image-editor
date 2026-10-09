@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ShapeToolId } from '../../core/document/appTypes';
+import { ShapeToolId, UtilityToolId } from '../../core/document/appTypes';
 import { CanvasDocument } from '../../core/document/imageDocument';
 import { AnnotationDocument } from '../annotations/annotationDocument';
 import { isAnnotationSessionState } from '../annotations/annotationSerialization';
@@ -107,44 +107,26 @@ describe('cut-and-move crop behavior', () => {
 		expect(isAnnotationSessionState(objects.snapshotSession())).toBe(true);
 	});
 
-	it('immediately extracts a rectangular selection into a retained layer', () => {
+	it('selects pixels within a bare image layer without creating a retained layer', () => {
 		const canvas = document.querySelector<HTMLCanvasElement>('#canvas')!;
 		const overlay = document.querySelector<HTMLCanvasElement>('#overlay')!;
 		const model = new CanvasDocument(canvas, overlay);
 		model.create({ name: 'interactive-cut', width: 100, height: 80, transparent: true, background: '#fff' });
-		const pixels = new Uint8ClampedArray(100 * 80 * 4);
-		pixels.set(RED_PIXEL, (15 * 100 + 15) * 4);
-		model.context.putImageData(new ImageData(pixels, 100, 80), 0, 0);
-		const selectedPixels = new Uint8ClampedArray(20 * 20 * 4);
-		selectedPixels.set(RED_PIXEL, (5 * 20 + 5) * 4);
-		vi.mocked(model.context.getImageData).mockReturnValueOnce(
-			new ImageData(selectedPixels, 20, 20),
-		);
 		overlay.getBoundingClientRect = () => domRect(100, 80);
 		const objects = new AnnotationDocument();
 		const drawing = new DrawingController(model, undefined, objects);
-		drawing.select('crop');
+		drawing.select(UtilityToolId.Crop);
+		const history = vi.fn();
+		model.onHistoryChange(history);
+		history.mockClear();
 		pointer(overlay, 'pointerdown', 10, 10);
 		pointer(overlay, 'pointermove', 30, 30);
 		pointer(overlay, 'pointerup', 30, 30);
 		expect([model.width, model.height]).toEqual([100, 80]);
-		expect(objects.selected).toMatchObject({
-			type: AnnotationObjectTypeId.RasterFragment,
-			rect: { x: 10, y: 10, width: 20, height: 20 },
-		});
-		const result = vi.mocked(model.context.putImageData).mock.lastCall?.[0];
-		expect(result?.data[(5 * 20 + 5) * 4 + 3]).toBe(0);
-		expect(document.querySelector('[data-tool="select"]')?.classList).toContain('active');
-		pointer(overlay, 'pointerdown', 20, 20);
-		pointer(overlay, 'pointermove', 30, 30);
-		pointer(overlay, 'pointerup', 30, 30);
-		expect(objects.selected).toMatchObject({
-			rect: { x: 20, y: 20, width: 20, height: 20 },
-		});
-		document.dispatchEvent(
-			new KeyboardEvent('keydown', { key: 'Delete', bubbles: true }),
-		);
 		expect(objects.state.objects).toHaveLength(0);
+		expect(objects.selected).toBeNull();
+		expect(history).not.toHaveBeenCalled();
+		expect(document.querySelector('[data-tool="crop"]')?.classList).toContain('active');
 	});
 });
 

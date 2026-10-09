@@ -81,14 +81,18 @@ function renderPencilStamp(
 	const left = Math.round(centerX - radius);
 	const top = Math.round(centerY - radius);
 	const radiusSquared = radius * radius;
+	// A disc's covered pixels in each row are contiguous, so each row is one span.
 	for (let yOffset = 0; yOffset < diameter; yOffset += 1) {
+		const deltaY = top + yOffset + PIXEL_CENTER_OFFSET - centerY;
+		let first = -1;
+		let last = -1;
 		for (let xOffset = 0; xOffset < diameter; xOffset += 1) {
-			const pixelCenterX = left + xOffset + PIXEL_CENTER_OFFSET;
-			const pixelCenterY = top + yOffset + PIXEL_CENTER_OFFSET;
-			const deltaX = pixelCenterX - centerX;
-			const deltaY = pixelCenterY - centerY;
-			if (deltaX * deltaX + deltaY * deltaY <= radiusSquared)
-				context.fillRect(left + xOffset, top + yOffset, 1, 1);
+			const deltaX = left + xOffset + PIXEL_CENTER_OFFSET - centerX;
+			if (deltaX * deltaX + deltaY * deltaY > radiusSquared) continue;
+			if (first < 0) first = xOffset;
+			last = xOffset;
 		}
+		if (first >= 0)
+			context.fillRect(left + first, top + yOffset, last - first + 1, 1);
 	}
 }

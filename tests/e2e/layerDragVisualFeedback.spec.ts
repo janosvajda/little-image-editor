@@ -22,7 +22,7 @@ test('layer dragging clearly identifies the source, preview, and destination', a
 	});
 	await dispatchPointer(handle, 'pointerdown', downPointer);
 	await expect(source).toHaveClass(/dragging-source/);
-	await expect(page.locator('.layer-drag-preview')).toHaveText('Moving Stroke 1');
+	await expect(page.locator('.layer-drag-preview')).toHaveText('Moving Paint layer 2');
 	const destinationBounds = await destination.boundingBox();
 	const dragPointer = {
 		clientX: destinationBounds!.x + destinationBounds!.width / 2,
@@ -53,10 +53,13 @@ async function openProjectWithStrokes(page: Page): Promise<void> {
 	await page.locator('#newImageFormat').selectOption('application/vnd.little-image-editor.project+json');
 	await page.locator('#newImageName').fill('layer-drag-feedback');
 	await page.locator('#createImageButton').click();
-	for (let index = 0; index < StrokeCount; index += 1)
-		await drawStroke(page, 40 + index * 80, 80);
 	await page.locator('#toolbarPickerButton').click();
 	await page.getByLabel('Layers', { exact: true }).check();
+	await page.keyboard.press('Escape');
+	for (let index = 0; index < StrokeCount; index += 1) {
+		await page.locator('[data-panel="layers"] .layer-new-paint').click();
+		await drawStroke(page, 40 + index * 80, 80);
+	}
 }
 
 async function dispatchPointer(

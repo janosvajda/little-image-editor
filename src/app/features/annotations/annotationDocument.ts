@@ -12,6 +12,7 @@ import {
 	type ShapeHandle,
 } from '../../core/geometry/shapeTransformHelpers';
 import { genericShape } from '../../core/geometry/genericShape';
+import type { RotationDrag } from '../../core/geometry/shapeInteraction';
 import { normalizedRect as normalizeRectangle } from '../../core/geometry/geometryHelpers';
 import { EditorLimit } from '../../core/document/editorLimits';
 import { ObjectSpatialIndex } from './objectSpatialIndex';
@@ -19,6 +20,21 @@ import { strokeContainsPoint } from './strokeGeometry';
 import { createPaintLayer } from './paintLayerFactory';
 import { RasterFragmentSurface } from './rasterFragmentSurface';
 import { createObjectPixelMask } from './objectErasures';
+import type {
+	HistoryCommit,
+	HistoryParticipant,
+} from '../../core/history/editorHistory';
+import {
+	isLayerOpacity,
+	type LayerAppearanceChange,
+} from '../../core/layers/layerTypes';
+import {
+	applyLayerAppearance,
+	duplicateLayerName,
+	layerAppearance,
+	LayerNumbering,
+	resolveLayerNames,
+} from '../layers/layerAppearance';
 
 const HISTORY_LIMIT = EditorLimit.EditableObjectHistory;
 const ARROW_HIT_MINIMUM = 8;
@@ -55,7 +71,7 @@ export const LinkedHistoryDirection = {
 export type LinkedHistoryDirection =
 	(typeof LinkedHistoryDirection)[keyof typeof LinkedHistoryDirection];
 
-export class AnnotationDocument {
+export class AnnotationDocument implements HistoryParticipant {
 	#state: AnnotationState = { objects: [], nextStep: 1 };
 	#history: AnnotationState[] = [cloneState(this.#state)];
 	#historyLinks: Array<LinkedHistoryDomain | null> = [null];
@@ -64,6 +80,7 @@ export class AnnotationDocument {
 		(state: Readonly<AnnotationState>, change: AnnotationChangeKind) => void
 	>();
 	#historyListeners = new Set<(canUndo: boolean, canRedo: boolean) => void>();
+	#commitListeners = new Set<(commit: HistoryCommit) => void>();
 	#linkedHistoryListeners = new Set<
 		(domain: LinkedHistoryDomain, direction: LinkedHistoryDirection) => void
 	>();
@@ -78,7 +95,7 @@ export class AnnotationDocument {
 		interactionActive: false,
 	};
 	selectedId: string | null = null;
-	#activePaintTargetId: string | null = null;
+	#activeLayerId: string | null = null;
 
 	get state(): Readonly<AnnotationState> {
 		return this.#state;
@@ -88,6 +105,12 @@ export class AnnotationDocument {
 	}
 	get canRedo(): boolean {
 		return this.#historyIndex < this.#history.length - 1;
+	}
+	get undoDepth(): number {
+		return this.#historyIndex;
+	}
+	onCommit(listener: (commit: HistoryCommit) => void): void {
+		this.#commitListeners.add(listener);
 	}
 	get selected(): AnnotationObject | null {
 		return this.selectedId ? (this.#objectsById.get(this.selectedId) ?? null) : null;
@@ -99,14 +122,14 @@ export class AnnotationDocument {
 		const historyLinks = [...this.#historyLinks];
 		const historyIndex = this.#historyIndex;
 		const selectedId = this.selectedId;
-		const activePaintTargetId = this.#activePaintTargetId;
+		const activeLayerId = this.#activeLayerId;
 		return () => {
 			this.#state = cloneState(state);
 			this.#history = [...history];
 			this.#historyLinks = [...historyLinks];
 			this.#historyIndex = historyIndex;
 			this.selectedId = selectedId;
-			this.#activePaintTargetId = activePaintTargetId;
+			this.#activeLayerId = activeLayerId;
 			this.rebuildObjectIndex();
 			this.markRenderedContentChanged(null, false);
 			this.emit(AnnotationChangeKind.Committed);
@@ -114,12 +137,17 @@ export class AnnotationDocument {
 		};
 	}
 
-	get activePaintTarget(): AnnotationObject | null {
-		return this.object(this.#activePaintTargetId) ?? this.#state.objects.at(-1) ?? null;
+	/**
+	 * The layer that receives paint and above which new layers are created.
+	 * `null` means the image layer. It survives tool changes and deselection
+	 * of transform handles.
+	 */
+	get activeLayer(): AnnotationObject | null {
+		return this.object(this.#activeLayerId);
 	}
 
 	get activePaintLayer(): Extract<AnnotationObject, { type: typeof AnnotationObjectTypeId.Stroke }> | null {
-		const target = this.activePaintTarget;
+		const target = this.activeLayer;
 		return target?.type === AnnotationObjectTypeId.Stroke ? target : null;
 	}
 
@@ -172,7 +200,7 @@ export class AnnotationDocument {
 		this.#historyLinks = [null];
 		this.#historyIndex = 0;
 		this.selectedId = null;
-		this.#activePaintTargetId = null;
+		this.#activeLayerId = this.#state.objects.at(-1)?.id ?? null;
 		this.rebuildObjectIndex();
 		this.markRenderedContentChanged(null, false);
 		this.emit(AnnotationChangeKind.Committed);
@@ -195,7 +223,7 @@ export class AnnotationDocument {
 			this.#history.length,
 		);
 		this.selectedId = null;
-		this.#activePaintTargetId = null;
+		this.#activeLayerId = this.#state.objects.at(-1)?.id ?? null;
 		this.rebuildObjectIndex();
 		this.markRenderedContentChanged(null, false);
 		this.emit(AnnotationChangeKind.Committed);
@@ -207,13 +235,12 @@ export class AnnotationDocument {
 		commit = true,
 		historyLink: LinkedHistoryDomain | null = null,
 	): void {
-		this.#state.objects.push(structuredClone(object));
-		this.indexObject(this.#state.objects.at(-1)!, this.#state.objects.length - 1);
+		this.insertLayer(structuredClone(object), this.insertionIndex());
 		this.markRenderedContentChanged(object.id, !commit);
 		if (object.type === AnnotationObjectTypeId.Step)
 			this.#state.nextStep = Math.max(this.#state.nextStep, object.value + 1);
 		this.selectedId = object.id;
-		this.#activePaintTargetId = object.id;
+		this.#activeLayerId = object.id;
 		if (commit) this.commit(historyLink);
 		else this.emit(AnnotationChangeKind.Transient);
 	}
@@ -232,13 +259,82 @@ export class AnnotationDocument {
 		else this.emit(AnnotationChangeKind.Transient);
 	}
 
+	/** Selects a layer for editing and makes it active; `null` activates the image. */
 	select(id: string | null): void {
-		if (this.selectedId === id) return;
+		const activeLayerId = this.object(id) ? id : null;
+		if (this.selectedId === id && this.#activeLayerId === activeLayerId) return;
 		this.selectedId = id;
-		if (this.object(id)) this.#activePaintTargetId = id;
+		this.#activeLayerId = activeLayerId;
 		this.emit(AnnotationChangeKind.Selection);
 	}
 
+	/** The layer's stored name, or its stable generated name for older data. */
+	layerName(id: string): string {
+		return resolveLayerNames(this.#state.objects).get(id) ?? '';
+	}
+
+	/** Makes a layer active without showing its transform handles; `null` is the image. */
+	activate(id: string | null): void {
+		const activeLayerId = this.object(id) ? id : null;
+		const clearsSelection =
+			this.selectedId !== null && this.selectedId !== activeLayerId;
+		if (this.#activeLayerId === activeLayerId && !clearsSelection) return;
+		this.#activeLayerId = activeLayerId;
+		if (clearsSelection) this.selectedId = null;
+		this.emit(AnnotationChangeKind.Selection);
+	}
+
+	/** Hides transform handles; the active layer stays, as when switching tools. */
+	clearSelection(): void {
+		if (this.selectedId === null) return;
+		this.selectedId = null;
+		this.emit(AnnotationChangeKind.Selection);
+	}
+
+	setLayerAppearance(
+		id: string,
+		change: LayerAppearanceChange,
+		commit = true,
+	): void {
+		const object = this.#objectsById.get(id);
+		const name = change.name?.trim();
+		if (
+			!object ||
+			name === '' ||
+			(change.opacity !== undefined && !isLayerOpacity(change.opacity))
+		)
+			return;
+		const current = {
+			...layerAppearance(object),
+			name: this.layerName(id),
+		};
+		const next = { ...current, ...change, ...(name ? { name } : {}) };
+		if (
+			next.name === current.name &&
+			next.opacity === current.opacity &&
+			next.blendMode === current.blendMode
+		)
+			return;
+		this.update(id, (layer) => applyLayerAppearance(layer, next), commit);
+	}
+
+	/** Copies a layer directly above itself and makes the copy active. */
+	duplicate(id: string): string | null {
+		const source = this.#objectsById.get(id);
+		const sourceIndex = this.#objectOrder.get(id);
+		if (!source || sourceIndex === undefined) return null;
+		const copy = structuredClone(source);
+		copy.id = crypto.randomUUID();
+		copy.name = duplicateLayerName(this.layerName(id));
+		this.insertLayer(copy, sourceIndex + 1);
+		this.selectedId = copy.id;
+		this.#activeLayerId = copy.id;
+		this.markRenderedContentChanged(null, false);
+		this.commit();
+		return copy.id;
+	}
+
+	/** Adds an empty paint layer directly above the active layer. */
 	createPaintLayer(): string {
 		const layer = createPaintLayer();
 		this.add(layer);
@@ -267,13 +363,39 @@ export class AnnotationDocument {
 		this.remove(this.selectedId);
 	}
 
-	remove(id: string): void {
-		if (!this.#objectsById.has(id)) return;
+	/** Deletes a layer; an active layer passes activation to the layer beneath it. */
+	remove(id: string, historyLink: LinkedHistoryDomain | null = null): void {
+		const index = this.#objectOrder.get(id);
+		if (index === undefined) return;
 		this.#state.objects = this.#state.objects.filter((object) => object.id !== id);
 		this.rebuildObjectIndex();
 		this.markRenderedContentChanged(null, false);
 		if (this.selectedId === id) this.selectedId = null;
-		if (this.#activePaintTargetId === id) this.#activePaintTargetId = null;
+		if (this.#activeLayerId === id)
+			this.#activeLayerId =
+				this.#state.objects[index - 1]?.id ??
+				this.#state.objects[index]?.id ??
+				null;
+		this.commit(historyLink);
+	}
+
+	/** Replaces adjacent layers with one layer in their lowest position, as one step. */
+	replaceLayers(ids: readonly string[], replacement: AnnotationObject): void {
+		const indices = ids.flatMap((id) => {
+			const index = this.#objectOrder.get(id);
+			return index === undefined ? [] : [index];
+		});
+		if (indices.length !== ids.length || indices.length === 0) return;
+		const removed = new Set(ids);
+		const index = Math.min(...indices);
+		this.#state.objects = this.#state.objects.filter(
+			(object) => !removed.has(object.id),
+		);
+		this.#state.objects.splice(index, 0, structuredClone(replacement));
+		this.rebuildObjectIndex();
+		this.selectedId = replacement.id;
+		this.#activeLayerId = replacement.id;
+		this.markRenderedContentChanged(null, false);
 		this.commit();
 	}
 
@@ -336,7 +458,7 @@ export class AnnotationDocument {
 		this.rebuildObjectIndex();
 		this.markRenderedContentChanged(null, false);
 		this.selectedId = null;
-		this.#activePaintTargetId = null;
+		this.#activeLayerId = null;
 		this.commit(historyLink);
 	}
 
@@ -356,6 +478,7 @@ export class AnnotationDocument {
 		this.rebuildObjectIndex();
 		this.markRenderedContentChanged(null, false);
 		this.selectedId = null;
+		this.keepExistingActiveLayer();
 		this.emit(AnnotationChangeKind.Committed);
 		this.emitHistory();
 	}
@@ -371,6 +494,7 @@ export class AnnotationDocument {
 		this.rebuildObjectIndex();
 		this.markRenderedContentChanged(null, false);
 		this.selectedId = null;
+		this.keepExistingActiveLayer();
 		this.emit(AnnotationChangeKind.Committed);
 		this.emitHistory();
 	}
@@ -447,12 +571,13 @@ export class AnnotationDocument {
 		source.pixelCutouts ??= [];
 		source.pixelCutouts.push(mask);
 		fragment.id = crypto.randomUUID();
+		fragment.name = this.nextLayerName(fragment.type);
 		fragment.pixelClips ??= [];
 		fragment.pixelClips.push(mask);
 		genericShape(fragment).move(delta);
 		this.#state.objects.splice(sourceIndex + 1, 0, fragment);
 		this.selectedId = fragment.id;
-		this.#activePaintTargetId = fragment.id;
+		this.#activeLayerId = fragment.id;
 		this.rebuildObjectIndex();
 		this.markRenderedContentChanged(null, false);
 		this.commit();
@@ -482,9 +607,10 @@ export class AnnotationDocument {
 			mask.strokeSourceRect = { ...(source.sourceRect ?? source.rect) };
 		}
 		source.pixelCutouts.push(mask);
+		fragment.name ??= this.nextLayerName(fragment.type);
 		this.#state.objects.splice(sourceIndex + 1, 0, fragment);
 		this.selectedId = fragment.id;
-		this.#activePaintTargetId = fragment.id;
+		this.#activeLayerId = fragment.id;
 		this.rebuildObjectIndex();
 		this.markRenderedContentChanged(null, false);
 		this.commit();
@@ -501,12 +627,17 @@ export class AnnotationDocument {
 		);
 	}
 
-	transformSelected(handle: ShapeHandle, to: Point, commit = true): void {
+	transformSelected(
+		handle: ShapeHandle,
+		to: Point,
+		commit = true,
+		rotation?: RotationDrag,
+	): void {
 		const selected = this.selected;
 		if (!selected) return;
 		this.update(
 			selected.id,
-			(object) => genericShape(object).transform(handle, to),
+			(object) => genericShape(object).transform(handle, to, rotation),
 			commit,
 		);
 	}
@@ -530,6 +661,9 @@ export class AnnotationDocument {
 			this.#historyLinks.shift();
 		}
 		this.#historyIndex = this.#history.length - 1;
+		this.#commitListeners.forEach((listener) =>
+			listener({ absorbsPrevious: historyLink !== null }),
+		);
 		this.emit(AnnotationChangeKind.Committed);
 		this.emitHistory();
 	}
@@ -550,6 +684,34 @@ export class AnnotationDocument {
 		this.#linkedHistoryListeners.forEach((listener) =>
 			listener(domain, direction),
 		);
+	}
+
+	private insertionIndex(): number {
+		const activeIndex = this.#activeLayerId
+			? this.#objectOrder.get(this.#activeLayerId)
+			: undefined;
+		return activeIndex === undefined ? 0 : activeIndex + 1;
+	}
+
+	private insertLayer(layer: AnnotationObject, index: number): void {
+		layer.name ??= this.nextLayerName(layer.type);
+		this.#state.objects.splice(index, 0, layer);
+		if (index === this.#state.objects.length - 1) this.indexObject(layer, index);
+		else this.rebuildObjectIndex();
+	}
+
+	private nextLayerName(type: AnnotationObject['type']): string {
+		return new LayerNumbering(
+			resolveLayerNames(this.#state.objects).values(),
+		).next(type);
+	}
+
+	private keepExistingActiveLayer(): void {
+		if (
+			this.#activeLayerId !== null &&
+			!this.#objectsById.has(this.#activeLayerId)
+		)
+			this.#activeLayerId = null;
 	}
 
 	private containsPoint(object: AnnotationObject, point: Point): boolean {

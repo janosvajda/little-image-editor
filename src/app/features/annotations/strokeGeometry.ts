@@ -6,19 +6,9 @@ import type {
 	StrokePoint,
 } from './annotationTypes';
 
-export function materializeStrokeTransform(
-	stroke: StrokeAnnotation,
-	pointer: Point,
-	preservePointOrder = false,
-): void {
+/** Bakes a moved, scaled or rotated stroke into its points, keeping their order. */
+export function materializeStrokeTransform(stroke: StrokeAnnotation): void {
 	const transformed = transformedStrokePoints(stroke);
-	const first = transformed[0]!;
-	const last = transformed.at(-1)!;
-	if (
-		!preservePointOrder &&
-		pointDistance(pointer, first) < pointDistance(pointer, last)
-	)
-		transformed.reverse();
 	stroke.points = transformed;
 	stroke.sourceRect = strokePointBounds(
 		transformed,
@@ -143,42 +133,6 @@ export function strokeContainsPoint(
 	return false;
 }
 
-export function distanceToStroke(
-	stroke: StrokeAnnotation,
-	point: Point,
-): number {
-	const points = transformedStrokePoints(stroke);
-	let shortest = Number.POSITIVE_INFINITY;
-	const pathStarts = new Set(stroke.pathStarts);
-	for (let index = 1; index < points.length; index += 1) {
-		if (pathStarts.has(index)) continue;
-		shortest = Math.min(
-			shortest,
-			distanceToSegment(point, points[index - 1]!, points[index]!),
-		);
-	}
-	return shortest;
-}
-
-function distanceToSegment(point: Point, from: Point, to: Point): number {
-	return Math.sqrt(squaredDistanceToSegment(point, from, to));
-}
-
-function squaredDistanceToSegment(
-	point: Point,
-	from: Point,
-	to: Point,
-): number {
-	return squaredDistanceToSegmentCoordinates(
-		point.x,
-		point.y,
-		from.x,
-		from.y,
-		to.x,
-		to.y,
-	);
-}
-
 function squaredDistanceToSegmentCoordinates(
 	pointX: number,
 	pointY: number,
@@ -205,10 +159,6 @@ function squaredDistanceToSegmentCoordinates(
 	const offsetX = pointX - (fromX + projection * dx);
 	const offsetY = pointY - (fromY + projection * dy);
 	return offsetX * offsetX + offsetY * offsetY;
-}
-
-function pointDistance(left: Point, right: Point): number {
-	return Math.hypot(left.x - right.x, left.y - right.y);
 }
 
 class StrokeCoordinateTransform {

@@ -1,10 +1,13 @@
-import type { CropRect, Point } from '../../core/document/appTypes';
+import type { Point } from '../../core/document/appTypes';
 import type { CaptureSourceMetadata } from '../../core/document/browserCapture';
 import { ColorPalette } from '../../core/document/colorPalette';
 import type { CanvasDocument } from '../../core/document/imageDocument';
 import { DocumentGeometryChangeKind } from '../../core/document/imageDocument';
 import { genericShape } from '../../core/geometry/genericShape';
-import type { ShapeHandle } from '../../core/geometry/shapeTransformHelpers';
+import type {
+	RotationOrigin,
+	ShapeHandle,
+} from '../../core/geometry/shapeTransformHelpers';
 import {
 	TextShapeMetrics,
 	textFrame,
@@ -24,7 +27,7 @@ import {
 	AnnotationDocument,
 	normalizedRect,
 } from './annotationDocument';
-import { AnnotationPanel } from './annotationPanel';
+import { ANNOTATION_TOOLBAR_KEY, AnnotationPanel } from './annotationPanel';
 import { AnnotationRenderCache } from './annotationRenderCache';
 import {
 	renderAnnotationObject,
@@ -42,7 +45,12 @@ import {
 } from './annotationTypes';
 import { formatBugReport } from './bugReportMetadata';
 import { InlineTextEditor } from './inlineTextEditor';
-import { SelectionOverlayRenderer } from './selectionOverlayRenderer';
+import {
+	SelectionOverlayRenderer,
+	SelectionPresentation,
+} from './selectionOverlayRenderer';
+import { requiresImageBackdrop } from '../layers/layerCompositing';
+import { copyCanvas } from '../files/canvasHelpers';
 
 const STATE_KEY = 'annotations';
 const AnnotationInteraction = {
@@ -51,8 +59,6 @@ const AnnotationInteraction = {
 	DragThreshold: 3,
 	MinimumTextSize: 12,
 	TextSizeFactor: 4,
-	CropDashLength: 6,
-	CropDashGap: 4,
 	PercentScale: 100,
 } as const;
 interface ToolSelectionOptions {
@@ -71,9 +77,9 @@ export class AnnotationController {
 	#draggedId: string | null = null;
 	#editedTextId: string | null = null;
 	#transformHandle: ShapeHandle | null = null;
+	#rotationOrigin: RotationOrigin | null = null;
 	#pendingSelectionId: string | null = null;
 	#draft: AnnotationObject | null = null;
-	#crop: CropRect | null = null;
 	#restoring = false;
 	#historyListeners = new Set<(canUndo: boolean, canRedo: boolean) => void>();
 	readonly #preferences: PersistentDocumentToolbar<{
@@ -84,6 +90,8 @@ export class AnnotationController {
 	readonly #textEditor = new InlineTextEditor();
 	readonly #renderCache = new AnnotationRenderCache();
 	readonly #selectionOverlay = new SelectionOverlayRenderer();
+	#drawingSelectionPresentation: SelectionPresentation =
+		SelectionPresentation.Transform;
 	readonly #interactionListeners = new Set<() => void>();
 	#transientRenderFrame: number | null = null;
 
@@ -111,10 +119,11 @@ export class AnnotationController {
 			new PersistentDocumentToolbar(
 				this.panel.element,
 				documentModel,
-				'annotations',
+				ANNOTATION_TOOLBAR_KEY,
 			);
 		this.#preferences.onRestore((extra) => {
-			if (extra?.tool)
+			// Crop belongs to the shared drawing tool; older preferences may name it.
+			if (extra?.tool && extra.tool !== AnnotationToolId.Crop)
 				this.selectTool(extra.tool, {
 					persistPreferences: false,
 					clearObjectSelection: false,
@@ -251,7 +260,6 @@ export class AnnotationController {
 	private disable(): void {
 		this.#active = false;
 		this.#draft = null;
-		this.#crop = null;
 		document.body.classList.remove('annotation-mode');
 		document.body.classList.remove('annotation-focus-preset');
 		this.render();
@@ -284,16 +292,6 @@ export class AnnotationController {
 		this.panel.flatten.addEventListener('click', () =>
 			this.flattenShapes(true),
 		);
-		this.panel.cancelCrop.addEventListener('click', () => {
-			this.#crop = null;
-			this.panel.cropActions.classList.add('hidden');
-			this.render();
-		});
-		this.panel.applyCrop.addEventListener('click', () => {
-			if (this.#crop) this.documentModel.crop(this.#crop);
-			this.#crop = null;
-			this.panel.cropActions.classList.add('hidden');
-		});
 		for (const input of [
 			this.panel.expected,
 			this.panel.actual,
@@ -392,19 +390,16 @@ export class AnnotationController {
 		selected: AnnotationObject,
 		point: Point,
 	): boolean {
+		if (this.#tool !== AnnotationToolId.Select) return false;
 		const shape = genericShape(selected);
-		const visualScale = this.viewportVisualScale();
-		if (shape.hitMoveHandle(point, visualScale, this.documentModel)) {
-			this.beginObjectDrag(selected.id);
-			return true;
-		}
-		const handle = shape.hitHandle(point, visualScale);
+		const handle = shape.hitHandle(point, this.viewportVisualScale());
 		if (handle) {
 			this.#transformHandle = handle;
+			this.#rotationOrigin = { pointer: point, rotation: selected.rotation ?? 0 };
 			this.beginObjectDrag(selected.id);
 			return true;
 		}
-		if (this.#tool === AnnotationToolId.Select && shape.contains(point)) {
+		if (shape.contains(point)) {
 			this.beginObjectDrag(selected.id);
 			return true;
 		}
@@ -434,7 +429,14 @@ export class AnnotationController {
 			this.#draft = this.createDraft(this.#start);
 		}
 		if (this.#draggedId && this.#transformHandle)
-			this.annotations.transformSelected(this.#transformHandle, point, false);
+			this.annotations.transformSelected(
+				this.#transformHandle,
+				point,
+				false,
+				this.#rotationOrigin
+					? { origin: this.#rotationOrigin, constrained: event.shiftKey }
+					: undefined,
+			);
 		else if (this.#draggedId && this.#last)
 			this.annotations.move(
 				this.#draggedId,
@@ -575,17 +577,12 @@ export class AnnotationController {
 		else if (this.#draggedId) this.annotations.commitCurrent();
 		else if (this.#draft) {
 			this.updateDraft(this.#draft, this.#start, point);
-			if (this.#tool === AnnotationToolId.Crop) {
-				this.#crop = normalizedRect(this.#start, point);
-				this.panel.cropActions.classList.toggle(
-					'hidden',
-					this.#crop.width < 1 || this.#crop.height < 1,
-				);
-			} else if (validObject(this.#draft)) this.annotations.add(this.#draft);
+			if (validObject(this.#draft)) this.annotations.add(this.#draft);
 		}
 		this.#start = this.#last = null;
 		this.#draggedId = null;
 		this.#transformHandle = null;
+		this.#rotationOrigin = null;
 		this.#pendingSelectionId = null;
 		this.#draft = null;
 		this.render();
@@ -602,14 +599,11 @@ export class AnnotationController {
 				color: style.color,
 				width: style.size,
 			};
-		const type =
-			this.#tool === AnnotationToolId.Crop
-				? AnnotationObjectTypeId.Box
-				: (this.#tool as
-						| typeof AnnotationObjectTypeId.Box
-						| typeof AnnotationObjectTypeId.Highlight
-						| typeof AnnotationObjectTypeId.Blur
-						| typeof AnnotationObjectTypeId.Redact);
+		const type = this.#tool as
+			| typeof AnnotationObjectTypeId.Box
+			| typeof AnnotationObjectTypeId.Highlight
+			| typeof AnnotationObjectTypeId.Blur
+			| typeof AnnotationObjectTypeId.Redact;
 		return {
 			id: id(),
 			type,
@@ -636,10 +630,8 @@ export class AnnotationController {
 		const { persistPreferences = true, clearObjectSelection = true } = options;
 		const changed = tool !== this.#tool;
 		this.#tool = tool;
-		this.#crop = null;
-		this.panel.cropActions.classList.add('hidden');
 		if (changed && clearObjectSelection && tool !== AnnotationToolId.Select)
-			this.annotations.select(null);
+			this.annotations.clearSelection();
 		this.panel.setActiveTool(tool);
 		this.documentModel.overlay.style.cursor = cursorForAnnotationTool(tool);
 		this.render();
@@ -647,19 +639,10 @@ export class AnnotationController {
 	}
 
 	private updateHoverCursor(point: Point): void {
-		const selected = this.annotations.selected;
-		const selectedShape = selected ? genericShape(selected) : null;
-		const selectedCursor = selectedShape
-			? selectedShape.hitMoveHandle(
-					point,
-					this.viewportVisualScale(),
-					this.documentModel,
-				)
-				? 'move'
-				: (selectedShape.handleCursorAt(point, this.viewportVisualScale()) ??
-					(this.#tool === AnnotationToolId.Select
-						? selectedShape.cursorAt(point, this.viewportVisualScale())
-						: null))
+		const selected =
+			this.#tool === AnnotationToolId.Select ? this.annotations.selected : null;
+		const selectedCursor = selected
+			? genericShape(selected).cursorAt(point, this.viewportVisualScale())
 			: null;
 		if (selectedCursor) {
 			this.documentModel.overlay.style.cursor = selectedCursor;
@@ -788,6 +771,7 @@ export class AnnotationController {
 
 	private render(): void {
 		if (!this.documentModel.layers.isVisible(CoreLayerId.Objects)) {
+			this.documentModel.setImagePresentedByComposite(false);
 			this.#context.clearRect(0, 0, this.canvas.width, this.canvas.height);
 			this.renderSelection(null);
 			return;
@@ -802,6 +786,12 @@ export class AnnotationController {
 			(this.annotations.renderState.interactionActive
 				? this.annotations.renderState.changedObjectId
 				: null);
+		const imageBackdrop =
+			requiresImageBackdrop(this.annotations.state.objects) &&
+			this.documentModel.layers.isVisible(CoreLayerId.Image)
+				? this.documentModel.canvas
+				: null;
+		this.documentModel.setImagePresentedByComposite(imageBackdrop !== null);
 		this.#renderCache.render(
 			this.#context,
 			this.documentModel.canvas,
@@ -809,6 +799,7 @@ export class AnnotationController {
 			this.annotations.renderState,
 			null,
 			this.annotations.object(interactiveId),
+			imageBackdrop,
 		);
 		this.renderSelection(this.annotations.object(selectedId));
 		if (this.#draft)
@@ -817,22 +808,12 @@ export class AnnotationController {
 				this.documentModel.canvas,
 				this.#draft,
 			);
-		if (this.#crop) {
-			this.#context.save();
-			this.#context.strokeStyle = ColorPalette.Selection;
-			this.#context.lineWidth = 1;
-			this.#context.setLineDash([
-				AnnotationInteraction.CropDashLength,
-				AnnotationInteraction.CropDashGap,
-			]);
-			this.#context.strokeRect(
-				this.#crop.x,
-				this.#crop.y,
-				this.#crop.width,
-				this.#crop.height,
-			);
-			this.#context.restore();
-		}
+	}
+
+	/** How the selected layer is shown while the drawing tools own the canvas. */
+	setDrawingSelectionPresentation(presentation: SelectionPresentation): void {
+		this.#drawingSelectionPresentation = presentation;
+		this.renderSelection();
 	}
 
 	private renderSelection(
@@ -843,20 +824,33 @@ export class AnnotationController {
 			this.documentModel.width,
 			this.documentModel.height,
 			this.viewportVisualScale(),
+			this.selectionPresentation(),
 		);
+	}
+
+	private selectionPresentation(): SelectionPresentation {
+		if (!this.#active) return this.#drawingSelectionPresentation;
+		return this.#tool === AnnotationToolId.Select
+			? SelectionPresentation.Transform
+			: SelectionPresentation.Hidden;
 	}
 
 	flattenShapes(commit = true): void {
 		if (this.annotations.state.objects.length === 0) return;
-		const layer = document.createElement('canvas');
-		layer.width = this.documentModel.width;
-		layer.height = this.documentModel.height;
+		// Layers blend against the image, so they are composited over a copy of it.
+		const flattened = copyCanvas(this.documentModel.canvas);
 		renderAnnotations(
-			layer.getContext('2d')!,
+			flattened.getContext('2d')!,
 			this.documentModel.canvas,
 			this.annotations.state,
 		);
-		this.documentModel.context.drawImage(layer, 0, 0);
+		this.documentModel.context.clearRect(
+			0,
+			0,
+			this.documentModel.width,
+			this.documentModel.height,
+		);
+		this.documentModel.context.drawImage(flattened, 0, 0);
 		this.annotations.restore();
 		if (commit) this.documentModel.commit();
 	}

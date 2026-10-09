@@ -10,10 +10,13 @@ test('dragging a layer row changes the real object stacking order', async ({
 	await page.locator('#newImageFormat').selectOption('application/vnd.little-image-editor.project+json');
 	await page.locator('#newImageName').fill('drag-layers');
 	await page.locator('#createImageButton').click();
-	for (let index = 0; index < ObjectCount; index += 1)
-		await drawStroke(page, 40 + index * 80, 80);
 	await page.locator('#toolbarPickerButton').click();
 	await page.getByLabel('Layers', { exact: true }).check();
+	await page.keyboard.press('Escape');
+	for (let index = 0; index < ObjectCount; index += 1) {
+		await page.locator('[data-panel="layers"] .layer-new-paint').click();
+		await drawStroke(page, 40 + index * 80, 80);
+	}
 	const rows = page.locator('[data-panel="layers"] .layer-object-row');
 	await expect(rows).toHaveCount(ObjectCount);
 	const beforeIds = await rows.evaluateAll((elements) =>

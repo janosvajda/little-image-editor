@@ -71,8 +71,7 @@
 .annotation-marker-controls label { grid-template-columns: auto 72px }
 .annotation-marker-controls input { width: 72px }
 .annotation-reset-marker { white-space: nowrap }
-.annotation-actions, .annotation-crop-actions { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; padding: 0 12px 10px }
-.annotation-crop-actions { grid-template-columns: 1fr 1fr }
+.annotation-actions { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; padding: 0 12px 10px }
 
 @media(max-width:700px) {
     .annotation-panel { width: 280px }

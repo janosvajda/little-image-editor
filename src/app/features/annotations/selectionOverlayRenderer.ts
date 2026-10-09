@@ -1,12 +1,9 @@
 import type { Point } from '../../core/document/appTypes';
 import { genericShape } from '../../core/geometry/genericShape';
 import {
-	type ShapeHandle,
-	ShapeHandleId,
-	ShapeHandleMetrics,
+	RESIZE_HANDLES,
 	shapeCenter,
 	shapeHandles,
-	shapeMoveHandle,
 } from '../../core/geometry/shapeTransformHelpers';
 import {
 	type AnnotationObject,
@@ -17,11 +14,20 @@ import { transformedStrokePoints } from './strokeGeometry';
 const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
 const SelectionMetrics = {
 	ResizeHandleSize: 8,
-	RotateHandleSize: 10,
-	MoveHandleRadius: 6,
-	MoveHandleCrossRadius: 3,
 	EndpointHandleSize: 10,
 } as const;
+
+/**
+ * How a selected layer is shown: transform controls only for the Select tool,
+ * a plain frame while another tool still targets it, otherwise nothing.
+ */
+export const SelectionPresentation = {
+	Hidden: 'hidden',
+	Frame: 'frame',
+	Transform: 'transform',
+} as const;
+export type SelectionPresentation =
+	(typeof SelectionPresentation)[keyof typeof SelectionPresentation];
 
 export class SelectionOverlayRenderer {
 	readonly element = document.createElementNS(SVG_NAMESPACE, 'svg');
@@ -37,12 +43,12 @@ export class SelectionOverlayRenderer {
 		width: number,
 		height: number,
 		visualScale: number,
+		presentation: SelectionPresentation = SelectionPresentation.Transform,
 	): void {
 		this.element.setAttribute('viewBox', `0 0 ${width} ${height}`);
 		this.element.replaceChildren();
-		if (!object) return;
-		const shape = genericShape(object);
-		const geometry = shape.geometry;
+		if (!object || presentation === SelectionPresentation.Hidden) return;
+		const geometry = genericShape(object).geometry;
 		const center = shapeCenter(geometry);
 		const group = svgElement('g');
 		group.setAttribute(
@@ -54,33 +60,17 @@ export class SelectionOverlayRenderer {
 			selectionRect(geometry.rect, 'selection-frame'),
 		);
 		this.element.append(group);
+		if (presentation !== SelectionPresentation.Transform) return;
 
-		const handles = shapeHandles(
-			geometry,
-			ShapeHandleMetrics.Offset * visualScale,
-		);
-		for (const [id, point] of Object.entries(handles) as Array<
-			[ShapeHandle, Point]
-		>)
+		const handles = shapeHandles(geometry);
+		for (const corner of RESIZE_HANDLES)
 			this.element.append(
 				handle(
-					point,
-					(id === ShapeHandleId.Rotate
-						? SelectionMetrics.RotateHandleSize
-						: SelectionMetrics.ResizeHandleSize) * visualScale,
+					handles[corner],
+					SelectionMetrics.ResizeHandleSize * visualScale,
 					'selection-handle',
 				),
 			);
-
-		this.element.append(
-			moveHandle(
-				shapeMoveHandle(geometry, ShapeHandleMetrics.Offset * visualScale, {
-					width,
-					height,
-				}),
-				visualScale,
-			),
-		);
 		if (object.type === AnnotationObjectTypeId.Stroke)
 			for (const point of strokeEndpoints(object))
 				this.element.append(
@@ -114,31 +104,6 @@ function handle(point: Point, size: number, className: string): SVGRectElement {
 	element.setAttribute('height', String(size));
 	element.setAttribute('class', className);
 	return element;
-}
-
-function moveHandle(point: Point, visualScale: number): SVGGElement {
-	const group = svgElement('g');
-	group.setAttribute('class', 'selection-move-handle');
-	const circle = svgElement('circle');
-	circle.setAttribute('cx', String(point.x));
-	circle.setAttribute('cy', String(point.y));
-	circle.setAttribute(
-		'r',
-		String(SelectionMetrics.MoveHandleRadius * visualScale),
-	);
-	const cross = SelectionMetrics.MoveHandleCrossRadius * visualScale;
-	const horizontal = svgElement('line');
-	horizontal.setAttribute('x1', String(point.x - cross));
-	horizontal.setAttribute('x2', String(point.x + cross));
-	horizontal.setAttribute('y1', String(point.y));
-	horizontal.setAttribute('y2', String(point.y));
-	const vertical = svgElement('line');
-	vertical.setAttribute('x1', String(point.x));
-	vertical.setAttribute('x2', String(point.x));
-	vertical.setAttribute('y1', String(point.y - cross));
-	vertical.setAttribute('y2', String(point.y + cross));
-	group.append(circle, horizontal, vertical);
-	return group;
 }
 
 function strokeEndpoints(

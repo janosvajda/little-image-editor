@@ -8,6 +8,7 @@ test('selection controls stay sharp and screen-sized while canvas pixels magnify
 	await page.locator('#createImageButton').click();
 	await selectRectangle(page);
 	await dragCanvas(page, { x: 220, y: 180 }, { x: 480, y: 360 });
+	await page.keyboard.press('v');
 
 	const handle = page.locator('.selection-handle').first();
 	await expect(handle).toBeVisible();

@@ -48,7 +48,7 @@ describe('AnnotationController uncovered behavior', () => {
 		expect(document.body.classList).not.toContain('annotation-focus-preset');
 	});
 
-	it('supports marker editing, report ownership, clearing, and no-op crop application', () => {
+	it('supports marker editing, report ownership, and clearing', () => {
 		controller.activate();
 		Object.defineProperty(controller.panel.markerValue, 'value', { configurable: true, writable: true, value: 'NaN' });
 		controller.panel.markerValue.dispatchEvent(new Event('change'));
@@ -60,7 +60,6 @@ describe('AnnotationController uncovered behavior', () => {
 		expect(controller.annotations.state.nextStep).toBe(1);
 		controller.panel.reportPreview.value = 'Manual report';
 		controller.panel.reportPreview.dispatchEvent(new Event('input'));
-		controller.panel.applyCrop.click();
 		controller.panel.clear.click();
 		expect(controller.annotations.state.objects).toHaveLength(0);
 	});

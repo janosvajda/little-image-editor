@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-test('whole-image eraser flattens stale overlays before editing a JPEG', async ({
+test('whole-image eraser edits the JPEG without flattening other layers', async ({
 	page,
 }) => {
 	await page.setContent(
@@ -26,7 +26,7 @@ test('whole-image eraser flattens stale overlays before editing a JPEG', async (
 	await page.keyboard.press('e');
 	await drag(page, bounds.x + 350, bounds.y + 280, bounds.x + 350, bounds.y + 320);
 
-	await expect(page.locator('.layer-object-row')).toHaveCount(0);
+	await expect(page.locator('.layer-object-row')).toHaveCount(1);
 	const pixel = await page.locator('#canvas').evaluate((canvas) =>
 		Array.from(
 			(canvas as HTMLCanvasElement)

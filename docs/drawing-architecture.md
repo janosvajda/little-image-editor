@@ -30,3 +30,32 @@ painting reuses `RasterPaintGesture`, and transforms use `genericShape`.
 The layer and `.limg` models are unchanged. Base-image selections create no retained objects; moving their pixels commits
 the existing image history, which already persists in `.limg`. Cropping retained
 objects uses annotation history and serialization.
+
+## Layer model
+
+The image is the bottom layer; every retained object above it is one layer.
+`AnnotationDocument` owns the stack and one **active layer** (`activeLayer`,
+`null` for the image):
+
+- Brush and eraser act on the active layer. With the image active, the brush
+  creates a paint layer directly above it and the eraser edits image pixels.
+- New layers are inserted directly above the active layer.
+- A Layers row click activates its layer without changing the tool. Hidden and
+  locked layers can be active; tools then leave them unchanged.
+- Tool changes call `clearSelection()`, which hides transform handles but keeps
+  the active layer. `select(null)` activates the image.
+- Deleting the active layer activates the layer beneath it.
+
+Each layer stores an optional `name`, `layerOpacity` and `blendMode`;
+`layerAppearance()` resolves defaults and `resolveLayerNames()` gives stable
+"<kind> <n>" names to layers from older data. `compositeLayer()` applies opacity
+and blend mode wherever layers are drawn. A visible non-Normal blend mode makes
+the annotation surface present the image as its backdrop
+(`CanvasDocument.setImagePresentedByComposite`), so blending matches export.
+
+`LayerMerger` implements Merge Down; merging the bottom layer writes into the
+image as one linked step. `EditorHistory` gives one chronological undo history
+over image and layer steps.
+
+`.limg` has a single format, version 1. Layer appearance is stored on each
+layer in `editableObjects`.

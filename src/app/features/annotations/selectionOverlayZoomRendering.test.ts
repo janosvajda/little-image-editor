@@ -31,12 +31,5 @@ describe('zoom-independent selection overlay', () => {
 					.getAttribute('width'),
 			),
 		).toBe(2);
-		expect(
-			Number(
-				renderer.element
-					.querySelector<SVGCircleElement>('.selection-move-handle circle')!
-					.getAttribute('r'),
-			),
-		).toBe(1.5);
 	});
 });

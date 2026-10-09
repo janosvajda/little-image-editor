@@ -9,49 +9,34 @@ export const ShapeHandleId = {
 	Rotate: 'rotate',
 } as const;
 export type ShapeHandle = (typeof ShapeHandleId)[keyof typeof ShapeHandleId];
+export type ResizeHandle = Exclude<ShapeHandle, typeof ShapeHandleId.Rotate>;
+export const RESIZE_HANDLES: readonly ResizeHandle[] = [
+	ShapeHandleId.NorthWest,
+	ShapeHandleId.NorthEast,
+	ShapeHandleId.SouthEast,
+	ShapeHandleId.SouthWest,
+];
+
+/** Where a rotation drag started, so rotation follows the pointer from there. */
+export interface RotationOrigin {
+	readonly pointer: Point;
+	readonly rotation: number;
+}
+
+/** Rotation increment used while the rotation is constrained. */
+export const ROTATION_SNAP_DEGREES = 15;
 export interface TransformableGeometry {
 	rect: CropRect;
 	rotation?: number;
 }
 
 export const ShapeHandleMetrics = {
+	/** Width of the band outside the frame in which a drag rotates. */
 	Offset: 24,
 	HitTolerance: 10,
 } as const;
 
 export type SelectionBounds = Readonly<Pick<CropRect, 'width' | 'height'>>;
-
-export function shapeMoveHandle(
-	shape: TransformableGeometry,
-	offset: number = ShapeHandleMetrics.Offset,
-	bounds?: SelectionBounds,
-): Point {
-	const center = shapeCenter(shape);
-	const point = rotatePoint(
-		{ x: center.x + offset, y: shape.rect.y - offset },
-		center,
-		radians(shape.rotation),
-	);
-	if (!bounds) return point;
-	const margin =
-		(ShapeHandleMetrics.HitTolerance * offset) / ShapeHandleMetrics.Offset;
-	const insetX = Math.min(margin, bounds.width / 2);
-	const insetY = Math.min(margin, bounds.height / 2);
-	return {
-		x: Math.max(insetX, Math.min(bounds.width - insetX, point.x)),
-		y: Math.max(insetY, Math.min(bounds.height - insetY, point.y)),
-	};
-}
-
-export function hitShapeMoveHandle(
-	shape: TransformableGeometry,
-	point: Point,
-	tolerance: number = ShapeHandleMetrics.HitTolerance,
-	offset: number = ShapeHandleMetrics.Offset,
-	bounds?: SelectionBounds,
-): boolean {
-	return distance(shapeMoveHandle(shape, offset, bounds), point) <= tolerance;
-}
 
 export function shapeCenter(shape: TransformableGeometry): Point {
 	return {
@@ -80,6 +65,10 @@ export function shapeHandles(
 	};
 }
 
+/**
+ * Corner handles resize; the band just outside the frame rotates. Points
+ * inside the frame are left to moving the shape.
+ */
 export function hitShapeHandle(
 	shape: TransformableGeometry,
 	point: Point,
@@ -87,11 +76,14 @@ export function hitShapeHandle(
 	offset: number = ShapeHandleMetrics.Offset,
 ): ShapeHandle | null {
 	const handles = shapeHandles(shape, offset);
-	return (
-		(Object.keys(handles) as ShapeHandle[]).find(
-			(key) => distance(handles[key], point) <= tolerance,
-		) ?? null
+	const corner = RESIZE_HANDLES.find(
+		(handle) => distance(handles[handle], point) <= tolerance,
 	);
+	if (corner) return corner;
+	return !containsTransformedPoint(shape, point) &&
+		containsTransformedPoint(shape, point, offset)
+		? ShapeHandleId.Rotate
+		: null;
 }
 
 export function containsTransformedPoint(
@@ -125,17 +117,33 @@ export function rotateGeometry(
 	);
 }
 
+/** Turns the shape by the pointer's angle change around its centre since the drag began. */
+export function rotateGeometryFrom(
+	shape: TransformableGeometry,
+	origin: RotationOrigin,
+	pointer: Point,
+	constrained = false,
+): void {
+	const center = shapeCenter(shape);
+	const turned =
+		origin.rotation +
+		degreesBetween(center, pointer) -
+		degreesBetween(center, origin.pointer);
+	shape.rotation = normalizeDegrees(
+		constrained
+			? Math.round(turned / ROTATION_SNAP_DEGREES) * ROTATION_SNAP_DEGREES
+			: turned,
+	);
+}
+
 export function resizeGeometry(
 	shape: TransformableGeometry,
-	handle: Exclude<ShapeHandle, typeof ShapeHandleId.Rotate>,
+	handle: ResizeHandle,
 	pointer: Point,
 	minimum = 2,
 ): void {
 	const handles = shapeHandles(shape);
-	const opposite: Record<
-		Exclude<ShapeHandle, typeof ShapeHandleId.Rotate>,
-		Exclude<ShapeHandle, typeof ShapeHandleId.Rotate>
-	> = {
+	const opposite: Record<ResizeHandle, ResizeHandle> = {
 		[ShapeHandleId.NorthWest]: ShapeHandleId.SouthEast,
 		[ShapeHandleId.NorthEast]: ShapeHandleId.SouthWest,
 		[ShapeHandleId.SouthEast]: ShapeHandleId.NorthWest,
@@ -197,6 +205,13 @@ function rotatePoint(point: Point, center: Point, angle: number): Point {
 }
 function radians(degrees = 0): number {
 	return degreesToRadians(degrees);
+}
+function degreesBetween(center: Point, point: Point): number {
+	return (
+		(Math.atan2(point.y - center.y, point.x - center.x) *
+			Numeric.DegreesPerHalfTurn) /
+		Math.PI
+	);
 }
 function distance(a: Point, b: Point): number {
 	return Math.hypot(a.x - b.x, a.y - b.y);

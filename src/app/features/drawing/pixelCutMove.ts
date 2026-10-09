@@ -135,3 +135,38 @@ function pixelIndex(x: number, y: number, width: number): number {
 function maskIndex(x: number, y: number, bounds: PixelBounds): number {
 	return (y - bounds.top) * bounds.width + x - bounds.left;
 }
+
+/** The smallest fragment holding every non-transparent pixel of a surface. */
+export function opaquePixelFragment(
+	context: CanvasRenderingContext2D,
+	width: number,
+	height: number,
+): ExtractedPixelFragment | null {
+	const { data } = context.getImageData(0, 0, width, height);
+	let left = width;
+	let top = height;
+	let right = -1;
+	let bottom = -1;
+	for (let y = 0; y < height; y += 1)
+		for (let x = 0; x < width; x += 1) {
+			if (data[(y * width + x) * CHANNELS_PER_PIXEL + ALPHA_CHANNEL_OFFSET] === 0)
+				continue;
+			left = Math.min(left, x);
+			right = Math.max(right, x);
+			top = Math.min(top, y);
+			bottom = Math.max(bottom, y);
+		}
+	if (right < left || bottom < top) return null;
+	const bounds = {
+		left,
+		top,
+		right: right + 1,
+		bottom: bottom + 1,
+		width: right + 1 - left,
+		height: bottom + 1 - top,
+	};
+	return {
+		bounds,
+		pixels: context.getImageData(left, top, bounds.width, bounds.height).data,
+	};
+}

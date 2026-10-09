@@ -6,6 +6,7 @@ import {
 	type PaintTool,
 	type ShapeTool,
 } from '../../core/document/appTypes';
+import { SelectionPresentation } from '../annotations/selectionOverlayRenderer';
 
 export const DrawingToolKind = {
 	Paint: 'paint',
@@ -164,4 +165,11 @@ export function isPaintTool(tool: Tool): tool is PaintTool {
 }
 export function isShapeTool(tool: Tool): tool is ShapeTool {
 	return isToolKind(tool, DrawingToolKind.Shape);
+}
+
+/** Only Select shows transform controls; Crop outlines the cut piece it moves. */
+export function selectionPresentationFor(tool: Tool): SelectionPresentation {
+	if (tool === UtilityToolId.Select) return SelectionPresentation.Transform;
+	if (tool === UtilityToolId.Crop) return SelectionPresentation.Frame;
+	return SelectionPresentation.Hidden;
 }

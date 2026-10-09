@@ -4,7 +4,7 @@ import type {
 	Point,
 	ShapeTool,
 } from '../../core/document/appTypes';
-import type { CoreLayerId } from '../../core/layers/layerTypes';
+import type { BlendMode, CoreLayerId } from '../../core/layers/layerTypes';
 import type { FloodFillRun } from '../drawing/floodFillHelpers';
 
 export const AnnotationToolId = {
@@ -66,16 +66,24 @@ export interface ObjectPixelMask {
 	strokeSourceRect?: CropRect;
 }
 
+/**
+ * Every retained object is one layer. Layer appearance is optional in storage;
+ * `layerAppearance()` resolves the defaults, and the document assigns names.
+ */
 interface AnnotationBase extends ErasableAnnotation {
 	id: string;
 	type:
 		| AnnotationObjectType
+		| typeof AnnotationObjectTypeId.Shape
 		| typeof AnnotationObjectTypeId.Stroke
 		| typeof AnnotationObjectTypeId.Fill
 		| typeof AnnotationObjectTypeId.RasterFragment;
 	rotation?: number;
 	visible?: boolean;
 	locked?: boolean;
+	name?: string;
+	layerOpacity?: number;
+	blendMode?: BlendMode;
 }
 
 export interface StrokePoint extends Point {
@@ -148,18 +156,14 @@ export interface RectAnnotation extends AnnotationBase {
 	rotation?: number;
 }
 
-export interface ShapeAnnotation extends ErasableAnnotation {
-	id: string;
+export interface ShapeAnnotation extends AnnotationBase {
 	type: typeof AnnotationObjectTypeId.Shape;
 	shape: ShapeTool;
 	rect: CropRect;
-	rotation?: number;
 	color: string;
 	width: number;
 	opacity: number;
 	fill: boolean;
-	visible?: boolean;
-	locked?: boolean;
 }
 
 export interface StepAnnotation extends AnnotationBase {

@@ -35,11 +35,12 @@ test('fill is bounded by retained shape pixels without flattening layers', async
 	]);
 });
 
-test('brush mode exposes stable 400% resize handles and edits the retained stroke', async ({
+test('select mode exposes stable 400% resize handles and edits the retained stroke', async ({
 	page,
 }) => {
 	await chooseGroupedTool(page, 'Brush tools', 'Brush');
 	await drag(page, { x: 200, y: 200 }, { x: 400, y: 300 });
+	await page.keyboard.press('v');
 	await page.locator('#zoomSelect').selectOption('400');
 	const southEast = { x: 406, y: 306 };
 	await movePointer(page, southEast);
@@ -52,7 +53,7 @@ test('brush mode exposes stable 400% resize handles and edits the retained strok
 	);
 
 	expect(stroke?.rect).toMatchObject({ width: 232, height: 132 });
-	await expect(page.locator('#paintToolControl')).toHaveClass(/active/);
+	await expect(page.locator('[data-tool="select"]')).toHaveClass(/active/);
 });
 
 interface SavedObject {

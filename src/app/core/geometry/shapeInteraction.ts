@@ -2,17 +2,23 @@ import type { Point } from '../document/appTypes';
 import {
 	containsTransformedPoint,
 	hitShapeHandle,
-	hitShapeMoveHandle,
+	type ResizeHandle,
+	type RotationOrigin,
 	resizeGeometry,
 	rotateGeometry,
-	type SelectionBounds,
+	rotateGeometryFrom,
 	type ShapeHandle,
 	ShapeHandleId,
 	ShapeHandleMetrics,
 	shapeHandles,
-	shapeMoveHandle,
 	type TransformableGeometry,
 } from './shapeTransformHelpers';
+
+/** A rotation drag: where it began and whether it snaps to fixed angles. */
+export interface RotationDrag {
+	readonly origin: RotationOrigin;
+	readonly constrained: boolean;
+}
 
 export interface ShapeInteractionPolicy {
 	handles(
@@ -23,17 +29,6 @@ export interface ShapeInteractionPolicy {
 		point: Point,
 		visualScale?: number,
 	): ShapeHandle | null;
-	moveHandle(
-		geometry: TransformableGeometry,
-		visualScale?: number,
-		bounds?: SelectionBounds,
-	): Point;
-	hitMoveHandle(
-		geometry: TransformableGeometry,
-		point: Point,
-		visualScale?: number,
-		bounds?: SelectionBounds,
-	): boolean;
 	contains(
 		geometry: TransformableGeometry,
 		point: Point,
@@ -53,6 +48,7 @@ export interface ShapeInteractionPolicy {
 		geometry: TransformableGeometry,
 		handle: ShapeHandle,
 		point: Point,
+		rotation?: RotationDrag,
 	): void;
 }
 
@@ -79,31 +75,6 @@ export class DefaultShapeInteractionPolicy implements ShapeInteractionPolicy {
 			ShapeHandleMetrics.Offset * visualScale,
 		);
 	}
-	moveHandle(
-		geometry: TransformableGeometry,
-		visualScale = 1,
-		bounds?: SelectionBounds,
-	): Point {
-		return shapeMoveHandle(
-			geometry,
-			ShapeHandleMetrics.Offset * visualScale,
-			bounds,
-		);
-	}
-	hitMoveHandle(
-		geometry: TransformableGeometry,
-		point: Point,
-		visualScale = 1,
-		bounds?: SelectionBounds,
-	): boolean {
-		return hitShapeMoveHandle(
-			geometry,
-			point,
-			ShapeHandleMetrics.HitTolerance * visualScale,
-			ShapeHandleMetrics.Offset * visualScale,
-			bounds,
-		);
-	}
 	contains(
 		geometry: TransformableGeometry,
 		point: Point,
@@ -118,7 +89,6 @@ export class DefaultShapeInteractionPolicy implements ShapeInteractionPolicy {
 	): string | null {
 		const handleCursor = this.handleCursor(geometry, point, visualScale);
 		if (handleCursor) return handleCursor;
-		if (this.hitMoveHandle(geometry, point, visualScale)) return 'move';
 		return this.contains(geometry, point) ? 'move' : null;
 	}
 	handleCursor(
@@ -135,16 +105,19 @@ export class DefaultShapeInteractionPolicy implements ShapeInteractionPolicy {
 		geometry: TransformableGeometry,
 		handle: ShapeHandle,
 		point: Point,
+		rotation?: RotationDrag,
 	): void {
-		if (handle === ShapeHandleId.Rotate) rotateGeometry(geometry, point);
-		else resizeGeometry(geometry, handle, point);
+		if (handle !== ShapeHandleId.Rotate) resizeGeometry(geometry, handle, point);
+		else if (rotation)
+			rotateGeometryFrom(geometry, rotation.origin, point, rotation.constrained);
+		else rotateGeometry(geometry, point);
 	}
 }
 
 export const DEFAULT_SHAPE_INTERACTION = new DefaultShapeInteractionPolicy();
 
 function resizeCursor(
-	handle: Exclude<ShapeHandle, typeof ShapeHandleId.Rotate>,
+	handle: ResizeHandle,
 	rotation: number,
 ): string {
 	const northWestAxis =

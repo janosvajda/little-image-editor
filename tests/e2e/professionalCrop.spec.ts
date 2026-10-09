@@ -47,7 +47,7 @@ test('immediately cuts selected pixels into a movable, deletable layer', async (
 	await expect(page.locator('#applyCropButton')).toHaveCount(0);
 	await expect(page.locator('#dimensions')).toHaveText('800 × 600 px');
 	await expect(page.locator('.layer-object-row')).toHaveCount(2);
-	await expect(page.locator('[data-tool="select"]')).toHaveClass(/active/);
+	await expect(page.locator('[data-tool="crop"]')).toHaveClass(/active/);
 	const selectedRow = page.locator('.layer-object-row.active');
 	await expect(selectedRow).toContainText('Raster fragment');
 	const pixels = await page.locator('.annotation-canvas').evaluate((canvas) => {
