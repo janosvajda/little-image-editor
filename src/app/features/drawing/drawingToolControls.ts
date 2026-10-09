@@ -13,7 +13,7 @@ import { GroupedToolPalette } from '../workspace/groupedToolPalette';
 import { ToolbarId, toolbarSelector } from '../workspace/toolbarTypes';
 import { CropSelectionKind } from './cropSelectionTypes';
 import type { StrokeOptions } from './drawingHelpers';
-import { drawingToolBehavior, ToolOptionSource } from './drawingToolBehavior';
+import { drawingToolBehavior } from './drawingToolBehavior';
 import {
 	BRUSH_TOOL_DEFINITIONS,
 	DRAWING_TOOL_DEFINITIONS,
@@ -225,9 +225,7 @@ export class DrawingToolControls implements DrawingToolSettings {
 	private updateToolOptions(tool: Tool): void {
 		const behavior = drawingToolBehavior(tool);
 		const options = behavior.options;
-		this.#selectedObjectProperties?.setEnabled(
-			behavior.optionSource === ToolOptionSource.Contextual,
-		);
+		this.#selectedObjectProperties?.setTool(tool);
 		element('.shape-option').classList.toggle('hidden', !options.shapeFill);
 		this.#hardness
 			.closest('label')!

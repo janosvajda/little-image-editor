@@ -2,18 +2,29 @@ import type { AnnotationRenderState } from './annotationDocument';
 import { annotationBounds } from './annotationDocument';
 import { PaintToolId } from '../../core/document/appTypes';
 import { ShapeHandleMetrics } from '../../core/geometry/shapeTransformHelpers';
-import { withShapeTransform } from '../../core/geometry/shapeTransformHelpers';
 import {
 	renderAnnotationObject,
-	renderAnnotationObjects,
 	renderAnnotationSelection,
+	renderContentLayers,
 	renderObjectErasureTail,
 	renderStrokeTail,
 	supportsIncrementalStrokeRendering,
 } from './annotationRenderer';
-import type { AnnotationObject, AnnotationState } from './annotationTypes';
+import type {
+	AnnotationObject,
+	AnnotationState,
+	AnnotationStateInput,
+	ContentLayer,
+} from './annotationTypes';
+import { withContentLayers } from './contentLayerStructure';
+import { LayerMotionPreview } from './layerMotionPreview';
 import { AnnotationObjectTypeId } from './annotationTypes';
-import { compositeLayer } from '../layers/layerCompositing';
+import { hasDefaultCompositing } from '../layers/layerAppearance';
+import {
+	compositeLayer,
+	compositeLayers,
+	layerHolding,
+} from '../layers/layerCompositing';
 
 const INITIAL_REVISION = -1;
 const REQUIRED_CACHE_CONTEXT_METHODS = [
@@ -48,6 +59,10 @@ export class AnnotationRenderCache {
 	readonly #context = this.#canvas.getContext('2d')!;
 	readonly #interactiveCanvas = document.createElement('canvas');
 	readonly #interactiveContext = this.#interactiveCanvas.getContext('2d')!;
+	/** Content stacked above the item being edited, so it stays in front while dragged. */
+	readonly #aboveCanvas = document.createElement('canvas');
+	readonly #aboveContext = this.#aboveCanvas.getContext('2d')!;
+	#hasAbove = false;
 	#interactiveStrokeKey: string | null = null;
 	#interactiveStrokePointCount = 0;
 	#interactiveErasurePathCount = 0;
@@ -66,6 +81,7 @@ export class AnnotationRenderCache {
 	#previousInteractiveId: string | null = null;
 	#previousSelectedId: string | null = null;
 	#imageBackdrop: HTMLCanvasElement | null = null;
+	readonly #layerMotion = new LayerMotionPreview();
 	readonly #cachedObjectIds = new Set<string>();
 	readonly #cacheSupported = REQUIRED_CACHE_CONTEXT_METHODS.every(
 		(method) => typeof this.#context[method] === 'function',
@@ -80,6 +96,11 @@ export class AnnotationRenderCache {
 		};
 	}
 
+	/** How often whole-layer drag surfaces were drawn; one per drag. */
+	get layerMotionBuilds(): number {
+		return this.#layerMotion.builds;
+	}
+
 	invalidate(): void {
 		this.#cachedRevision = INITIAL_REVISION;
 		this.#cachedStaticRevision = INITIAL_REVISION;
@@ -89,18 +110,20 @@ export class AnnotationRenderCache {
 		this.#transformedInteractiveStrokeId = null;
 		this.#cachedObjectIds.clear();
 		this.#excludedObjectCanPromote = false;
+		this.#hasAbove = false;
 		this.resetInteractiveFrame();
 	}
 
 	render(
 		target: CanvasRenderingContext2D,
 		baseCanvas: HTMLCanvasElement,
-		state: Readonly<AnnotationState>,
+		input: Readonly<AnnotationStateInput>,
 		renderState: AnnotationRenderState,
 		selected: AnnotationObject | null,
 		interactive: AnnotationObject | null,
 		imageBackdrop: HTMLCanvasElement | null = null,
 	): void {
+		const state = withContentLayers(input);
 		if (!this.#cacheSupported) {
 			this.renderWithoutCache(
 				target,
@@ -116,6 +139,8 @@ export class AnnotationRenderCache {
 			this.#imageBackdrop = imageBackdrop;
 			this.invalidate();
 		}
+		if (this.renderLayerMotion(target, baseCanvas, state, renderState, interactive, selected))
+			return;
 		const excludedId = interactive?.id ?? null;
 		const promoted = this.promoteCommittedInteractive(
 			baseCanvas,
@@ -123,8 +148,10 @@ export class AnnotationRenderCache {
 			renderState,
 			excludedId,
 		);
+		const excludedIsTopmost =
+			excludedId !== null && state.objects.at(-1)?.id === excludedId;
 		const cacheReused =
-			promoted || this.canReuse(renderState, excludedId);
+			promoted || this.canReuse(renderState, excludedId, excludedIsTopmost);
 		if (!cacheReused)
 			this.rebuild(
 				baseCanvas,
@@ -146,9 +173,18 @@ export class AnnotationRenderCache {
 			target.canvas.width,
 			target.canvas.height,
 		);
+		const interactiveLayer = interactive ? layerHolding(state, interactive.id) : null;
 		if (dirtyRegion)
-			this.composeRegion(target, baseCanvas, interactive!, selected, dirtyRegion);
-		else this.composeFull(target, baseCanvas, interactive, selected);
+			this.composeRegion(
+				target,
+				baseCanvas,
+				interactive!,
+				interactiveLayer,
+				selected,
+				dirtyRegion,
+			);
+		else
+			this.composeFull(target, baseCanvas, interactive, interactiveLayer, selected);
 
 		this.#previousInteractiveBounds = currentBounds;
 		this.#previousInteractiveId = excludedId;
@@ -164,7 +200,7 @@ export class AnnotationRenderCache {
 	): void {
 		target.clearRect(0, 0, target.canvas.width, target.canvas.height);
 		if (imageBackdrop) target.drawImage(imageBackdrop, 0, 0);
-		renderAnnotationObjects(target, baseCanvas, state.objects);
+		renderContentLayers(target, baseCanvas, state);
 		if (selected) renderAnnotationSelection(target, selected);
 		this.#fullComposites += 1;
 	}
@@ -199,12 +235,19 @@ export class AnnotationRenderCache {
 		target: CanvasRenderingContext2D,
 		baseCanvas: HTMLCanvasElement,
 		interactive: AnnotationObject | null,
+		interactiveLayer: ContentLayer | null,
 		selected: AnnotationObject | null,
 	): void {
 		target.clearRect(0, 0, target.canvas.width, target.canvas.height);
 		target.drawImage(this.#canvas, 0, 0);
 		if (interactive)
-			this.compositeInteractiveObject(target, baseCanvas, interactive);
+			this.compositeInteractiveObject(
+				target,
+				baseCanvas,
+				interactive,
+				interactiveLayer,
+			);
+		if (this.#hasAbove) target.drawImage(this.#aboveCanvas, 0, 0);
 		if (selected) renderAnnotationSelection(target, selected);
 		this.#fullComposites += 1;
 	}
@@ -213,6 +256,7 @@ export class AnnotationRenderCache {
 		target: CanvasRenderingContext2D,
 		baseCanvas: HTMLCanvasElement,
 		interactive: AnnotationObject,
+		interactiveLayer: ContentLayer | null,
 		selected: AnnotationObject | null,
 		region: RenderRegion,
 	): void {
@@ -232,7 +276,13 @@ export class AnnotationRenderCache {
 		target.beginPath();
 		target.rect(region.x, region.y, region.width, region.height);
 		target.clip();
-		this.compositeInteractiveObject(target, baseCanvas, interactive);
+		this.compositeInteractiveObject(
+			target,
+			baseCanvas,
+			interactive,
+			interactiveLayer,
+		);
+		if (this.#hasAbove) target.drawImage(this.#aboveCanvas, 0, 0);
 		if (selected) renderAnnotationSelection(target, selected);
 		target.restore();
 		this.#dirtyComposites += 1;
@@ -241,10 +291,13 @@ export class AnnotationRenderCache {
 	private canReuse(
 		renderState: AnnotationRenderState,
 		excludedId: string | null,
+		excludedIsTopmost: boolean,
 	): boolean {
 		if (excludedId !== this.#excludedObjectId) {
+			// A new topmost item, such as a stroke being drawn, is simply drawn over the cache.
 			if (
 				excludedId !== null &&
+				excludedIsTopmost &&
 				this.#excludedObjectId === null &&
 				!this.#cachedObjectIds.has(excludedId) &&
 				renderState.interactionActive &&
@@ -253,6 +306,7 @@ export class AnnotationRenderCache {
 			) {
 				this.#excludedObjectId = excludedId;
 				this.#excludedObjectCanPromote = true;
+				this.#hasAbove = false;
 				this.#cachedRevision = renderState.revision;
 				return true;
 			}
@@ -287,12 +341,15 @@ export class AnnotationRenderCache {
 			(object) => object.id === this.#excludedObjectId,
 		);
 		if (!committed) return false;
+		const layer = layerHolding(state, committed.id);
+		// A group-composited layer must be redrawn as a whole to stay isolated.
 		if (
-			committed.type === AnnotationObjectTypeId.Stroke &&
-			isTransformedStroke(committed)
+			(committed.type === AnnotationObjectTypeId.Stroke &&
+				isTransformedStroke(committed)) ||
+			(layer !== null && !hasDefaultCompositing(layer))
 		)
 			return false;
-		this.compositeInteractiveObject(this.#context, baseCanvas, committed);
+		this.compositeInteractiveObject(this.#context, baseCanvas, committed, layer);
 		this.#cachedRevision = renderState.revision;
 		this.#cachedStaticRevision = renderState.staticRevision;
 		this.#excludedObjectId = null;
@@ -309,11 +366,26 @@ export class AnnotationRenderCache {
 		excludedId: string | null,
 	): void {
 		this.#context.clearRect(0, 0, this.#canvas.width, this.#canvas.height);
+		this.#aboveContext.clearRect(0, 0, this.#canvas.width, this.#canvas.height);
 		if (this.#imageBackdrop) this.#context.drawImage(this.#imageBackdrop, 0, 0);
 		const objects = excludedId
 			? state.objects.filter((object) => object.id !== excludedId)
 			: state.objects;
-		for (const object of objects) this.renderCachedObject(baseCanvas, object);
+		const draw = (context: CanvasRenderingContext2D, item: AnnotationObject) =>
+			this.drawCachedItem(context, baseCanvas, item);
+		const excludedIndex = excludedId
+			? state.objects.findIndex((object) => object.id === excludedId)
+			: -1;
+		if (excludedIndex < 0) compositeLayers(this.#context, state, draw);
+		else {
+			const order = new Map(state.objects.map((object, index) => [object.id, index]));
+			const below = (item: AnnotationObject) => order.get(item.id)! < excludedIndex;
+			const above = (item: AnnotationObject) => order.get(item.id)! > excludedIndex;
+			compositeLayers(this.#context, state, draw, below);
+			compositeLayers(this.#aboveContext, state, draw, above);
+		}
+		this.#hasAbove =
+			excludedIndex >= 0 && excludedIndex < state.objects.length - 1;
 		this.#cachedObjectIds.clear();
 		for (const object of objects) this.#cachedObjectIds.add(object.id);
 		this.#cachedRevision = revision;
@@ -325,26 +397,53 @@ export class AnnotationRenderCache {
 		this.#cachedObjectsRendered += objects.length;
 	}
 
-	private renderCachedObject(
+	/**
+	 * A whole layer being dragged is shifted on prepared surfaces instead of
+	 * redrawn; returns whether this frame was drawn that way. When the drag
+	 * ends the surfaces are released and the next frame redraws everything.
+	 */
+	private renderLayerMotion(
+		target: CanvasRenderingContext2D,
 		baseCanvas: HTMLCanvasElement,
-		object: AnnotationObject,
-	): void {
-		if (object.visible === false) return;
-		if (isTransformedStroke(object)) {
-			this.compositeInteractiveObject(this.#context, baseCanvas, object);
-			return;
+		state: Readonly<AnnotationState>,
+		renderState: AnnotationRenderState,
+		interactive: AnnotationObject | null,
+		selected: AnnotationObject | null,
+	): boolean {
+		const motion = renderState.layerMotion;
+		const previewed =
+			motion !== undefined &&
+			interactive === null &&
+			this.#layerMotion.canPreview(state, motion.layerId) &&
+			this.#layerMotion.render(target, state, motion, this.#imageBackdrop, (context, item) =>
+				this.drawCachedItem(context, baseCanvas, item),
+			);
+		if (previewed) {
+			if (selected) renderAnnotationSelection(target, selected);
+			this.#fullComposites += 1;
+			return true;
 		}
-		compositeLayer(this.#context, object, (layerContext) =>
-			renderAnnotationObject(layerContext, baseCanvas, object),
-		);
+		this.#layerMotion.reset();
+		return false;
+	}
+
+	/** A stroke moved by whole pixels draws from its cached source, exactly as while dragged. */
+	private drawCachedItem(
+		context: CanvasRenderingContext2D,
+		baseCanvas: HTMLCanvasElement,
+		item: AnnotationObject,
+	): void {
+		if (isShiftedStroke(item)) this.renderInteractiveObject(context, baseCanvas, item);
+		else renderAnnotationObject(context, baseCanvas, item);
 	}
 
 	private compositeInteractiveObject(
 		target: CanvasRenderingContext2D,
 		baseCanvas: HTMLCanvasElement,
 		object: AnnotationObject,
+		layer: ContentLayer | null,
 	): void {
-		compositeLayer(target, object, (layerContext) =>
+		compositeLayer(target, layer, (layerContext) =>
 			this.renderInteractiveObject(layerContext, baseCanvas, object),
 		);
 	}
@@ -359,6 +458,8 @@ export class AnnotationRenderCache {
 		if (this.#canvas.width === width && this.#canvas.height === height) return;
 		this.#canvas.width = width;
 		this.#canvas.height = height;
+		this.#aboveCanvas.width = width;
+		this.#aboveCanvas.height = height;
 		this.#interactiveCanvas.width = width;
 		this.#interactiveCanvas.height = height;
 		this.invalidate();
@@ -372,16 +473,24 @@ export class AnnotationRenderCache {
 		if (
 			object.type === AnnotationObjectTypeId.Stroke &&
 			object.tool !== PaintToolId.Eraser &&
-			isTransformedStroke(object)
+			isShiftedStroke(object)
 		) {
 			this.cacheStrokeSource(baseCanvas, object);
-			this.drawTransformedStroke(target, object);
+			const source = object.sourceRect;
+			target.drawImage(
+				this.#interactiveCanvas,
+				object.rect.x - source.x,
+				object.rect.y - source.y,
+			);
 			this.#transformedInteractiveStrokeId = object.id;
 			return;
 		}
+		// Resized or rotated strokes are drawn from their points, so their line
+		// keeps its width and stays sharp instead of being a scaled picture.
 		if (
 			object.type !== AnnotationObjectTypeId.Stroke ||
-			object.tool === PaintToolId.Eraser
+			object.tool === PaintToolId.Eraser ||
+			isTransformedStroke(object)
 		) {
 			renderAnnotationObject(target, baseCanvas, object);
 			return;
@@ -392,41 +501,6 @@ export class AnnotationRenderCache {
 		}
 		this.cacheStrokeSource(baseCanvas, object);
 		target.drawImage(this.#interactiveCanvas, 0, 0);
-	}
-
-	private drawTransformedStroke(
-		target: CanvasRenderingContext2D,
-		object: Extract<
-			AnnotationObject,
-			{ type: typeof AnnotationObjectTypeId.Stroke }
-		>,
-	): void {
-		const source = object.sourceRect ?? object.rect;
-		if (
-			!object.rotation &&
-			object.rect.width === source.width &&
-			object.rect.height === source.height
-		) {
-			target.drawImage(
-				this.#interactiveCanvas,
-				object.rect.x - source.x,
-				object.rect.y - source.y,
-			);
-			return;
-		}
-		withShapeTransform(target, object, () =>
-			target.drawImage(
-				this.#interactiveCanvas,
-				source.x,
-				source.y,
-				source.width,
-				source.height,
-				object.rect.x,
-				object.rect.y,
-				object.rect.width,
-				object.rect.height,
-			),
-		);
 	}
 
 	private cacheStrokeSource(
@@ -540,6 +614,26 @@ export class AnnotationRenderCache {
 		this.#interactiveStrokePointCount = 0;
 		this.resetInteractiveErasure();
 	}
+}
+
+/**
+ * A stroke only moved by whole pixels since it was drawn: its cached source
+ * can be drawn shifted with no change to its pixels.
+ */
+function isShiftedStroke(
+	object: AnnotationObject,
+): object is Extract<
+	AnnotationObject,
+	{ type: typeof AnnotationObjectTypeId.Stroke }
+> & { sourceRect: RenderRegion } {
+	if (!isTransformedStroke(object) || object.rotation) return false;
+	const source = object.sourceRect;
+	return (
+		object.rect.width === source.width &&
+		object.rect.height === source.height &&
+		Number.isInteger(object.rect.x - source.x) &&
+		Number.isInteger(object.rect.y - source.y)
+	);
 }
 
 function isTransformedStroke(

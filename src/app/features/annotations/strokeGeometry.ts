@@ -6,23 +6,40 @@ import type {
 	StrokePoint,
 } from './annotationTypes';
 
-/** Bakes a moved, scaled or rotated stroke into its points, keeping their order. */
-export function materializeStrokeTransform(stroke: StrokeAnnotation): void {
-	const transformed = transformedStrokePoints(stroke);
-	stroke.points = transformed;
-	stroke.sourceRect = strokePointBounds(
-		transformed,
-		maximumStrokeSize(stroke),
-	);
-	stroke.rect = { ...stroke.sourceRect };
-	stroke.rotation = 0;
-}
-
 export function maximumStrokeSize(stroke: StrokeAnnotation): number {
 	let maximum = stroke.size;
 	for (const style of stroke.pathStyles ?? [])
 		maximum = Math.max(maximum, style.size);
 	return maximum;
+}
+
+/** The style values of a stroke that can be edited after it was drawn. */
+export type StrokeStyleChange = Partial<
+	Pick<StrokeAnnotation, 'color' | 'size' | 'opacity' | 'hardness'>
+>;
+
+/**
+ * Restyles a whole stroke, including every path style, so it renders as one
+ * look. A new width grows or shrinks its bounds around the same path.
+ */
+export function restyleStroke(
+	stroke: StrokeAnnotation,
+	change: StrokeStyleChange,
+): void {
+	Object.assign(stroke, change);
+	for (const style of stroke.pathStyles ?? []) Object.assign(style, change);
+	if (change.size === undefined || stroke.points.length === 0) return;
+	const previous = stroke.sourceRect ?? stroke.rect;
+	const next = strokePointBounds(stroke.points, maximumStrokeSize(stroke));
+	const scaleX = previous.width === 0 ? 1 : stroke.rect.width / previous.width;
+	const scaleY = previous.height === 0 ? 1 : stroke.rect.height / previous.height;
+	stroke.rect = {
+		x: stroke.rect.x + (next.x - previous.x) * scaleX,
+		y: stroke.rect.y + (next.y - previous.y) * scaleY,
+		width: next.width * scaleX,
+		height: next.height * scaleY,
+	};
+	stroke.sourceRect = next;
 }
 
 export function strokePathStyleAt(

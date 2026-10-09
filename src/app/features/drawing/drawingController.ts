@@ -14,7 +14,14 @@ import type { CanvasViewportController } from '../workspace/canvasViewportContro
 import { CanvasSelectionGesture } from './canvasSelectionGesture';
 import { CUT_MOVE_CROP_REQUEST_EVENT } from './cropEvents';
 import { canvasPoint } from './drawingHelpers';
-import { drawingToolBehavior, isPaintTool } from './drawingToolBehavior';
+import {
+	drawingToolBehavior,
+	isPaintTool,
+	isShapeTool,
+	selectionPresentationFor,
+	toolEditsLayer,
+} from './drawingToolBehavior';
+import { SelectionPresentation } from '../annotations/selectionOverlayRenderer';
 import { toolForShortcut } from './drawingToolCatalog';
 import { DrawingToolControls } from './drawingToolControls';
 import { DrawingToolRouter } from './drawingToolRouter';
@@ -34,6 +41,7 @@ export class DrawingController {
 	readonly #interactionListeners = new Set<() => void>();
 	#session: GestureSession | null = null;
 	#interactionsActive = true;
+	#activeTool: Tool | null = null;
 
 	constructor(
 		readonly documentModel: CanvasDocument,
@@ -93,6 +101,30 @@ export class DrawingController {
 		this.shapes.select(objectId);
 	}
 
+	/** Selects a whole layer with the Select tool, so it can be moved. */
+	editLayer(layerId: string): void {
+		if (!this.shapes?.isLayerEditable(layerId)) return;
+		this.documentModel.layers.select(CoreLayerId.Objects);
+		this.select(UtilityToolId.Select);
+		this.shapes.selectLayer(layerId);
+	}
+
+	/**
+	 * Shows an item chosen in the layer list: a tool that shows and transforms
+	 * that item stays; otherwise Select is picked so the item is visible and
+	 * editable on the canvas.
+	 */
+	revealItem(itemId: string): void {
+		const item = this.shapes?.object(itemId);
+		const tool = this.#controls.tool;
+		const showsItem =
+			item !== null &&
+			item !== undefined &&
+			toolEditsLayer(tool, item.type) &&
+			selectionPresentationFor(tool) === SelectionPresentation.Transform;
+		if (item && !showsItem) this.editObject(itemId);
+	}
+
 	onToolChange(listener: (tool: Tool) => void): void {
 		this.#controls.onSelection(listener);
 	}
@@ -107,11 +139,15 @@ export class DrawingController {
 	}
 
 	private activateTool(tool: Tool, clearSelection = true): void {
+		const previousTool = this.#activeTool;
+		this.#activeTool = tool;
 		this.cancelGesture();
 		this.#selectionGesture?.clear();
 		if (tool !== UtilityToolId.Select) this.rasterSelection?.clear();
 		if (clearSelection && !this.preservesSelection(tool))
 			this.shapes?.clearSelection();
+		else if (tool === UtilityToolId.Select && previousTool && createsItems(previousTool))
+			this.selectLayerOfDrawnItem();
 		this.documentModel.overlay.classList.toggle(
 			'fill-cursor',
 			tool === UtilityToolId.Fill,
@@ -123,10 +159,19 @@ export class DrawingController {
 		}
 	}
 
+	/** Select starts at layer level: the item just drawn hands over its whole layer. */
+	private selectLayerOfDrawnItem(): void {
+		const item = this.shapes?.selected;
+		const layer = item ? this.shapes?.layerOf(item.id) : null;
+		if (layer) this.shapes?.selectLayer(layer.id);
+	}
+
 	private preservesSelection(tool: Tool): boolean {
 		return (
 			tool === UtilityToolId.Select ||
 			tool === UtilityToolId.Crop ||
+			// Fill keeps the selection that limits where it spreads.
+			tool === UtilityToolId.Fill ||
 			tool === PaintToolId.Eraser ||
 			(isPaintTool(tool) &&
 				this.shapes?.selected?.type === AnnotationObjectTypeId.RasterFragment)
@@ -315,4 +360,9 @@ function isEditableTarget(target: EventTarget | null): boolean {
 		target instanceof HTMLTextAreaElement ||
 		(target instanceof HTMLElement && target.isContentEditable)
 	);
+}
+
+/** Tools that draw new items: brushes and shapes. */
+function createsItems(tool: Tool): boolean {
+	return isPaintTool(tool) || isShapeTool(tool);
 }

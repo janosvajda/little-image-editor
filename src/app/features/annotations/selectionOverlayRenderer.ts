@@ -4,6 +4,7 @@ import {
 	RESIZE_HANDLES,
 	shapeCenter,
 	shapeHandles,
+	type TransformableGeometry,
 } from '../../core/geometry/shapeTransformHelpers';
 import {
 	type AnnotationObject,
@@ -12,6 +13,10 @@ import {
 import { transformedStrokePoints } from './strokeGeometry';
 
 const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
+const LAYER_FRAME_CLASS = 'selection-layer-frame';
+const LAYER_OUTLINE_CLASS = 'selection-layer-outline';
+const ITEM_HANDLE_CLASS = 'selection-handle';
+const LAYER_HANDLE_CLASS = `${ITEM_HANDLE_CLASS} layer-selection-handle`;
 const SelectionMetrics = {
 	ResizeHandleSize: 8,
 	EndpointHandleSize: 10,
@@ -38,39 +43,28 @@ export class SelectionOverlayRenderer {
 		this.element.setAttribute('preserveAspectRatio', 'none');
 	}
 
+	/**
+	 * The selected item's frame and, while it is shown, the outline of the
+	 * layer holding it, so it is always clear which layer an item belongs to.
+	 */
 	render(
 		object: AnnotationObject | null,
 		width: number,
 		height: number,
 		visualScale: number,
 		presentation: SelectionPresentation = SelectionPresentation.Transform,
+		layerFrame: TransformableGeometry | null = null,
 	): void {
-		this.element.setAttribute('viewBox', `0 0 ${width} ${height}`);
-		this.element.replaceChildren();
+		this.reset(width, height);
 		if (!object || presentation === SelectionPresentation.Hidden) return;
-		const geometry = genericShape(object).geometry;
-		const center = shapeCenter(geometry);
-		const group = svgElement('g');
-		group.setAttribute(
-			'transform',
-			`rotate(${geometry.rotation ?? 0} ${center.x} ${center.y})`,
-		);
-		group.append(
-			selectionRect(geometry.rect, 'selection-frame-contrast'),
-			selectionRect(geometry.rect, 'selection-frame'),
-		);
-		this.element.append(group);
-		if (presentation !== SelectionPresentation.Transform) return;
-
-		const handles = shapeHandles(geometry);
-		for (const corner of RESIZE_HANDLES)
+		if (layerFrame)
 			this.element.append(
-				handle(
-					handles[corner],
-					SelectionMetrics.ResizeHandleSize * visualScale,
-					'selection-handle',
-				),
+				turnedGroup(layerFrame, [selectionRect(layerFrame.rect, LAYER_OUTLINE_CLASS)]),
 			);
+		const geometry = genericShape(object).geometry;
+		this.appendFrame(geometry);
+		if (presentation !== SelectionPresentation.Transform) return;
+		this.appendCornerHandles(geometry, visualScale);
 		if (object.type === AnnotationObjectTypeId.Stroke)
 			for (const point of strokeEndpoints(object))
 				this.element.append(
@@ -81,6 +75,66 @@ export class SelectionOverlayRenderer {
 					),
 				);
 	}
+
+	/** A whole selected layer: a frame around its items with the same transform controls. */
+	renderLayerFrame(
+		frame: TransformableGeometry | null,
+		width: number,
+		height: number,
+		visualScale: number,
+		presentation: SelectionPresentation,
+	): void {
+		this.reset(width, height);
+		if (!frame || presentation === SelectionPresentation.Hidden) return;
+		this.appendFrame(frame, LAYER_FRAME_CLASS);
+		if (presentation === SelectionPresentation.Transform)
+			this.appendCornerHandles(frame, visualScale, LAYER_HANDLE_CLASS);
+	}
+
+	private reset(width: number, height: number): void {
+		this.element.setAttribute('viewBox', `0 0 ${width} ${height}`);
+		this.element.replaceChildren();
+	}
+
+	private appendFrame(geometry: TransformableGeometry, className?: string): void {
+		const group = turnedGroup(geometry, [
+			selectionRect(geometry.rect, 'selection-frame-contrast'),
+			selectionRect(geometry.rect, 'selection-frame'),
+		]);
+		if (className) group.classList.add(className);
+		this.element.append(group);
+	}
+
+	private appendCornerHandles(
+		geometry: TransformableGeometry,
+		visualScale: number,
+		className: string = ITEM_HANDLE_CLASS,
+	): void {
+		const handles = shapeHandles(geometry);
+		for (const corner of RESIZE_HANDLES)
+			this.element.append(
+				handle(
+					handles[corner],
+					SelectionMetrics.ResizeHandleSize * visualScale,
+					className,
+				),
+			);
+	}
+}
+
+/** Elements drawn in a frame's own orientation, turned about its centre. */
+function turnedGroup(
+	geometry: TransformableGeometry,
+	children: readonly SVGElement[],
+): SVGGElement {
+	const center = shapeCenter(geometry);
+	const group = svgElement('g');
+	group.setAttribute(
+		'transform',
+		`rotate(${geometry.rotation ?? 0} ${center.x} ${center.y})`,
+	);
+	group.append(...children);
+	return group;
 }
 
 function selectionRect(

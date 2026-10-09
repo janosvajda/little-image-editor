@@ -2,6 +2,7 @@ import {
 	AnnotationObjectTypeId,
 	type AnnotationObject,
 } from './annotationTypes';
+import { restyleStroke, type StrokeStyleChange } from './strokeGeometry';
 
 export const EditableObjectPropertyId = {
 	Color: 'color',
@@ -24,7 +25,13 @@ export interface EditableObjectPropertyValues {
 export function editableObjectProperties(
 	object: AnnotationObject,
 ): EditableObjectPropertyValues {
-	if (object.type === AnnotationObjectTypeId.Stroke) return {};
+	if (object.type === AnnotationObjectTypeId.Stroke)
+		return {
+			color: object.color,
+			size: object.size,
+			opacity: object.opacity,
+			hardness: object.hardness,
+		};
 	return {
 		...('color' in object ? { color: object.color } : {}),
 		...('size' in object
@@ -44,7 +51,10 @@ export function setEditableObjectProperty(
 	property: EditableObjectProperty,
 	value: string | number | boolean,
 ): void {
-	if (object.type === AnnotationObjectTypeId.Stroke) return;
+	if (object.type === AnnotationObjectTypeId.Stroke) {
+		restyleStroke(object, strokeStyleChange(property, value));
+		return;
+	}
 	switch (property) {
 		case EditableObjectPropertyId.Color:
 			setColor(object, value);
@@ -91,4 +101,17 @@ function setFill(object: AnnotationObject, value: unknown): void {
 		typeof value === 'boolean'
 	)
 		object.fill = value;
+}
+
+function strokeStyleChange(
+	property: EditableObjectProperty,
+	value: string | number | boolean,
+): StrokeStyleChange {
+	if (property === EditableObjectPropertyId.Color)
+		return typeof value === 'string' ? { color: value } : {};
+	if (typeof value !== 'number') return {};
+	if (property === EditableObjectPropertyId.Size) return { size: value };
+	if (property === EditableObjectPropertyId.Opacity) return { opacity: value };
+	if (property === EditableObjectPropertyId.Hardness) return { hardness: value };
+	return {};
 }

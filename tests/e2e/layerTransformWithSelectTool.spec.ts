@@ -16,10 +16,10 @@ const FRAME = '.selection-frame';
 
 test('paint tools show no transform controls and never move layers', async ({ page }) => {
 	await createDocumentWithRectangle(page);
+	await chooseBrush(page);
 	await expect(page.locator('.selection-handle')).toHaveCount(0);
 	await expect(page.locator(FRAME)).toHaveCount(0);
 
-	await chooseBrush(page);
 	await drag(page, RectangleCenter, { x: RectangleCenter.x + MoveBy.x, y: RectangleCenter.y });
 	await selectTool(page);
 	await page.mouse.click(...screen(await canvasBox(page), { x: Rectangle.from.x + 4, y: Rectangle.from.y + 4 }));

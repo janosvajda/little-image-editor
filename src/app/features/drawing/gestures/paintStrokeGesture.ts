@@ -13,10 +13,8 @@ import {
 	type StrokePathStyle,
 	type StrokePoint,
 } from '../../annotations/annotationTypes';
-import { createPaintLayer } from '../../annotations/paintLayerFactory';
+import { createEmptyStroke } from '../../annotations/paintLayerFactory';
 import {
-	materializeStrokeTransform,
-	maximumStrokeSize,
 	strokePointBounds,
 } from '../../annotations/strokeGeometry';
 import { pixelAlignedPoint, type StrokeOptions } from '../drawingHelpers';
@@ -32,7 +30,10 @@ type PaintTarget =
 			readonly gesture: RasterPaintGesture;
 	  };
 
-/** Retained paint owns the target, per-path style and the lifetime of a stroke. */
+/**
+ * One paint drag: a new stroke item on top of the active layer, or new pixels
+ * on a selected pixel item under the pointer.
+ */
 export class PaintStrokeGesture extends RetainedDrawingGesture {
 	readonly coalesced = true;
 	readonly locksScroll = true;
@@ -53,7 +54,7 @@ export class PaintStrokeGesture extends RetainedDrawingGesture {
 			{ x: aligned.x + POINTER_NUDGE, y: aligned.y + POINTER_NUDGE },
 			pressure,
 		);
-		const selected = objects.activeLayer;
+		const selected = objects.selected;
 		if (
 			selected?.type === AnnotationObjectTypeId.RasterFragment &&
 			genericShape(selected).contains(point) &&
@@ -68,41 +69,8 @@ export class PaintStrokeGesture extends RetainedDrawingGesture {
 				first,
 			);
 			this.#target = { type: AnnotationObjectTypeId.RasterFragment, gesture };
-			objects.select(selected.id);
 			objects.beginInteraction(selected.id);
 			this.update(second, pressure);
-			return;
-		}
-		const activeLayer = objects.activePaintLayer;
-		if (activeLayer) {
-			this.#target = {
-				type: AnnotationObjectTypeId.Stroke,
-				id: activeLayer.id,
-			};
-			objects.beginInteraction(activeLayer.id);
-			objects.update(
-				activeLayer.id,
-				(object) => {
-					if (object.type !== AnnotationObjectTypeId.Stroke) return;
-					if (object.points.length > 0)
-						materializeStrokeTransform(object);
-					const startIndex = object.points.length;
-					if (startIndex > 0) {
-						object.pathStarts ??= [];
-						object.pathStarts.push(startIndex);
-					}
-					object.pathStyles ??= [];
-					object.pathStyles.push(this.pathStyle(startIndex));
-					object.points.push(first, second);
-					object.sourceRect = strokePointBounds(
-						object.points,
-						maximumStrokeSize(object),
-					);
-					object.rect = { ...object.sourceRect };
-				},
-				false,
-			);
-			objects.select(activeLayer.id);
 			return;
 		}
 		const stroke = this.createStroke(first, second);
@@ -154,7 +122,7 @@ export class PaintStrokeGesture extends RetainedDrawingGesture {
 		second: StrokePoint,
 	): StrokeAnnotation {
 		const stroke: StrokeAnnotation = {
-			...createPaintLayer(),
+			...createEmptyStroke(),
 			...this.options,
 			tool: this.tool,
 			points: [first, second],

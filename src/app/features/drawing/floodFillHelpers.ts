@@ -4,6 +4,11 @@ export interface FloodFillOptions {
 	readonly tolerance: number;
 }
 
+/** The pixels a fill may reach; a fill never leaves it. */
+export interface FloodFillRegion {
+	contains(x: number, y: number): boolean;
+}
+
 export interface FloodFillRun {
 	readonly x: number;
 	readonly y: number;
@@ -44,8 +49,13 @@ export function createFloodFillMask(
 	startX: number,
 	startY: number,
 	options: FloodFillOptions,
+	region?: FloodFillRegion,
 ): readonly FloodFillRun[] {
-	if (!validFillRequest(width, height, startX, startY)) return [];
+	if (
+		!validFillRequest(width, height, startX, startY) ||
+		(region && !region.contains(startX, startY))
+	)
+		return [];
 	return new FloodFillOperation(
 		context,
 		width,
@@ -53,6 +63,7 @@ export function createFloodFillMask(
 		startX,
 		startY,
 		options,
+		region,
 	).createMask();
 }
 
@@ -74,6 +85,7 @@ class FloodFillOperation {
 		startX: number,
 		startY: number,
 		options: FloodFillOptions,
+		private readonly region?: FloodFillRegion,
 	) {
 		this.#image = context.getImageData(0, 0, width, height);
 		this.#pixels = this.#image.data;
@@ -157,7 +169,8 @@ class FloodFillOperation {
 
 	private matches(x: number, y: number): boolean {
 		const pixel = y * this.width + x;
-		if (this.#visited[pixel]) return false;
+		if (this.#visited[pixel] || (this.region && !this.region.contains(x, y)))
+			return false;
 		const candidate = this.colorAt(x, y);
 		if (
 			this.#target[ALPHA_CHANNEL_OFFSET] === 0 &&

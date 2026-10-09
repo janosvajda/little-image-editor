@@ -66,10 +66,7 @@ export interface ObjectPixelMask {
 	strokeSourceRect?: CropRect;
 }
 
-/**
- * Every retained object is one layer. Layer appearance is optional in storage;
- * `layerAppearance()` resolves the defaults, and the document assigns names.
- */
+/** One editable item: a shape, a brush stroke, a text and so on. Items live in content layers. */
 interface AnnotationBase extends ErasableAnnotation {
 	id: string;
 	type:
@@ -81,9 +78,6 @@ interface AnnotationBase extends ErasableAnnotation {
 	rotation?: number;
 	visible?: boolean;
 	locked?: boolean;
-	name?: string;
-	layerOpacity?: number;
-	blendMode?: BlendMode;
 }
 
 export interface StrokePoint extends Point {
@@ -199,14 +193,42 @@ export const LinkedHistoryDomain = {
 export type LinkedHistoryDomain =
 	(typeof LinkedHistoryDomain)[keyof typeof LinkedHistoryDomain];
 
+/**
+ * A layer above the image that holds items. Opacity and blend mode apply to the
+ * layer's items as one group; unset values resolve through `layerAppearance()`.
+ */
+export interface ContentLayer {
+	id: string;
+	name: string;
+	/** The layer's items, bottom first. */
+	itemIds: string[];
+	visible?: boolean;
+	locked?: boolean;
+	opacity?: number;
+	blendMode?: BlendMode;
+	/** Degrees the layer's frame is turned; its items turn with it. */
+	rotation?: number;
+}
+
+/**
+ * `layers` is the source of truth for structure, bottom layer first;
+ * `objects` holds every item in render order and always follows `layers`.
+ */
 export interface AnnotationState {
 	objects: AnnotationObject[];
+	layers: ContentLayer[];
 	nextStep: number;
 }
 
+/** A state from a caller that may predate content layers; the document completes it. */
+export type AnnotationStateInput = Omit<AnnotationState, 'layers'> & {
+	layers?: ContentLayer[];
+};
+
+/** Saved document history; states without layers are completed on restore. */
 export interface AnnotationSessionState {
-	state: AnnotationState;
-	history: AnnotationState[];
+	state: AnnotationStateInput;
+	history: AnnotationStateInput[];
 	historyIndex: number;
 	historyLinks?: Array<LinkedHistoryDomain | null>;
 }

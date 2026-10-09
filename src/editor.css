@@ -1086,17 +1086,21 @@ body.focus-mode .workspace {
 
 :root {
     --accent: #3b82f6;
-    --accent2: #2563eb
+    --accent2: #2563eb;
+    /* Whole-layer selection; single items keep the accent colour. */
+    --layer-selection: #4ade80
 }
 
 html[data-theme=light] {
     --accent: #2563eb;
-    --accent2: #1d4ed8
+    --accent2: #1d4ed8;
+    --layer-selection: #22c55e
 }
 
 html[data-theme=contrast] {
     --accent: #ff0;
-    --accent2: #ff0
+    --accent2: #ff0;
+    --layer-selection: #0f0
 }
 
 .new-image-fields {
@@ -1394,6 +1398,24 @@ html[data-theme=dark] .transparency-warning strong {
     stroke-dasharray: 5 4
 }
 
+/* A whole selected layer is green; a single selected item keeps the accent colour. */
+.selection-layer-frame .selection-frame {
+    stroke: var(--layer-selection)
+}
+
+.selection-handle.layer-selection-handle {
+    fill: var(--layer-selection)
+}
+
+/* The layer of the selected item, quieter than the item's own frame. */
+.selection-layer-outline {
+    fill: color-mix(in srgb, var(--layer-selection) 6%, transparent);
+    stroke: color-mix(in srgb, var(--layer-selection) 70%, transparent);
+    stroke-width: 1;
+    stroke-dasharray: 2 4;
+    vector-effect: non-scaling-stroke
+}
+
 .selection-handle,
 .selection-endpoint,
 .canvas-ruler,
@@ -1566,6 +1588,56 @@ body.focus-mode .canvas-ruler-layer {
 	width: 300px;
 }
 
+/* Only the layer list scrolls; the layer properties and actions stay in view. */
+.panel.layers-panel[data-toolbar-panel=managed]:not([hidden]) {
+	display: flex;
+	flex-direction: column;
+	overflow-y: hidden;
+}
+
+/*
+ * The body is a fieldset, whose inner box ignores the panel's height limit, so
+ * its children join the panel's column directly; the fieldset still disables
+ * them while editing is unavailable.
+ */
+.layers-panel > .panel-body {
+	display: contents;
+}
+
+.layers-panel > .panel-body > * {
+	margin-inline: 11px;
+}
+
+.layers-panel > .panel-body > :first-child {
+	margin-top: 11px;
+}
+
+.layers-panel > .panel-body > :last-child {
+	margin-bottom: 11px;
+}
+
+.panel.editing-unavailable.layers-panel > .panel-body > * {
+	opacity: .55;
+}
+
+.layers-panel .layer-properties,
+.layers-panel .layer-actions,
+.layers-panel .layer-order-hint {
+	flex: none;
+}
+
+.layers-panel .layer-list {
+	flex: 1 1 auto;
+	align-content: start;
+	min-height: 0;
+	overflow-y: auto;
+	overscroll-behavior: contain;
+	padding: 2px 4px 2px 0;
+	scrollbar-color: var(--muted) var(--surface2);
+	scrollbar-gutter: stable;
+	scrollbar-width: thin;
+}
+
 .layer-order-hint {
 	margin: 0 0 8px;
 	color: var(--muted);
@@ -1646,17 +1718,47 @@ body.focus-mode .canvas-ruler-layer {
 }
 
 .layer-object-row {
-	grid-template-columns: 24px 26px minmax(0, 1fr) repeat(5, 26px);
+	grid-template-columns: 24px 28px 26px minmax(0, 1fr) repeat(5, 26px);
 	background: var(--surface);
 }
 
-.layer-object-row.drag-target {
+.layer-item-row {
+	grid-template-columns: 24px 26px minmax(0, 1fr) 26px 26px;
+	margin-left: 22px;
+	border-style: dashed;
+	background: var(--surface);
+	font-size: 12px;
+}
+
+.layer-item-row button {
+	min-height: 28px;
+}
+
+.layer-row .layer-expand {
+	border-radius: 6px;
+	color: var(--text);
+	font-size: 20px;
+	line-height: 1;
+	transition: transform 120ms ease;
+}
+
+.layer-row .layer-expand:hover {
+	background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.layer-expand[aria-expanded=true] {
+	transform: rotate(90deg);
+}
+
+.layer-object-row.drag-target,
+.layer-item-row.drag-target {
 	outline: 2px solid var(--accent);
 	outline-offset: 1px;
 	background: color-mix(in srgb, var(--accent) 18%, var(--surface));
 }
 
-.layer-object-row.dragging-source {
+.layer-object-row.dragging-source,
+.layer-item-row.dragging-source {
 	opacity: 0.45;
 	outline: 2px dashed var(--accent);
 	outline-offset: 1px;
@@ -1695,6 +1797,13 @@ body.focus-mode .canvas-ruler-layer {
 	border-color: var(--accent);
 	background: color-mix(in srgb, var(--accent) 12%, var(--surface));
 	box-shadow: inset 3px 0 0 var(--accent);
+}
+
+/* Layers are green, as on the canvas; item rows keep the accent colour. */
+.layer-row.active:not(.layer-item-row) {
+	border-color: var(--layer-selection);
+	background: color-mix(in srgb, var(--layer-selection) 14%, var(--surface));
+	box-shadow: inset 3px 0 0 var(--layer-selection);
 }
 
 .layer-row.locked {

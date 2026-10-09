@@ -1,10 +1,10 @@
+import { emptyAnnotationSession } from '../annotations/contentLayerStructure';
 import type { CanvasDocument } from '../../core/document/imageDocument';
 import {
 	DEFAULT_DOCUMENT_NAME,
 	DocumentType,
 } from '../../core/document/appTypes';
 import type { AnnotationDocument } from '../annotations/annotationDocument';
-import type { AnnotationSessionState } from '../annotations/annotationTypes';
 import {
 	ProjectEditorAdapter,
 	type ProjectPersistencePort,
@@ -19,11 +19,6 @@ interface ProjectPickerWindow extends Window {
 }
 
 const OBJECT_URL_RELEASE_DELAY_MS = 1_000;
-const EMPTY_ANNOTATION_SESSION: AnnotationSessionState = {
-	state: { objects: [], nextStep: 1 },
-	history: [{ objects: [], nextStep: 1 }],
-	historyIndex: 0,
-};
 
 type EditableObjectDocument = Pick<
 	AnnotationDocument,
@@ -153,7 +148,7 @@ export class ProjectController {
 
 function fallbackEditableObjects(): EditableObjectDocument {
 	return {
-		snapshotSession: () => structuredClone(EMPTY_ANNOTATION_SESSION),
+		snapshotSession: () => emptyAnnotationSession(),
 		restoreSession: () => undefined,
 	};
 }
