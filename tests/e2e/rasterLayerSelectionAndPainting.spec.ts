@@ -1,7 +1,8 @@
 import { expect, test, type Page } from '@playwright/test';
 
 const CropIdSelector = '.layer-object-row.active';
-const Pixel = { Black: [0, 0, 0, 255], Red: [255, 0, 0, 255] } as const;
+const Pixel = { Black: [0, 0, 0, 255], Blue: [0, 0, 255, 255] } as const;
+const CroppedStroke = { Color: '#0000ff', Width: '40' } as const;
 
 test('native double-clicks select without paint, and paint stays with a crop through moving and project reload', async ({ page }) => {
 	await page.setContent('<div id="source" style="width:240px;height:180px;background:red"></div>');
@@ -9,17 +10,26 @@ test('native double-clicks select without paint, and paint stays with a crop thr
 	await page.goto('/');
 	await page.locator('#fileInput').setInputFiles({ name: 'raster.png', mimeType: 'image/png', buffer: source });
 	await page.getByRole('button', { name: /Brush tools:/ }).click();
-	await page.locator('#colorInput').fill('#000000');
+	await page.locator('#colorInput').fill(CroppedStroke.Color);
+	await page.locator('#sizeInput').fill(CroppedStroke.Width);
 	await page.locator('[data-panel="tools"] .panel-close').click();
 	const bounds = await page.locator('#overlay').boundingBox();
 	if (!bounds) throw new Error('Canvas is not visible');
 	const drag = (x: number, y: number, toX: number, toY: number) => draw(page, bounds.x + x, bounds.y + y, bounds.x + toX, bounds.y + toY);
-	await drag(190, 160, 220, 160);
+	await drag(30, 50, 90, 50);
 	await page.keyboard.press('c');
 	await drag(20, 20, 100, 100);
 	await drag(50, 50, 150, 100);
 	const cropId = await page.locator(CropIdSelector).getAttribute('data-object-id');
+	await page.keyboard.press('v');
+	await page.mouse.click(bounds.x + 220, bounds.y + 20);
+	await expect(page.locator(CropIdSelector)).toHaveCount(0);
 	await page.keyboard.press('b');
+	await page.locator('#toolbarPickerButton').click();
+	await page.locator('[data-panel-toggle="tools"]').check();
+	await page.keyboard.press('Escape');
+	await page.locator('#colorInput').fill('#000000');
+	await page.locator('[data-panel="tools"] .panel-close').click();
 	const beforeSelection = await annotationImage(page);
 	await page.mouse.dblclick(bounds.x + 150, bounds.y + 100);
 	await expect(page.locator(CropIdSelector)).toHaveAttribute('data-object-id', cropId!);
@@ -33,7 +43,7 @@ test('native double-clicks select without paint, and paint stays with a crop thr
 	await expect(page.locator('.layer-object-row')).toHaveCount(2);
 	expect(await pixelAt(page, 150, 100)).toEqual(Pixel.Black);
 	await page.locator('#undoButton').click();
-	expect(await pixelAt(page, 150, 100)).toEqual(Pixel.Red);
+	expect(await pixelAt(page, 150, 100)).toEqual(Pixel.Blue);
 	await page.locator('#redoButton').click();
 	expect(await pixelAt(page, 150, 100)).toEqual(Pixel.Black);
 

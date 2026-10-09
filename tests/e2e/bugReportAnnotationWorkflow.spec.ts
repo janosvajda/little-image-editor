@@ -59,7 +59,7 @@ test("all annotation tools switch immediately and crop uses the shared immediate
   await page.mouse.move(bounds!.x + bounds!.width * .75, bounds!.y + bounds!.height * .6);
   await page.mouse.up();
 	await expect(page.getByRole("button", { name: "Apply crop", exact: true })).toHaveCount(0);
-	await expect(page.locator('[data-tool="select"]')).toHaveClass(/active/);
+	await expect(page.locator('[data-tool="crop"]')).toHaveClass(/active/);
 });
 
 test("metadata privacy controls change the exact copy preview", async ({ page }) => {

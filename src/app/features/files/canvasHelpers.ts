@@ -31,25 +31,6 @@ export function hasTransparency(
 	return false;
 }
 
-export function regionIsFullyTransparent(
-	context: CanvasRenderingContext2D,
-	x: number,
-	y: number,
-	width: number,
-	height: number,
-): boolean {
-	if (width <= 0 || height <= 0) return true;
-	const pixels = context.getImageData(x, y, width, height).data;
-	for (
-		let index = ALPHA_CHANNEL_OFFSET;
-		index < pixels.length;
-		index += PIXEL_CHANNEL_COUNT
-	) {
-		if (pixels[index]! > 0) return false;
-	}
-	return true;
-}
-
 export function encodeCanvas(
 	source: HTMLCanvasElement,
 	type: ImageFormat,

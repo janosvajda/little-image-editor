@@ -12,7 +12,6 @@ import {
 } from '../../core/layers/layerTypes';
 import {
 	GuideOrientation,
-	LEGACY_PROJECT_FORMAT_VERSION,
 	type LittleImageProject,
 	PROJECT_FORMAT_IDENTIFIER,
 	PROJECT_FORMAT_VERSION,
@@ -49,7 +48,19 @@ export class ProjectFormatError extends Error {
 	}
 }
 
+interface DecodedSessionPixels {
+	readonly documentPixels: Uint8ClampedArray;
+	readonly history: Array<{
+		readonly width: number;
+		readonly height: number;
+		readonly pixels: Uint8ClampedArray;
+	}>;
+}
+
 export class ProjectCodec {
+	/** Pixels decoded while validating, so loading never decodes them twice. */
+	readonly #decodedPixels = new WeakMap<LittleImageProject, DecodedSessionPixels>();
+
 	serializeEditorState(
 		state: EditorProjectState,
 		guides: readonly ProjectGuide[] = [],
@@ -97,13 +108,20 @@ export class ProjectCodec {
 			throw new ProjectFormatError(
 				'The project file has an unsupported structure.',
 			);
+		try {
+			this.#decodedPixels.set(value, deserializeSessionPixels(value.document));
+		} catch {
+			throw new ProjectFormatError(
+				'The project file contains damaged pixel data.',
+			);
+		}
 		return value;
 	}
 
 	toSession(project: LittleImageProject): DocumentSessionSnapshot {
-		const { documentPixels, history } = deserializeSessionPixels(
-			project.document,
-		);
+		const { documentPixels, history } =
+			this.#decodedPixels.get(project) ??
+			deserializeSessionPixels(project.document);
 		return {
 			...deserializePixels(project.document, documentPixels),
 			baseName: project.document.baseName,
@@ -171,14 +189,9 @@ function deserializePixels(
 	return { width: state.width, height: state.height, pixels };
 }
 
-function deserializeSessionPixels(session: SerializedDocumentSession): {
-	readonly documentPixels: Uint8ClampedArray;
-	readonly history: Array<{
-		readonly width: number;
-		readonly height: number;
-		readonly pixels: Uint8ClampedArray;
-	}>;
-} {
+function deserializeSessionPixels(
+	session: SerializedDocumentSession,
+): DecodedSessionPixels {
 	const documentPixels = decodePixelBytes(session.pixels);
 	assertPixelLength(session, documentPixels);
 	const history: Array<{
@@ -220,8 +233,7 @@ function isProject(value: unknown): value is LittleImageProject {
 	if (!isRecord(value)) return false;
 	return (
 		value.format === PROJECT_FORMAT_IDENTIFIER &&
-		(value.version === PROJECT_FORMAT_VERSION ||
-			value.version === LEGACY_PROJECT_FORMAT_VERSION) &&
+		value.version === PROJECT_FORMAT_VERSION &&
 		isSerializedSession(value.document) &&
 		Array.isArray(value.guides) &&
 		value.guides.every(isGuide) &&
@@ -252,13 +264,7 @@ function isSerializedSession(
 		Object.values(DocumentType).some(
 			(documentType) => documentType === value.documentType,
 		);
-	if (!structurallyValid) return false;
-	try {
-		deserializeSessionPixels(value as unknown as SerializedDocumentSession);
-		return true;
-	} catch {
-		return false;
-	}
+	return structurallyValid;
 }
 
 function isPixelState(value: unknown): value is SerializedPixelState {

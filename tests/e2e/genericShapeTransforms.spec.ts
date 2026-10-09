@@ -14,6 +14,7 @@ test("drawing and annotation rectangles share persistent resize and rotation han
   const created = await alphaBounds(page);
   expect(created.width).toBeGreaterThan(190);
   expect(created.height).toBeGreaterThan(90);
+  await page.keyboard.press("v");
 
   await dragCanvas(page, { x: 400, y: 250 }, { x: 500, y: 350 });
   const resized = await alphaBounds(page);

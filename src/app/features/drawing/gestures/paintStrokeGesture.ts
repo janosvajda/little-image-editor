@@ -53,7 +53,7 @@ export class PaintStrokeGesture extends RetainedDrawingGesture {
 			{ x: aligned.x + POINTER_NUDGE, y: aligned.y + POINTER_NUDGE },
 			pressure,
 		);
-		const selected = objects.activePaintTarget;
+		const selected = objects.activeLayer;
 		if (
 			selected?.type === AnnotationObjectTypeId.RasterFragment &&
 			genericShape(selected).contains(point) &&
@@ -85,7 +85,7 @@ export class PaintStrokeGesture extends RetainedDrawingGesture {
 				(object) => {
 					if (object.type !== AnnotationObjectTypeId.Stroke) return;
 					if (object.points.length > 0)
-						materializeStrokeTransform(object, point, true);
+						materializeStrokeTransform(object);
 					const startIndex = object.points.length;
 					if (startIndex > 0) {
 						object.pathStarts ??= [];

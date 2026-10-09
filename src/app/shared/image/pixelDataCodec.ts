@@ -87,12 +87,15 @@ function encodePackBits(source: Uint8ClampedArray): Uint8Array {
 		}
 		const literalStart = index;
 		index += runLength;
-		while (
-			index < source.length &&
-			index - literalStart < PACK_BITS_MAXIMUM_LENGTH
-		) {
+		while (index < source.length) {
 			const nextRunLength = repeatedByteCount(source, index);
-			if (nextRunLength >= PACK_BITS_RUN_THRESHOLD) break;
+			// A literal control byte must stay below the run flag, so a literal
+			// never absorbs a short run that would push it past the maximum.
+			if (
+				nextRunLength >= PACK_BITS_RUN_THRESHOLD ||
+				index + nextRunLength - literalStart > PACK_BITS_MAXIMUM_LENGTH
+			)
+				break;
 			index += nextRunLength;
 		}
 		const literalLength = index - literalStart;

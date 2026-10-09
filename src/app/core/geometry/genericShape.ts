@@ -14,10 +14,10 @@ import type { CropRect, Point } from '../document/appTypes';
 import { normalizedRect } from './geometryHelpers';
 import {
 	DEFAULT_SHAPE_INTERACTION,
+	type RotationDrag,
 	type ShapeInteractionPolicy,
 } from './shapeInteraction';
 import type {
-	SelectionBounds,
 	ShapeHandle,
 	TransformableGeometry,
 } from './shapeTransformHelpers';
@@ -47,21 +47,6 @@ export abstract class GenericShape<
 	hitHandle(point: Point, visualScale = 1): ShapeHandle | null {
 		return this.interaction.hitHandle(this.geometry, point, visualScale);
 	}
-	moveHandle(visualScale = 1, bounds?: SelectionBounds): Point {
-		return this.interaction.moveHandle(this.geometry, visualScale, bounds);
-	}
-	hitMoveHandle(
-		point: Point,
-		visualScale = 1,
-		bounds?: SelectionBounds,
-	): boolean {
-		return this.interaction.hitMoveHandle(
-			this.geometry,
-			point,
-			visualScale,
-			bounds,
-		);
-	}
 	contains(point: Point, padding?: number): boolean {
 		return this.interaction.contains(this.geometry, point, padding);
 	}
@@ -77,9 +62,9 @@ export abstract class GenericShape<
 		this.writeRect({ ...rect, x: rect.x + delta.x, y: rect.y + delta.y });
 	}
 
-	transform(handle: ShapeHandle, point: Point): void {
+	transform(handle: ShapeHandle, point: Point, rotation?: RotationDrag): void {
 		const geometry = this.geometry;
-		this.interaction.transform(geometry, handle, point);
+		this.interaction.transform(geometry, handle, point, rotation);
 		this.writeRect(geometry.rect);
 		this.object.rotation = geometry.rotation;
 	}

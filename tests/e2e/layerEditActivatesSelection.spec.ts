@@ -22,7 +22,7 @@ test('Layers Edit activates Select and moves the chosen retained object', async 
 	await page.locator('[data-panel-toggle="layers"]').check();
 	const edit = page
 		.locator('[data-panel="layers"] .layer-object-row')
-		.getByRole('button', { name: /Edit Stroke/ });
+		.getByRole('button', { name: /Edit Paint layer/ });
 	await edit.click();
 	await expect(page.locator('[data-tool="select"]')).toHaveClass(/active/);
 

@@ -11,8 +11,7 @@ import {
 } from './annotationTypes';
 import { drawShape } from '../drawing/drawingHelpers';
 import {
-	ShapeHandleId,
-	ShapeHandleMetrics,
+	RESIZE_HANDLES,
 	shapeHandles,
 	withShapeTransform,
 } from '../../core/geometry/shapeTransformHelpers';
@@ -29,6 +28,8 @@ import {
 	objectErasureSize,
 } from './objectErasures';
 import { decodePixelBytes } from '../../shared/image/pixelDataCodec';
+import { compositeLayer } from '../layers/layerCompositing';
+import { EditorLimit } from '../../core/document/editorLimits';
 
 const AnnotationRendering = {
 	ArrowMinimumHead: 10,
@@ -44,8 +45,6 @@ const AnnotationRendering = {
 	SelectionContrastLineWidth: 3,
 	SelectionDash: 5,
 	SelectionGap: 4,
-	RotateHandleHalfSize: 5,
-	RotateHandleSize: 10,
 	ResizeHandleHalfSize: 4,
 	ResizeHandleSize: 8,
 	StrokeEndpointHalfSize: 5,
@@ -93,9 +92,11 @@ export function renderAnnotationObjects(
 	baseCanvas: HTMLCanvasElement,
 	objects: readonly AnnotationObject[],
 ): void {
-	objects.filter((object) => object.visible !== false).forEach((object) =>
-		renderAnnotationObject(context, baseCanvas, object),
-	);
+	for (const object of objects)
+		if (object.visible !== false)
+			compositeLayer(context, object, (layerContext) =>
+				renderAnnotationObject(layerContext, baseCanvas, object),
+			);
 }
 
 export function renderAnnotationObject(
@@ -296,7 +297,12 @@ function rasterFragmentCanvas(
 	>,
 ): HTMLCanvasElement {
 	const cached = rasterFragmentCache.get(object.id);
-	if (cached?.encodedPixels === object.pixels) return cached.canvas;
+	if (cached?.encodedPixels === object.pixels) {
+		// Re-inserting marks the entry as most recently used.
+		rasterFragmentCache.delete(object.id);
+		rasterFragmentCache.set(object.id, cached);
+		return cached.canvas;
+	}
 	const pixels = decodePixelBytes(object.pixels);
 	const canvas = document.createElement('canvas');
 	canvas.width = object.pixelWidth;
@@ -312,7 +318,14 @@ function rasterFragmentCanvas(
 			0,
 			0,
 		);
+	rasterFragmentCache.delete(object.id);
 	rasterFragmentCache.set(object.id, { encodedPixels: object.pixels, canvas });
+	const leastRecentlyUsed = rasterFragmentCache.keys().next();
+	if (
+		rasterFragmentCache.size > EditorLimit.RasterLayerRenderCache &&
+		!leastRecentlyUsed.done
+	)
+		rasterFragmentCache.delete(leastRecentlyUsed.value);
 	return canvas;
 }
 
@@ -719,44 +732,13 @@ export function renderAnnotationSelection(
 	context.setLineDash([]);
 	context.fillStyle = ColorPalette.White;
 	context.strokeStyle = ColorPalette.Selection;
-	const handles = shapeHandles(
-		genericShape(object).geometry,
-		ShapeHandleMetrics.Offset * visualScale,
-	);
-	for (const [key, point] of Object.entries(handles)) {
-		if (key === ShapeHandleId.Rotate) {
-			const halfSize = AnnotationRendering.RotateHandleHalfSize * visualScale;
-			const size = AnnotationRendering.RotateHandleSize * visualScale;
-			context.fillRect(
-				point.x - halfSize,
-				point.y - halfSize,
-				size,
-				size,
-			);
-			strokeRectangle(
-				context,
-				point.x - halfSize,
-				point.y - halfSize,
-				size,
-				size,
-			);
-		} else {
-			const halfSize = AnnotationRendering.ResizeHandleHalfSize * visualScale;
-			const size = AnnotationRendering.ResizeHandleSize * visualScale;
-			context.fillRect(
-				point.x - halfSize,
-				point.y - halfSize,
-				size,
-				size,
-			);
-			strokeRectangle(
-				context,
-				point.x - halfSize,
-				point.y - halfSize,
-				size,
-				size,
-			);
-		}
+	const handles = shapeHandles(genericShape(object).geometry);
+	const halfSize = AnnotationRendering.ResizeHandleHalfSize * visualScale;
+	const size = AnnotationRendering.ResizeHandleSize * visualScale;
+	for (const handle of RESIZE_HANDLES) {
+		const point = handles[handle];
+		context.fillRect(point.x - halfSize, point.y - halfSize, size, size);
+		strokeRectangle(context, point.x - halfSize, point.y - halfSize, size, size);
 	}
 	if (object.type === AnnotationObjectTypeId.Stroke)
 		renderStrokeEndpointHandles(context, object, visualScale);

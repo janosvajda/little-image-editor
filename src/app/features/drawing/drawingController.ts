@@ -1,5 +1,4 @@
 import {
-	DocumentType,
 	PaintToolId,
 	type Point,
 	type Tool,
@@ -68,6 +67,10 @@ export class DrawingController {
 		this.activateTool(this.#controls.tool, false);
 	}
 
+	get tool(): Tool {
+		return this.#controls.tool;
+	}
+
 	setInitialColor(theme: string): void {
 		this.#controls.setInitialColor(theme);
 	}
@@ -90,6 +93,10 @@ export class DrawingController {
 		this.shapes.select(objectId);
 	}
 
+	onToolChange(listener: (tool: Tool) => void): void {
+		this.#controls.onSelection(listener);
+	}
+
 	onInteractionRequested(listener: () => void): void {
 		this.#interactionListeners.add(listener);
 	}
@@ -104,7 +111,7 @@ export class DrawingController {
 		this.#selectionGesture?.clear();
 		if (tool !== UtilityToolId.Select) this.rasterSelection?.clear();
 		if (clearSelection && !this.preservesSelection(tool))
-			this.shapes?.select(null);
+			this.shapes?.clearSelection();
 		this.documentModel.overlay.classList.toggle(
 			'fill-cursor',
 			tool === UtilityToolId.Fill,
@@ -189,8 +196,7 @@ export class DrawingController {
 	private canInteract(): boolean {
 		return (
 			this.documentModel.layers.isEditable(CoreLayerId.Objects) ||
-			(this.documentModel.documentType === DocumentType.Image &&
-				isPaintTool(this.#controls.tool) &&
+			(this.#controls.tool === PaintToolId.Eraser &&
 				this.documentModel.layers.isEditable(CoreLayerId.Image)) ||
 			this.#controls.tool === UtilityToolId.Crop ||
 			(this.#controls.tool === UtilityToolId.Select &&
@@ -215,11 +221,12 @@ export class DrawingController {
 		const samples = gesture.coalesced
 			? (event.getCoalescedEvents?.() ?? [])
 			: [];
+		const modifiers = { constrained: event.shiftKey };
 		for (const sample of samples)
-			gesture.update(this.point(sample), sample.pressure);
+			gesture.update(this.point(sample), sample.pressure, modifiers);
 		const last = samples.at(-1);
 		if (last?.clientX !== event.clientX || last.clientY !== event.clientY)
-			gesture.update(this.point(event), event.pressure);
+			gesture.update(this.point(event), event.pressure, modifiers);
 	}
 
 	private onPointerUp(event: PointerEvent): void {

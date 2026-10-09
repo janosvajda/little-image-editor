@@ -7,10 +7,7 @@ import {
 import { DEFAULT_LAYER_STATE } from '../../core/layers/layerTypes';
 import { ProjectCodec } from './projectCodec';
 import { decodePixelBytes, encodePixelBytes } from './pixelDataCodec';
-import {
-	LEGACY_PROJECT_FORMAT_VERSION,
-	PROJECT_FORMAT_VERSION,
-} from './projectTypes';
+import { PROJECT_FORMAT_VERSION } from './projectTypes';
 
 const CanvasSize = { Width: 800, Height: 600 } as const;
 const RgbaChannelCount = 4;
@@ -44,33 +41,6 @@ describe('compact lossless project persistence', () => {
 
 		expect(encoded.startsWith('rle:')).toBe(false);
 		expect(decodePixelBytes(encoded)).toEqual(pixels);
-	});
-
-	it('opens legacy version-2 projects with raw Base64 pixels exactly', () => {
-		const codec = new ProjectCodec();
-		const source = JSON.parse(codec.serialize(session(mostlyBlankCanvas()))) as {
-			version: number;
-			document: {
-				pixels: string;
-				history: Array<{ pixels: string }>;
-			};
-		};
-		const legacyPixels = Uint8ClampedArray.from([1, 2, 3, 4]);
-		source.version = LEGACY_PROJECT_FORMAT_VERSION;
-		source.document = {
-			...source.document,
-			pixels: btoa(String.fromCharCode(...legacyPixels)),
-			history: [
-				{ pixels: btoa(String.fromCharCode(...legacyPixels)) },
-			] as Array<{ pixels: string }>,
-		};
-		Object.assign(source.document, { width: 1, height: 1 });
-		Object.assign(source.document.history[0]!, { width: 1, height: 1 });
-		Object.assign(source.document, { historyIndex: 0 });
-		const restored = codec.toSession(codec.parse(JSON.stringify(source)));
-
-		expect(restored.pixels).toEqual(legacyPixels);
-		expect(restored.history[0]?.pixels).toEqual(legacyPixels);
 	});
 });
 

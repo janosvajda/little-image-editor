@@ -1,18 +1,23 @@
 import type { CanvasDocument } from '../../core/document/imageDocument';
 import {
+	BLEND_MODE_LABELS,
+	BlendMode,
 	CoreLayerId,
-	LayerKind,
 	type EditorLayer,
+	isBlendMode,
+	type LayerAppearanceChange,
+	LayerKind,
+	LayerOpacity,
 } from '../../core/layers/layerTypes';
+import { Numeric } from '../../shared/math/numericConstants';
 import {
 	AnnotationStackDirection,
 	type AnnotationDocument,
 	isEphemeralAnnotationChange,
 } from '../annotations/annotationDocument';
-import {
-	AnnotationObjectTypeId,
-	type AnnotationObject,
-} from '../annotations/annotationTypes';
+import type { AnnotationObject } from '../annotations/annotationTypes';
+import { layerAppearance, resolveLayerNames } from './layerAppearance';
+import { LayerMerger } from './layerMerge';
 import { LayersPanel } from './layersPanel';
 
 const VisibilitySymbol = { Visible: '◉', Hidden: '○' } as const;
@@ -31,33 +36,26 @@ const LayerActionSymbol = {
 	Backward: '↓',
 	Drag: '⠿',
 } as const;
-const ObjectTypeLabel: Readonly<Record<AnnotationObject['type'], string>> = {
-	[AnnotationObjectTypeId.Arrow]: 'Arrow',
-	[AnnotationObjectTypeId.Step]: 'Number marker',
-	[AnnotationObjectTypeId.Box]: 'Box',
-	[AnnotationObjectTypeId.Highlight]: 'Highlight',
-	[AnnotationObjectTypeId.Text]: 'Text',
-	[AnnotationObjectTypeId.Blur]: 'Blur',
-	[AnnotationObjectTypeId.Redact]: 'Redaction',
-	[AnnotationObjectTypeId.Shape]: 'Shape',
-	[AnnotationObjectTypeId.Stroke]: 'Stroke',
-	[AnnotationObjectTypeId.Fill]: 'Fill',
-	[AnnotationObjectTypeId.RasterFragment]: 'Raster fragment',
-};
+const APPEARANCE_SEPARATOR = ' · ';
+const PERCENT_SUFFIX = '%';
 
 export class LayersController {
 	readonly #editListeners = new Set<(objectId: string) => void>();
 	#draggedObjectId: string | null = null;
 	#dragPointerId: number | null = null;
 	#dragPreview: HTMLElement | null = null;
+	#opacityEditPending = false;
+	readonly #merger: LayerMerger | null;
 	constructor(
 		private readonly documentModel: CanvasDocument,
 		private readonly objects?: AnnotationDocument,
 		readonly panel = new LayersPanel(),
 	) {
+		this.#merger = objects ? new LayerMerger(documentModel, objects) : null;
 		this.panel.newPaintLayerButton.addEventListener('click', () =>
 			this.objects?.createPaintLayer(),
 		);
+		this.bindLayerProperties();
 		documentModel.layers.onChange((state) =>
 			this.render(state.layers, state.activeLayerId),
 		);
@@ -74,20 +72,109 @@ export class LayersController {
 
 	private render(layers: readonly EditorLayer[], activeLayerId: string): void {
 		const rows: HTMLElement[] = [];
+		const objects = this.objects?.state.objects ?? [];
+		const names = resolveLayerNames(objects);
+		const activeObject = this.objects?.activeLayer ?? null;
 		for (const layer of [...layers].reverse()) {
 			if (layer.kind === LayerKind.Objects && this.objects) {
 				rows.push(
-					...([...this.objects.state.objects]
+					...[...objects]
 						.reverse()
 						.map((object, index) =>
-							this.createObjectRow(object, index),
-						) satisfies HTMLElement[]),
+							this.createObjectRow(
+								object,
+								index,
+								names.get(object.id) ?? '',
+								object.id === activeObject?.id,
+							),
+						),
 				);
 				continue;
 			}
-			rows.push(this.createLayerRow(layer, layer.id === activeLayerId && !this.objects?.selectedId));
+			rows.push(
+				this.createLayerRow(
+					layer,
+					layer.id === activeLayerId && activeObject === null,
+				),
+			);
 		}
 		this.panel.list.replaceChildren(...rows);
+		this.syncLayerProperties(
+			activeObject,
+			activeObject ? (names.get(activeObject.id) ?? '') : '',
+		);
+	}
+
+	private bindLayerProperties(): void {
+		const { nameInput, blendModeSelect, opacityInput } = this.panel;
+		this.panel.duplicateLayerButton.addEventListener('click', () => {
+			const active = this.objects?.activeLayer;
+			if (active) this.objects?.duplicate(active.id);
+		});
+		this.panel.mergeDownButton.addEventListener('click', () => {
+			const active = this.objects?.activeLayer;
+			if (active) this.#merger?.mergeDown(active.id);
+		});
+		nameInput.addEventListener('change', () =>
+			this.changeActiveLayer({ name: nameInput.value }),
+		);
+		nameInput.addEventListener('keydown', (event) => {
+			if (event.key === 'Enter') nameInput.blur();
+			if (event.key !== 'Escape') return;
+			const active = this.objects?.activeLayer;
+			if (active) nameInput.value = this.objects?.layerName(active.id) ?? '';
+			nameInput.blur();
+		});
+		blendModeSelect.addEventListener('change', () => {
+			const blendMode = blendModeSelect.value;
+			if (isBlendMode(blendMode)) this.changeActiveLayer({ blendMode });
+		});
+		opacityInput.addEventListener('input', () => {
+			this.#opacityEditPending = true;
+			this.changeActiveLayer(
+				{ opacity: Number(opacityInput.value) / Numeric.PercentScale },
+				false,
+			);
+			this.showOpacity(Number(opacityInput.value));
+		});
+		opacityInput.addEventListener('change', () => {
+			if (!this.#opacityEditPending) return;
+			this.#opacityEditPending = false;
+			this.objects?.commitCurrent();
+		});
+	}
+
+	private changeActiveLayer(
+		change: LayerAppearanceChange,
+		commit = true,
+	): void {
+		const active = this.objects?.activeLayer;
+		if (active) this.objects?.setLayerAppearance(active.id, change, commit);
+	}
+
+	private syncLayerProperties(
+		active: AnnotationObject | null,
+		name: string,
+	): void {
+		const { properties, nameInput, blendModeSelect, opacityInput } =
+			this.panel;
+		properties.disabled = active === null;
+		this.panel.duplicateLayerButton.disabled = active === null;
+		this.panel.mergeDownButton.disabled =
+			active === null || !this.#merger?.canMergeDown(active.id);
+		const appearance = active
+			? layerAppearance(active)
+			: { opacity: LayerOpacity.Opaque, blendMode: BlendMode.Normal };
+		if (document.activeElement !== nameInput) nameInput.value = name;
+		nameInput.placeholder = active ? '' : 'Image';
+		blendModeSelect.value = appearance.blendMode;
+		const opacityPercent = Math.round(appearance.opacity * Numeric.PercentScale);
+		if (!this.#opacityEditPending) opacityInput.value = String(opacityPercent);
+		this.showOpacity(opacityPercent);
+	}
+
+	private showOpacity(percent: number): void {
+		this.panel.opacityOutput.value = `${percent}${PERCENT_SUFFIX}`;
 	}
 
 	private createLayerRow(layer: EditorLayer, selected: boolean): HTMLElement {
@@ -136,18 +223,26 @@ export class LayersController {
 		this.documentModel.layers.select(layerId);
 	}
 
-	private createObjectRow(object: AnnotationObject, index: number): HTMLElement {
+	/** Makes the row's layer active without changing the tool. */
+	private activateObject(object: AnnotationObject): void {
+		if (!this.objects) return;
+		this.documentModel.layers.select(CoreLayerId.Objects);
+		if (this.objects.isEditable(object.id)) this.objects.select(object.id);
+		else this.objects.activate(object.id);
+	}
+
+	private createObjectRow(
+		object: AnnotationObject,
+		index: number,
+		label: string,
+		active: boolean,
+	): HTMLElement {
 		const row = document.createElement('div');
 		row.className = 'layer-row layer-object-row';
 		row.dataset.objectId = object.id;
 		row.classList.toggle('locked', object.locked === true);
 		row.classList.toggle(DRAG_SOURCE_CLASS, this.#draggedObjectId === object.id);
-		this.bindSelectableRow(
-			row,
-			this.objects?.selectedId === object.id,
-			() => this.editObject(object),
-		);
-		const label = `${object.type === AnnotationObjectTypeId.Stroke ? 'Paint layer' : ObjectTypeLabel[object.type]} ${index + 1}`;
+		this.bindSelectableRow(row, active, () => this.activateObject(object));
 		const dragHandle = this.dragHandle(row, object.id, label);
 		const visibility = this.actionButton(
 			object.visible === false ? VisibilitySymbol.Hidden : VisibilitySymbol.Visible,
@@ -156,9 +251,16 @@ export class LayersController {
 		);
 		visibility.className = 'layer-visibility';
 		const name = this.actionButton(label, `Select ${label}`, () =>
-			this.editObject(object),
+			this.activateObject(object),
 		);
 		name.className = 'layer-name';
+		const appearance = appearanceSummary(object);
+		if (appearance) {
+			const badge = document.createElement('span');
+			badge.className = 'layer-appearance';
+			badge.textContent = appearance;
+			name.append(badge);
+		}
 		const lock = this.actionButton(
 			object.locked ? LayerActionSymbol.Locked : LayerActionSymbol.Unlocked,
 			`${object.locked ? 'Unlock' : 'Lock'} ${label}`,
@@ -356,4 +458,14 @@ export class LayersController {
 		button.addEventListener('click', action);
 		return button;
 	}
+}
+
+/** A short "50% · Multiply" note for layers that do not composite normally. */
+function appearanceSummary(object: AnnotationObject): string {
+	const { opacity, blendMode } = layerAppearance(object);
+	const parts: string[] = [];
+	if (opacity !== LayerOpacity.Opaque)
+		parts.push(`${Math.round(opacity * Numeric.PercentScale)}${PERCENT_SUFFIX}`);
+	if (blendMode !== BlendMode.Normal) parts.push(BLEND_MODE_LABELS[blendMode]);
+	return parts.join(APPEARANCE_SEPARATOR);
 }

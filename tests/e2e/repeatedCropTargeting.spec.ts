@@ -21,7 +21,7 @@ test('a moved crop fragment does not block cropping another retained layer', asy
 	await expect(page.locator('.layer-object-row')).toHaveCount(3);
 	await expect(page.locator('[data-tool="crop"]')).toHaveClass(/active/);
 
-	await drag(overlay, bounds.x + 174, bounds.y + 66, bounds.x + 174, bounds.y + 266, 4);
+	await drag(overlay, bounds.x + 150, bounds.y + 150, bounds.x + 150, bounds.y + 350, 4);
 	await expect(page.locator('[data-tool="crop"]')).toHaveClass(/active/);
 	const pixels = await page.locator('.annotation-canvas').evaluate((canvas) => {
 		const context = (canvas as HTMLCanvasElement).getContext('2d')!;

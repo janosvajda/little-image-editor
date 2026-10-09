@@ -18,11 +18,11 @@ describe("annotation shape reselection", () => {
 
     pointer(overlay, "pointerdown", 40, 55); pointer(overlay, "pointerup", 40, 55);
     expect(controller.annotations.selectedId).toBe("older");
-    pointer(overlay, "pointermove", 60, 70); expect(overlay.style.cursor).toBe("nwse-resize");
-    pointer(overlay, "pointermove", 40, 16); expect(overlay.style.cursor).toContain("data:image/svg+xml");
     pointer(overlay, "pointermove", 220, 120); expect(overlay.style.cursor).toBe("crosshair");
 
     controller.panel.toolButtons.get("select")!.click();
+    pointer(overlay, "pointermove", 60, 70); expect(overlay.style.cursor).toBe("nwse-resize");
+    pointer(overlay, "pointermove", 40, 16); expect(overlay.style.cursor).toContain("data:image/svg+xml");
     pointer(overlay, "pointermove", 40, 55); expect(overlay.style.cursor).toBe("move");
     pointer(overlay, "pointermove", 220, 120); expect(overlay.style.cursor).toBe("default");
     pointer(overlay, "pointerleave", 250, 150); expect(overlay.style.cursor).toBe("default");

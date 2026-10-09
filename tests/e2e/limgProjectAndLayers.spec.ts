@@ -58,5 +58,5 @@ test('.limg saves and restores an editable layered project', async ({
 	});
 
 	await expect(page.locator('#canvasWrap')).toBeVisible();
-	await expect(layers.locator('.layer-row')).toHaveCount(2);
+	await expect(layers.locator('.layer-row')).toHaveCount(1);
 });

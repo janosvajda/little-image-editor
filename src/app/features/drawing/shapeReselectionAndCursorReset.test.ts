@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ShapeToolId } from "../../core/document/appTypes";
+import { ShapeToolId, UtilityToolId } from "../../core/document/appTypes";
 import { CanvasDocument } from "../../core/document/imageDocument";
 import { AnnotationDocument } from "../annotations/annotationDocument";
 import { AnnotationObjectTypeId, type ShapeAnnotation } from "../annotations/annotationTypes";
@@ -55,12 +55,13 @@ describe("retained shape reselection", () => {
     pointer(overlay, PointerEventType.Up, PointerFixture.OlderShape);
     expect(shapes.selectedId).toBe("older");
 
+    drawing.select(UtilityToolId.Select);
     pointer(overlay, PointerEventType.Move, PointerFixture.ResizeHandle);
     expect(overlay.style.cursor).toBe("nwse-resize");
     pointer(overlay, PointerEventType.Move, PointerFixture.EmptyCanvas);
-    expect(overlay.style.cursor).toBe("crosshair");
+    expect(overlay.style.cursor).toBe("default");
     pointer(overlay, PointerEventType.Leave, PointerFixture.OutsideCanvas);
-    expect(overlay.style.cursor).toBe("crosshair");
+    expect(overlay.style.cursor).toBe("default");
   });
 });
 

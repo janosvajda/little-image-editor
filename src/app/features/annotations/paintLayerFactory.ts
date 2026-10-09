@@ -1,7 +1,13 @@
 import { PaintToolId } from '../../core/document/appTypes';
 import { ColorPalette } from '../../core/document/colorPalette';
 import { CoreLayerId } from '../../core/layers/layerTypes';
-import { AnnotationObjectTypeId, type StrokeAnnotation } from './annotationTypes';
+import { encodePixelBytes } from '../../shared/image/pixelDataCodec';
+import type { ExtractedPixelFragment } from '../drawing/pixelCutMove';
+import {
+	AnnotationObjectTypeId,
+	type RasterFragmentAnnotation,
+	type StrokeAnnotation,
+} from './annotationTypes';
 
 const EmptyPaintLayerGeometry = {
 	x: 0,
@@ -33,6 +39,22 @@ export function createPaintLayer(): StrokeAnnotation {
 		opacity: PaintLayerDefault.Opacity,
 		hardness: PaintLayerDefault.Hardness,
 		seed: PaintLayerDefault.Seed,
+		rotation: 0,
+	};
+}
+
+/** A pixel layer holding exactly the given pixels at their document position. */
+export function createRasterFragmentLayer(
+	fragment: ExtractedPixelFragment,
+): RasterFragmentAnnotation {
+	const { left, top, width, height } = fragment.bounds;
+	return {
+		id: crypto.randomUUID(),
+		type: AnnotationObjectTypeId.RasterFragment,
+		rect: { x: left, y: top, width, height },
+		pixelWidth: width,
+		pixelHeight: height,
+		pixels: encodePixelBytes(fragment.pixels),
 		rotation: 0,
 	};
 }

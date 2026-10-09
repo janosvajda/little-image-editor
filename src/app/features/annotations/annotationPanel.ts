@@ -7,6 +7,8 @@ const BUG_REPORT_VISIBLE_ROWS = 7;
 
 import { ColorPalette } from '../../core/document/colorPalette';
 
+/** Toolbar preferences key; distinct from the annotation layers' document state. */
+export const ANNOTATION_TOOLBAR_KEY = 'annotationToolbar';
 const TOOLS: ReadonlyArray<
 	Readonly<{ tool: AnnotationTool; icon: string; label: string; key?: string }>
 > = [
@@ -41,9 +43,6 @@ export class AnnotationPanel {
 	readonly restart = action('①', 'Restart numbering at 1');
 	readonly flatten = action('✓', 'Apply annotations to image');
 	readonly clear = action('⌫', 'Clear annotations');
-	readonly cropActions = document.createElement('div');
-	readonly applyCrop = action('✓', 'Apply crop');
-	readonly cancelCrop = action('×', 'Cancel crop');
 	readonly reportPreview = document.createElement('textarea');
 	readonly expected = input('text', '', { placeholder: 'Expected result' });
 	readonly actual = input('text', '', { placeholder: 'Actual result' });
@@ -63,7 +62,7 @@ export class AnnotationPanel {
 			},
 		);
 		this.element = panel.element;
-		this.element.dataset.toolbarKey = 'annotationToolbar';
+		this.element.dataset.toolbarKey = ANNOTATION_TOOLBAR_KEY;
 		assignId(this.color, 'annotationColor');
 		assignId(this.size, 'annotationSize');
 		assignId(this.opacity, 'annotationOpacity');
@@ -102,8 +101,6 @@ export class AnnotationPanel {
 		const history = document.createElement('div');
 		history.className = 'annotation-actions';
 		history.append(this.undo, this.redo, this.flatten, this.clear);
-		this.cropActions.className = 'annotation-crop-actions hidden';
-		this.cropActions.append(this.cancelCrop, this.applyCrop);
 		const report = section(
 			'Bug report',
 			field('Expected', this.expected),
@@ -119,9 +116,15 @@ export class AnnotationPanel {
 			this.markerControls,
 			options,
 			history,
-			this.cropActions,
 			report,
 		);
+	}
+
+	/** Crop is owned by the shared drawing tool; its button mirrors that tool's state. */
+	reflectSharedCropTool(active: boolean): void {
+		this.toolButtons
+			.get(AnnotationToolId.Crop)
+			?.classList.toggle('active', active);
 	}
 
 	setActiveTool(tool: AnnotationTool): void {

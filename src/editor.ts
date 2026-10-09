@@ -1,14 +1,23 @@
+import { type Tool, UtilityToolId } from './app/core/document/appTypes';
+import {
+	EditorHistory,
+	HistoryDomain,
+} from './app/core/history/editorHistory';
 import { CanvasDocument } from './app/core/document/imageDocument';
 import { AnnotationController } from './app/features/annotations/annotationController';
 import {
 	AnnotationDocument,
 	LinkedHistoryDirection,
 } from './app/features/annotations/annotationDocument';
-import { AnnotationPanel } from './app/features/annotations/annotationPanel';
+import {
+	ANNOTATION_TOOLBAR_KEY,
+	AnnotationPanel,
+} from './app/features/annotations/annotationPanel';
 import type { AnnotationTool } from './app/features/annotations/annotationTypes';
 import { LinkedHistoryDomain } from './app/features/annotations/annotationTypes';
 import { BrowserCaptureImporter } from './app/features/capture/browserCaptureImporter';
 import { DrawingController } from './app/features/drawing/drawingController';
+import { selectionPresentationFor } from './app/features/drawing/drawingToolBehavior';
 import { EffectsController } from './app/features/effects/effectsController';
 import { ImageOperations } from './app/features/effects/imageOperationsController';
 import { ClipboardController } from './app/features/files/clipboardController';
@@ -72,6 +81,9 @@ const drawing = new DrawingController(
 	vectorShapes,
 	rasterSelection,
 );
+drawing.onToolChange((tool) =>
+	annotationPanel.reflectSharedCropTool(tool === UtilityToolId.Crop),
+);
 layers.onEditRequested((objectId) => {
 	drawing.editObject(objectId);
 });
@@ -81,7 +93,7 @@ const toolbarManager = new ToolbarManager(documentModel);
 const annotationPreferences = toolbarManager.get<{
 	tool: AnnotationTool;
 	reportEdited: boolean;
-}>('annotationToolbar');
+}>(ANNOTATION_TOOLBAR_KEY);
 if (!annotationPreferences)
 	throw new Error(
 		'The annotations panel was not registered by ToolbarManager.',
@@ -93,6 +105,10 @@ const annotations = new AnnotationController(
 	annotationPreferences,
 	vectorShapes,
 );
+const presentSelectionFor = (tool: Tool) =>
+	annotations.setDrawingSelectionPresentation(selectionPresentationFor(tool));
+presentSelectionFor(drawing.tool);
+drawing.onToolChange(presentSelectionFor);
 const projects = new ProjectController(documentModel, undefined, vectorShapes);
 files.setProjectSaveHandler((saveAs) => projects.save(saveAs));
 files.setProjectOpenHandler((file) => projects.openFile(file));
@@ -156,47 +172,25 @@ const redoButtons = [
 	element<HTMLButtonElement>('#redoButton'),
 	element<HTMLButtonElement>('#menuRedoButton'),
 ];
-let documentCanUndo = false;
-let documentCanRedo = false;
-let objectCanUndo = false;
-let objectCanRedo = false;
-let historyDomain: 'document' | 'objects' = 'document';
-const updateHistoryButtons = () => {
-	const useObjects = historyDomain === 'objects';
-	const canUndo = useObjects ? objectCanUndo : documentCanUndo;
-	const canRedo = useObjects ? objectCanRedo : documentCanRedo;
+const editorHistory = new EditorHistory({
+	[HistoryDomain.Document]: documentModel,
+	[HistoryDomain.Objects]: vectorShapes,
+});
+editorHistory.onChange((canUndo, canRedo) => {
 	undoButtons.forEach((button) => {
 		button.disabled = !canUndo;
 	});
 	redoButtons.forEach((button) => {
 		button.disabled = !canRedo;
 	});
-};
-documentModel.onHistoryChange((canUndo, canRedo) => {
-	documentCanUndo = canUndo;
-	documentCanRedo = canRedo;
-	historyDomain = 'document';
-	updateHistoryButtons();
-});
-vectorShapes.onHistoryChange((canUndo, canRedo) => {
-	objectCanUndo = canUndo;
-	objectCanRedo = canRedo;
-	historyDomain = 'objects';
-	updateHistoryButtons();
 });
 vectorShapes.onLinkedHistoryAction((domain, direction) => {
 	if (domain !== LinkedHistoryDomain.Document) return;
 	if (direction === LinkedHistoryDirection.Undo) documentModel.undo();
 	else documentModel.redo();
 });
-const undo = () =>
-	historyDomain === 'objects'
-		? vectorShapes.undo()
-		: documentModel.undo();
-const redo = () =>
-	historyDomain === 'objects'
-		? vectorShapes.redo()
-		: documentModel.redo();
+const undo = () => editorHistory.undo();
+const redo = () => editorHistory.redo();
 undoButtons.forEach((button) => button.addEventListener('click', undo));
 redoButtons.forEach((button) => button.addEventListener('click', redo));
 

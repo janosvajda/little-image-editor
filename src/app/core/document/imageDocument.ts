@@ -7,6 +7,7 @@ import { canvasContext } from '../../shared/dom/domHelpers';
 import { degreesToRadians, Numeric } from '../../shared/math/numericConstants';
 import { LayerDocument } from '../layers/layerDocument';
 import { CoreLayerId } from '../layers/layerTypes';
+import type { HistoryCommit, HistoryParticipant } from '../history/editorHistory';
 import type {
 	CropRect,
 	DocumentSessionSnapshot,
@@ -42,7 +43,7 @@ type GeometryHistoryEntry = Readonly<{
 	rect: CropRect;
 }> | null;
 
-export class CanvasDocument {
+export class CanvasDocument implements HistoryParticipant {
 	readonly context: CanvasRenderingContext2D;
 	readonly overlayContext: CanvasRenderingContext2D;
 	readonly layers = new LayerDocument();
@@ -54,11 +55,13 @@ export class CanvasDocument {
 	resolution = PIXELS_PER_INCH;
 	documentType: DocumentType = DocumentType.Image;
 	#opaqueBackgroundColor: string | null = null;
+	#imagePresentedByComposite = false;
 
 	#history: ImageData[] = [];
 	#geometryHistory: GeometryHistoryEntry[] = [];
 	#historyIndex = EMPTY_HISTORY_INDEX;
 	#historyListeners = new Set<(canUndo: boolean, canRedo: boolean) => void>();
+	#commitListeners = new Set<(commit: HistoryCommit) => void>();
 	#documentListeners = new Set<
 		(
 			snapshot: Readonly<{ hasImage: boolean; width: number; height: number }>,
@@ -78,11 +81,23 @@ export class CanvasDocument {
 		this.context = canvasContext(canvas, { willReadFrequently: true });
 		this.overlayContext = canvasContext(overlay);
 		this.layers.onChange(() => {
-			this.canvas.style.opacity = this.layers.isVisible(CoreLayerId.Image)
-				? '1'
-				: '0';
+			this.#updateImagePresentation();
 			if (this.hasImage) this.#emitContentChange();
 		});
+	}
+
+	get canUndo(): boolean {
+		return this.#historyIndex > 0;
+	}
+	get canRedo(): boolean {
+		return this.#historyIndex < this.#history.length - 1;
+	}
+	get undoDepth(): number {
+		return Math.max(this.#historyIndex, 0);
+	}
+
+	onCommit(listener: (commit: HistoryCommit) => void): void {
+		this.#commitListeners.add(listener);
 	}
 
 	get width(): number {
@@ -114,6 +129,16 @@ export class CanvasDocument {
 	/** Signals that recovery data is stale without eagerly copying the canvas. */
 	onContentChange(listener: (hasImage: boolean) => void): void {
 		this.#contentListeners.add(listener);
+	}
+
+	/**
+	 * Blended layers need the image in the same surface they blend against.
+	 * While that surface presents the image, the image canvas itself is hidden.
+	 */
+	setImagePresentedByComposite(presented: boolean): void {
+		if (this.#imagePresentedByComposite === presented) return;
+		this.#imagePresentedByComposite = presented;
+		this.#updateImagePresentation();
 	}
 
 	registerCompositeRenderer(
@@ -162,10 +187,7 @@ export class CanvasDocument {
 			0,
 			0,
 		);
-		this.savedType = snapshot.savedType;
-		this.resolution = snapshot.resolution ?? PIXELS_PER_INCH;
-		this.documentType = snapshot.documentType ?? DocumentType.Image;
-		this.#opaqueBackgroundColor = this.containsTransparency() ? null : '#ffffff';
+		this.#restoreSnapshotMetadata(snapshot);
 		this.activate(snapshot.baseName);
 	}
 
@@ -195,9 +217,7 @@ export class CanvasDocument {
 			this.#history = [current];
 			this.#historyIndex = 0;
 		}
-		this.savedType = snapshot.savedType;
-		this.resolution = snapshot.resolution ?? PIXELS_PER_INCH;
-		this.#opaqueBackgroundColor = this.containsTransparency() ? null : '#ffffff';
+		this.#restoreSnapshotMetadata(snapshot);
 		this.hasImage = true;
 		this.fileHandle = null;
 		this.baseName = snapshot.baseName;
@@ -284,6 +304,9 @@ export class CanvasDocument {
 			this.#geometryHistory.shift();
 		}
 		this.#historyIndex = this.#history.length - 1;
+		this.#commitListeners.forEach((listener) =>
+			listener({ absorbsPrevious: false }),
+		);
 		this.#emitHistory();
 		if (this.hasImage) this.#emitContentChange();
 	}
@@ -432,6 +455,25 @@ export class CanvasDocument {
 		this.clearOverlay();
 		this.#emitHistory();
 		this.#emitContentChange();
+	}
+
+	/**
+	 * Document type decides whether retained layers are kept or flattened, so
+	 * every restore path must carry it with the rest of the snapshot metadata.
+	 */
+	#restoreSnapshotMetadata(snapshot: ImageSnapshot): void {
+		this.savedType = snapshot.savedType;
+		this.resolution = snapshot.resolution ?? PIXELS_PER_INCH;
+		this.documentType = snapshot.documentType ?? DocumentType.Image;
+		this.#opaqueBackgroundColor = this.containsTransparency() ? null : '#ffffff';
+	}
+
+	#updateImagePresentation(): void {
+		this.canvas.style.opacity =
+			this.layers.isVisible(CoreLayerId.Image) &&
+			!this.#imagePresentedByComposite
+				? '1'
+				: '0';
 	}
 
 	#snapshotImageData(state: ImageData): HistorySnapshot {

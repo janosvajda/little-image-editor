@@ -619,7 +619,7 @@ test("audits adjustments, effects, transforms, history, file input, and sprite c
   await page.locator("#redoButton").click();
   await expect(page.locator("#dimensions")).toHaveText("20 × 10 px");
 
-  await expect(page.locator("#fileInput")).toHaveAttribute("accept", "image/png,image/jpeg,image/webp");
+  await expect(page.locator("#fileInput")).toHaveAttribute("accept", "image/png,image/jpeg,image/webp,.limg,application/vnd.little-image-editor.project+json");
   await page.locator("#functionsButton").click();
   await expect(page.locator("#buildSpriteButton")).toBeDisabled();
   await expect(page.locator("#spriteInput")).toHaveAttribute("accept", "image/png,image/jpeg,image/webp");

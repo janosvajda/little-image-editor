@@ -1396,17 +1396,6 @@ html[data-theme=dark] .transparency-warning strong {
 
 .selection-handle,
 .selection-endpoint,
-.selection-move-handle circle {
-    fill: var(--surface);
-    stroke: var(--accent);
-    vector-effect: non-scaling-stroke
-}
-
-.selection-move-handle line {
-    stroke: var(--accent);
-    vector-effect: non-scaling-stroke
-}
-
 .canvas-ruler,
 .ruler-corner {
     position: absolute;
@@ -1583,9 +1572,68 @@ body.focus-mode .canvas-ruler-layer {
 	font-size: 11px;
 }
 
+.layer-properties {
+	display: grid;
+	gap: 6px;
+	margin: 0 0 8px;
+	padding: 8px;
+	border: 1px solid var(--border);
+	border-radius: 8px;
+	background: var(--surface2);
+}
+
+.layer-properties legend {
+	padding: 0 4px;
+	color: var(--muted);
+	font-size: 11px;
+}
+
+.layer-properties:disabled {
+	opacity: 0.55;
+}
+
+.layer-property {
+	display: grid;
+	grid-template-columns: 56px minmax(0, 1fr) auto;
+	align-items: center;
+	gap: 6px;
+	font-size: 12px;
+}
+
+.layer-property > span {
+	color: var(--muted);
+}
+
+.layer-property input[type=text],
+.layer-property select {
+	grid-column: span 2;
+	min-width: 0;
+}
+
+.layer-opacity-value {
+	min-width: 3.5ch;
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+}
+
+.layer-actions {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto auto;
+	gap: 6px;
+	margin: 0 0 8px;
+}
+
 .layer-new-paint {
 	width: 100%;
-	margin: 0 0 8px;
+}
+
+.layer-appearance {
+	display: block;
+	overflow: hidden;
+	color: var(--muted);
+	font-size: 10px;
+	font-weight: 400;
+	text-overflow: ellipsis;
 }
 
 .layer-row {

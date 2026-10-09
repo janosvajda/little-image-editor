@@ -11,14 +11,16 @@ test('Layers uses generic toolbar scrolling and visibly selects clicked objects'
 	await page.locator('#newImageName').fill('scrolling-layers');
 	await page.locator('#createImageButton').click();
 	await selectBrush(page);
+	await page.locator('#toolbarPickerButton').click();
+	await page.getByLabel('Layers', { exact: true }).check();
+	await page.keyboard.press('Escape');
+	const panel = page.locator('[data-panel="layers"]');
 	for (let index = 0; index < ObjectCount; index += 1) {
 		const x = 30 + (index % 10) * 70;
 		const y = 40 + Math.floor(index / 10) * 100;
+		await panel.locator('.layer-new-paint').click();
 		await drawStroke(page, x, y);
 	}
-	await page.locator('#toolbarPickerButton').click();
-	await page.getByLabel('Layers', { exact: true }).check();
-	const panel = page.locator('[data-panel="layers"]');
 	const body = panel;
 	await expect(panel).toBeVisible();
 	await expect(panel.locator('.layer-object-row')).toHaveCount(ObjectCount);

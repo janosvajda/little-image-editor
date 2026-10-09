@@ -7,7 +7,11 @@ import {
 	type AnnotationState,
 } from './annotationTypes';
 import { EditorLimit } from '../../core/document/editorLimits';
-import { CoreLayerId } from '../../core/layers/layerTypes';
+import {
+	CoreLayerId,
+	isBlendMode,
+	isLayerOpacity,
+} from '../../core/layers/layerTypes';
 import { decodePixelBytes } from '../../shared/image/pixelDataCodec';
 
 const MINIMUM_HISTORY_LENGTH = 1;
@@ -58,6 +62,7 @@ function isAnnotationObject(value: unknown): value is AnnotationObject {
 		typeof value.id !== 'string' ||
 		!isOptionalBoolean(value.visible) ||
 		!isOptionalBoolean(value.locked) ||
+		!isOptionalLayerAppearance(value) ||
 		!isOptionalObjectErasures(value.erasures) ||
 		!isOptionalPixelMasks(value.pixelCutouts) ||
 		!isOptionalPixelMasks(value.pixelClips) ||
@@ -311,4 +316,12 @@ function isPositiveInteger(value: unknown): value is number {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isOptionalLayerAppearance(value: Record<string, unknown>): boolean {
+	return (
+		(value.name === undefined || typeof value.name === 'string') &&
+		(value.layerOpacity === undefined || isLayerOpacity(value.layerOpacity)) &&
+		(value.blendMode === undefined || isBlendMode(value.blendMode))
+	);
 }

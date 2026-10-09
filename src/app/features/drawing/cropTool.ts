@@ -1,30 +1,21 @@
-import {
-	DocumentType,
-	type CropRect,
-	type Point,
+import type {
+	CropRect,
+	Point,
 } from '../../core/document/appTypes';
 import type { CanvasDocument } from '../../core/document/imageDocument';
 import { genericShape } from '../../core/geometry/genericShape';
 import { normalizedRect } from '../../core/geometry/geometryHelpers';
 import { CoreLayerId } from '../../core/layers/layerTypes';
-import { encodePixelBytes } from '../../shared/image/pixelDataCodec';
 import type { AnnotationDocument } from '../annotations/annotationDocument';
 import { renderAnnotationObject } from '../annotations/annotationRenderer';
-import {
-	type AnnotationObject,
-	AnnotationObjectTypeId,
-	LinkedHistoryDomain,
-	type RasterFragmentAnnotation,
-} from '../annotations/annotationTypes';
+import { createRasterFragmentLayer } from '../annotations/paintLayerFactory';
+import type { AnnotationObject } from '../annotations/annotationTypes';
 import type { CanvasViewportController } from '../workspace/canvasViewportController';
 import { BaseImageCropSelection } from './baseImageCropSelection';
 import { CropSelectionOverlay } from './cropSelectionOverlay';
 import { CropSelectionKind } from './cropSelectionTypes';
 import type { DrawingGesture } from './gestures/drawingGesture';
-import {
-	type ExtractedPixelFragment,
-	extractPixelFragment,
-} from './pixelCutMove';
+import { extractPixelFragment } from './pixelCutMove';
 
 const MINIMUM_POLYGON_POINTS = 3;
 
@@ -72,7 +63,7 @@ export class CropTool implements DrawingGesture {
 			points: [point],
 			targetId: this.shapes?.selectedId ?? null,
 		};
-		this.shapes?.select(null);
+		this.shapes?.clearSelection();
 		return this;
 	}
 
@@ -116,13 +107,6 @@ export class CropTool implements DrawingGesture {
 		selection: readonly Point[],
 		targetId: string | null,
 	): boolean {
-		if (this.documentModel.documentType === DocumentType.Image) {
-			if (!this.documentModel.layers.isEditable(CoreLayerId.Image)) return false;
-			this.shapes?.select(null);
-			this.documentModel.layers.select(CoreLayerId.Image);
-			this.#baseSelection.select(selection);
-			return true;
-		}
 		if (
 			this.shapes &&
 			this.documentModel.layers.isEditable(CoreLayerId.Objects)
@@ -151,7 +135,7 @@ export class CropTool implements DrawingGesture {
 					this.shapes.cutToRasterFragment(
 						target.id,
 						selection,
-						this.createRasterFragment(fragment),
+						createRasterFragmentLayer(fragment),
 					)
 				)
 					return true;
@@ -160,27 +144,12 @@ export class CropTool implements DrawingGesture {
 		return this.extractBaseImageSelection(selection);
 	}
 
+	/** With no retained layer under the selection, pixels move within the image layer. */
 	private extractBaseImageSelection(selection: readonly Point[]): boolean {
-		if (
-			!this.shapes ||
-			!this.documentModel.layers.isEditable(CoreLayerId.Image)
-		)
-			return false;
-		const fragment = extractPixelFragment(
-			this.documentModel.context,
-			this.documentModel.width,
-			this.documentModel.height,
-			selection,
-			this.documentModel.cropReplacementPixel() ?? undefined,
-		);
-		if (!fragment) return false;
-		this.documentModel.commit();
-		this.documentModel.layers.select(CoreLayerId.Objects);
-		this.shapes.add(
-			this.createRasterFragment(fragment),
-			true,
-			LinkedHistoryDomain.Document,
-		);
+		if (!this.documentModel.layers.isEditable(CoreLayerId.Image)) return false;
+		this.shapes?.select(null);
+		this.documentModel.layers.select(CoreLayerId.Image);
+		this.#baseSelection.select(selection);
 		return true;
 	}
 
@@ -206,25 +175,6 @@ export class CropTool implements DrawingGesture {
 					rectanglesIntersect(genericShape(object).geometry.rect, bounds),
 			);
 		return selectedCandidate ? [selectedCandidate, ...candidates] : candidates;
-	}
-
-	private createRasterFragment(
-		fragment: ExtractedPixelFragment,
-	): RasterFragmentAnnotation {
-		return {
-			id: crypto.randomUUID(),
-			type: AnnotationObjectTypeId.RasterFragment,
-			rect: {
-				x: fragment.bounds.left,
-				y: fragment.bounds.top,
-				width: fragment.bounds.width,
-				height: fragment.bounds.height,
-			},
-			pixelWidth: fragment.bounds.width,
-			pixelHeight: fragment.bounds.height,
-			pixels: encodePixelBytes(fragment.pixels),
-			rotation: 0,
-		};
 	}
 }
 

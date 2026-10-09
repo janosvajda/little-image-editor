@@ -1,5 +1,4 @@
 import {
-	DocumentType,
 	type PaintTool,
 	PaintToolId,
 	type Point,
@@ -9,10 +8,7 @@ import {
 import type { CanvasDocument } from '../../core/document/imageDocument';
 import { CoreLayerId } from '../../core/layers/layerTypes';
 import type { AnnotationDocument } from '../annotations/annotationDocument';
-import {
-	AnnotationObjectTypeId,
-	LinkedHistoryDomain,
-} from '../annotations/annotationTypes';
+import { AnnotationObjectTypeId } from '../annotations/annotationTypes';
 import type { RasterSelection } from '../selection/rasterSelection';
 import {
 	type CanvasViewportController,
@@ -43,11 +39,7 @@ export class DrawingToolRouter {
 		private readonly settings: DrawingToolSettings,
 	) {
 		this.#crop = new CropTool(documentModel, shapes, viewport);
-		this.#objects = new ObjectInteractionTool(
-			shapes,
-			rasterSelection,
-			documentModel,
-		);
+		this.#objects = new ObjectInteractionTool(shapes, rasterSelection);
 		this.#imageActions = new DrawingImageActions(documentModel, shapes);
 	}
 
@@ -69,19 +61,8 @@ export class DrawingToolRouter {
 		event: PointerEvent,
 		visualScale: number,
 	): DrawingGesture | null {
-		if (isPaintTool(tool) && this.shouldPaintBaseImage()) {
-			this.flattenRetainedContentIntoBaseImage();
-			return new BaseImagePaintGesture(
-				this.documentModel,
-				tool,
-				this.settings.strokeOptions(),
-				point,
-				event.pressure,
-			);
-		}
 		if (tool === PaintToolId.Eraser)
 			return this.beginErasure(point, event.pressure);
-		this.prepareFlatImageCrop(tool);
 		const shape = isShapeTool(tool)
 			? new ShapeDrawingGesture(
 					this.documentModel,
@@ -109,35 +90,6 @@ export class DrawingToolRouter {
 		return null;
 	}
 
-	private shouldPaintBaseImage(): boolean {
-		return (
-			this.documentModel.documentType === DocumentType.Image &&
-			this.documentModel.layers.isEditable(CoreLayerId.Image)
-		);
-	}
-
-	private prepareFlatImageCrop(tool: Tool): void {
-		if (
-			tool === UtilityToolId.Crop &&
-			this.documentModel.documentType === DocumentType.Image
-		)
-			this.flattenRetainedContentIntoBaseImage();
-	}
-
-	private flattenRetainedContentIntoBaseImage(): void {
-		if (!this.shapes || this.shapes.state.objects.length === 0) return;
-		const composite = this.documentModel.compositeCanvas();
-		this.documentModel.context.clearRect(
-			0,
-			0,
-			this.documentModel.width,
-			this.documentModel.height,
-		);
-		this.documentModel.context.drawImage(composite, 0, 0);
-		this.documentModel.commit();
-		this.shapes.clear(LinkedHistoryDomain.Document);
-	}
-
 	private beginPaint(
 		tool: PaintTool,
 		point: Point,
@@ -151,7 +103,7 @@ export class DrawingToolRouter {
 				complete: () => this.documentModel.commit(),
 				cancel: () => undefined,
 			};
-		const target = this.shapes.activePaintTarget;
+		const target = this.shapes.activeLayer;
 		if (target && !this.shapes.isEditable(target.id)) return null;
 		return new PaintStrokeGesture(
 			this.shapes,
@@ -163,9 +115,11 @@ export class DrawingToolRouter {
 		);
 	}
 
+	/** Erases the active layer; with the image layer active, erases image pixels. */
 	private beginErasure(point: Point, pressure: number): DrawingGesture | null {
-		const selected = this.shapes?.selected;
-		if (!selected || !this.shapes?.isEditable(selected.id)) return null;
+		const selected = this.shapes?.activeLayer;
+		if (!selected) return this.beginImageErasure(point, pressure);
+		if (!this.shapes?.isEditable(selected.id)) return null;
 		if (
 			selected.type === AnnotationObjectTypeId.Stroke &&
 			selected.points.length === 0
@@ -177,6 +131,20 @@ export class DrawingToolRouter {
 			point,
 			pressure,
 			this.settings.strokeOptions(),
+		);
+	}
+
+	private beginImageErasure(
+		point: Point,
+		pressure: number,
+	): DrawingGesture | null {
+		if (!this.documentModel.layers.isEditable(CoreLayerId.Image)) return null;
+		return new BaseImagePaintGesture(
+			this.documentModel,
+			PaintToolId.Eraser,
+			this.settings.strokeOptions(),
+			point,
+			pressure,
 		);
 	}
 
