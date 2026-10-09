@@ -9,7 +9,8 @@ import { ToolbarId } from '../workspace/toolbarTypes';
 
 const OPACITY_SLIDER_STEP = 1;
 
-/** Layers toolbar view: active-layer properties, layer actions and the layer stack. */
+/** Layers toolbar view: active-layer properties, 
+ * layer actions and the layer stack. */
 export class LayersPanel {
 	readonly element: HTMLElement;
 	readonly list = document.createElement('div');
