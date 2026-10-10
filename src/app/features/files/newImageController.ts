@@ -12,8 +12,11 @@ import { PROJECT_MIME_TYPE } from '../projects/projectTypes';
 import {
 	DEFAULT_IMAGE_FORMAT,
 	imageFormat,
+	imageFormatOfFileName,
 	isImageFormat,
 } from '../../core/document/imageFormats';
+import type { NewImageSpec } from '../assistant/assistantCommandTypes';
+import { isProjectFileName } from './openFileTypes';
 import {
 	documentFileTypeWarning,
 	populateDocumentFileTypeSelect,
@@ -58,14 +61,32 @@ export class NewImageController {
 	readonly #resolution = document.createElement('select');
 	#format!: HTMLSelectElement;
 	#fileTypeWarning!: HTMLElement;
+	readonly #createListeners = new Set<() => void>();
 
 	constructor(readonly documentModel: CanvasDocument) {
 		this.addDynamicControls();
 		this.bindEvents();
 	}
 
-	open(): void {
+	/** Asks for the new image's size and background; a file name, when given, fills in its name and type. */
+	open(fileName?: string): void {
+		if (fileName) this.suggest(fileName);
 		this.dialog.showModal();
+	}
+
+	onCreate(listener: () => void): void {
+		this.#createListeners.add(listener);
+	}
+
+	private suggest(fileName: string): void {
+		const extensionStart = fileName.lastIndexOf('.');
+		this.#name.value = extensionStart > 0 ? fileName.slice(0, extensionStart) : fileName;
+		const type = isProjectFileName(fileName)
+			? PROJECT_MIME_TYPE
+			: imageFormatOfFileName(fileName)?.mimeType;
+		if (type) this.#format.value = type;
+		this.updateFileTypeWarning();
+		this.updateTransparencyWarning();
 	}
 
 	private addDynamicControls(): void {
@@ -75,7 +96,7 @@ export class NewImageController {
 		);
 		element('#quickOpenButton').insertAdjacentHTML(
 			'beforebegin',
-			'<button class="icon-button" id="quickNewButton" title="New image (Ctrl/⌘ N)"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>',
+			'<button class="icon-button" id="quickNewButton" data-file-command title="New image (Ctrl/⌘ N)"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>',
 		);
 		const print = document.querySelector<HTMLOptGroupElement>(
 			'#newImagePreset optgroup[label="Print"]',
@@ -170,28 +191,60 @@ export class NewImageController {
 			);
 	}
 
+	/** Creates an image without asking, for a file a host opened on an assistant's request. */
+	createImage(fileName: string, spec: NewImageSpec): void {
+		const width = clampDimension(String(spec.width)),
+			height = clampDimension(String(spec.height));
+		if (!Number.isFinite(width) || !Number.isFinite(height)) return;
+		this.suggest(fileName);
+		this.createDocument({
+			name: this.#name.value || DEFAULT_DOCUMENT_NAME,
+			width,
+			height,
+			transparent: spec.transparent,
+			background: spec.background,
+			resolution: ResolutionPpi.Screen,
+		});
+	}
+
 	private create(): void {
-		const name = this.#name.value.trim() || DEFAULT_DOCUMENT_NAME;
 		const width = clampDimension(this.#width.value),
 			height = clampDimension(this.#height.value);
 		if (!Number.isFinite(width) || !Number.isFinite(height)) return;
-		const fileType = this.#format.value;
-		const projectDocument = fileType === PROJECT_MIME_TYPE;
-		this.documentModel.create({
-			name,
+		this.createDocument({
+			name: this.#name.value.trim() || DEFAULT_DOCUMENT_NAME,
 			width,
 			height,
 			transparent: element<HTMLInputElement>('#newImageTransparent').checked,
 			background: element<HTMLInputElement>('#newImageColor').value,
+			resolution: Number(this.#resolution.value),
+		});
+		this.dialog.close();
+	}
+
+	/** Creates the document in the file type chosen in the dialog, then tells the listeners. */
+	private createDocument(
+		options: Readonly<{
+			name: string;
+			width: number;
+			height: number;
+			transparent: boolean;
+			background: string;
+			resolution: number;
+		}>,
+	): void {
+		const fileType = this.#format.value;
+		this.documentModel.create({
+			...options,
 			format: isImageFormat(fileType)
 				? fileType
 				: DEFAULT_IMAGE_FORMAT.mimeType,
-			resolution: Number(this.#resolution.value),
-			documentType: projectDocument
-				? DocumentType.Project
-				: DocumentType.Image,
+			documentType:
+				fileType === PROJECT_MIME_TYPE
+					? DocumentType.Project
+					: DocumentType.Image,
 		});
-		this.dialog.close();
+		this.#createListeners.forEach((listener) => listener());
 	}
 
 	private updateTransparencyWarning(): void {

@@ -41,7 +41,7 @@ describe('paint layer style isolation', () => {
 		expect(first).toMatchObject({
 			type: AnnotationObjectTypeId.Stroke,
 			color: '#ffffff',
-			size: 12,
+			size: 5,
 		});
 		expect(second).toMatchObject({
 			type: AnnotationObjectTypeId.Stroke,

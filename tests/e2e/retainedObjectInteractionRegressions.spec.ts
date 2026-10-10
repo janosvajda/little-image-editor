@@ -39,6 +39,7 @@ test('select mode exposes stable 400% resize handles and edits the retained stro
 	page,
 }) => {
 	await chooseGroupedTool(page, 'Brush tools', 'Brush');
+	await page.locator('#sizeInput').fill('12');
 	await drag(page, { x: 200, y: 200 }, { x: 400, y: 300 });
 	await page.keyboard.press('v');
 	await page.locator('#zoomSelect').selectOption('400');

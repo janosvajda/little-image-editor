@@ -10,6 +10,7 @@ import { ToolbarLayoutCoordinator } from './toolbarLayoutCoordinator';
 import { ToolbarLayoutEngine } from './toolbarLayoutEngine';
 import { ToolbarLayoutStore } from './toolbarLayoutStore';
 import { ToolbarVisibilityPicker } from './toolbarVisibilityPicker';
+import { editorPlatform } from '../../platform/editorPlatform';
 
 const THEME_KEY = 'little-editor.theme.v1';
 const PANEL_MARGIN = 14;
@@ -160,10 +161,11 @@ export class WorkspaceUi {
 	}
 
 	private initializeTheme(): void {
-		const preference = localStorage.getItem(THEME_KEY) ?? 'auto';
+		const storage = editorPlatform().storage;
+		const preference = storage.getItem(THEME_KEY) ?? 'auto';
 		this.applyTheme(preference);
 		this.themeSelect.addEventListener('change', () => {
-			localStorage.setItem(THEME_KEY, this.themeSelect.value);
+			storage.setItem(THEME_KEY, this.themeSelect.value);
 			this.applyTheme(this.themeSelect.value);
 		});
 		[

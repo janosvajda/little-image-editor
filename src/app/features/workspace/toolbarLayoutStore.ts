@@ -1,18 +1,18 @@
+import {
+	editorPlatform,
+	type KeyValueStorage,
+} from '../../platform/editorPlatform';
 import type { ToolbarPanelState } from './managedToolbarPanel';
 
 export type ToolbarLayout = Readonly<Record<string, ToolbarPanelState>>;
 
-export interface KeyValueStorage {
-	getItem(key: string): string | null;
-	setItem(key: string, value: string): void;
-	removeItem(key: string): void;
-}
+export type { KeyValueStorage };
 
 export const TOOLBAR_LAYOUT_STORAGE_KEY = 'little-editor.panel-layout.v2';
 
 export class ToolbarLayoutStore {
 	constructor(
-		private readonly storage: KeyValueStorage = localStorage,
+		private readonly storage: KeyValueStorage = editorPlatform().storage,
 		private readonly storageKey = TOOLBAR_LAYOUT_STORAGE_KEY,
 	) {}
 

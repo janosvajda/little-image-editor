@@ -52,6 +52,8 @@ html[data-theme=contrast] {
 html,
 body {
     margin: 0;
+    /* Also overrides the body padding a host page, such as a VS Code webview, adds. */
+    padding: 0;
     height: 100%;
     overflow: hidden
 }
@@ -516,7 +518,8 @@ body.focus-mode .exit-focus {
         display: none
     }
 
-    .panel {
+    /* Floating toolbars shrink on a small screen; docked ones fill their side panel. */
+    html:not([data-workspace-layout='docked']) .panel {
         width: var(--toolbar-panel-width, 205px) !important
     }
 }
@@ -1514,13 +1517,14 @@ html[data-theme=dark] .transparency-warning strong {
     background: color-mix(in srgb, var(--accent) 9%, var(--color-transparent))
 }
 
+/* Room for the menu row is made here; a host without the editor's menus keeps the full controls. */
 @media(max-width:760px) {
-    .viewport-controls #rulerUnitSelect {
+    html:not([data-host-provides~='application-menus']) .viewport-controls #rulerUnitSelect {
         width: 55px
     }
 
-    .viewport-controls .icon-button:first-child,
-    .viewport-controls .icon-button:nth-of-type(2) {
+    html:not([data-host-provides~='application-menus']) .viewport-controls .icon-button:first-child,
+    html:not([data-host-provides~='application-menus']) .viewport-controls .icon-button:nth-of-type(2) {
         display: none
     }
 }
@@ -1557,6 +1561,12 @@ body.focus-mode .canvas-ruler-layer {
 
 .ruler-corner {
     z-index: 3
+}
+
+/* Docked, the unit menu sits in the status bar, so the corner also switches to the next unit. */
+html[data-workspace-layout='docked'] .canvas-ruler-layer .ruler-corner {
+    pointer-events: auto;
+    cursor: pointer
 }
 
 .app-tooltip {
@@ -1881,4 +1891,372 @@ body.focus-mode .canvas-ruler-layer {
 .tool-options.editing-selected-object
 	> :not(.selected-object-options):not(.tool-option-persistent) {
 	display: none;
+}
+
+/*
+ * A host with its own application menus, such as VS Code, keeps the quick
+ * actions only: the menu row and the logo beside it are left out.
+ */
+html[data-host-provides~='application-menus'] {
+    --host-toolbar-height: 34px
+}
+
+html[data-host-provides~='application-menus'] .topbar {
+    height: var(--host-toolbar-height);
+    grid-template-rows: var(--host-toolbar-height)
+}
+
+html[data-host-provides~='application-menus'] .app-mark,
+html[data-host-provides~='application-menus'] .menubar {
+    display: none
+}
+
+html[data-host-provides~='application-menus'] .toolbar {
+    grid-row: 1
+}
+
+html[data-host-provides~='application-menus'] body:not(.focus-mode) .workspace {
+    height: calc(100% - var(--host-toolbar-height))
+}
+
+/* Text that names the editor where a host, such as VS Code, shows it among other tools. */
+.host-only {
+    display: none
+}
+
+html[data-document-owner='host'] .host-only {
+    display: inline
+}
+
+/* A host that owns the file, such as VS Code, opens, saves and closes it; the editor's own buttons are left out. */
+html[data-document-owner='host'] [data-file-command] {
+    display: none
+}
+
+/*
+ * Docked layout for a narrow editor area, such as a VS Code tab. The image
+ * gets as much of the area as possible: the tool buttons sit in a slim strip
+ * on the left, the active tool's settings in the top row, zoom in the status
+ * bar, and every other toolbar behind an icon on the right that opens it in a
+ * side panel and hides it again.
+ */
+html[data-workspace-layout='docked'] {
+    --dock-strip-width: 44px;
+    --dock-rail-width: 40px;
+    --dock-panel-width: 280px;
+    --dock-control-height: 24px
+}
+
+html[data-workspace-layout='docked'] body {
+    display: flex;
+    flex-direction: column
+}
+
+html[data-workspace-layout='docked'] .topbar {
+    flex: none
+}
+
+html[data-workspace-layout='docked'] .toolbar {
+    width: 100%;
+    margin: 0
+}
+
+.docked-workspace {
+    display: flex;
+    flex: 1;
+    min-height: 0
+}
+
+html[data-workspace-layout='docked'] .workspace,
+html[data-workspace-layout='docked'] body:not(.focus-mode) .workspace {
+    flex: 1;
+    min-width: 0;
+    height: auto
+}
+
+html[data-workspace-layout='docked'] #toolbarPickerButton,
+html[data-workspace-layout='docked'] .status-help,
+html[data-workspace-layout='docked'] #zoomLabel {
+    display: none
+}
+
+/* Tool strip */
+.dock-tool-strip {
+    flex: none;
+    width: var(--dock-strip-width);
+    padding: 6px 3px;
+    border-right: 1px solid var(--border);
+    background: var(--surface);
+    z-index: 30
+}
+
+.dock-tool-strip .grouped-tool-palette {
+    grid-template-columns: 1fr;
+    gap: 2px
+}
+
+/* Icons only; each button keeps its name as a tooltip and for assistive technology. */
+.dock-tool-strip .grouped-tool-palette .tool {
+    min-height: 36px;
+    padding: 4px 10px 4px 2px
+}
+
+.dock-tool-strip .grouped-tool-palette .tool>span:not(:first-child),
+.dock-tool-strip .grouped-tool-palette .tool small {
+    display: none
+}
+
+/* The tool menu opens from a small corner, so the icon itself picks the tool. */
+.dock-tool-strip .palette-menu-trigger {
+    right: 0;
+    bottom: 0;
+    width: 12px;
+    min-width: 12px;
+    height: 12px;
+    min-height: 12px
+}
+
+.dock-tool-strip .palette-menu-trigger i {
+    margin: 4px 0 0 4px;
+    border-width: 0 0 5px 5px
+}
+
+.dock-tool-strip .tool-flyout,
+.dock-tool-strip .tool-flyout.align-right {
+    top: 0;
+    left: calc(100% + 6px);
+    right: auto;
+    width: 200px
+}
+
+/* Options bar: the Tools toolbar laid out as one row of compact controls. */
+.dock-options-bar {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    align-self: stretch;
+    min-width: 0;
+    margin: 0 4px;
+    padding: 0 8px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    border-inline: 1px solid var(--border)
+}
+
+html[data-workspace-layout='docked'] .dock-options-bar>.panel {
+    display: flex;
+    position: static;
+    width: auto;
+    max-height: none;
+    border: 0;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+    overflow: visible
+}
+
+.dock-options-bar .panel-header,
+.dock-options-bar .zoom-tool-options {
+    display: none
+}
+
+.dock-options-bar .panel-body,
+.dock-options-bar .tool-options,
+.dock-options-bar .tool-options>:not(.hidden):not(label) {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    white-space: nowrap
+}
+
+/* The bar itself says what it holds, so the heading and divider of the floating toolbar are left out. */
+html[data-workspace-layout='docked'] .dock-options-bar .tool-options::before {
+    display: none
+}
+
+html[data-workspace-layout='docked'] .dock-options-bar .tool-options {
+    margin: 0;
+    padding: 0;
+    border: 0
+}
+
+.dock-options-bar label,
+.dock-options-bar .panel label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    color: var(--muted);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap
+}
+
+.dock-options-bar label>span {
+    color: var(--text)
+}
+
+/* A slider's value keeps one width while it changes, so the controls beside it stay still. */
+.dock-options-bar label>span:has(+input[type=range]) {
+    min-width: 6ch;
+    text-align: right
+}
+
+.dock-options-bar input[type=color] {
+    width: 30px;
+    height: 20px;
+    padding: 1px
+}
+
+.dock-options-bar select,
+.dock-options-bar button,
+.dock-options-bar input:not([type=range]):not([type=color]):not([type=checkbox]) {
+    height: var(--dock-control-height);
+    padding-block: 0;
+    font-size: 12px
+}
+
+/* Controls keep their size; sliders give up some length before anything is cut off. */
+html[data-workspace-layout='docked'] .dock-options-bar>.panel,
+.dock-options-bar .panel-body,
+.dock-options-bar .tool-options {
+    flex: 0 1 auto;
+    min-width: 0
+}
+
+.dock-options-bar .tool-options * {
+    flex: none
+}
+
+.dock-options-bar .tool-options :has(>input[type=range]) {
+    flex: 0 1 auto;
+    min-width: 0
+}
+
+html[data-workspace-layout='docked'] .dock-options-bar .tool-options input[type=range] {
+    flex: 0 1 72px;
+    min-width: 40px;
+    width: auto
+}
+
+/* The row has room for controls only; each tool's button already explains it in its tooltip. */
+html[data-workspace-layout='docked'] .dock-options-bar .tool-hint {
+    display: none
+}
+
+/* A sampled colour's code keeps one width, so the buttons after it stay still. */
+.dock-options-bar .sampled-color code {
+    min-width: 7ch;
+    font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+    text-align: center
+}
+
+/* Zoom and rulers in the status bar */
+#statusBar .viewport-controls {
+    margin: 0
+}
+
+#statusBar .viewport-controls .icon-button {
+    width: 22px;
+    height: 22px
+}
+
+#statusBar .viewport-controls select {
+    height: 22px;
+    padding: 0 4px;
+    font-size: 11px
+}
+
+/* Side panel and the icons that open it */
+.dock-side-panel {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    width: var(--dock-panel-width);
+    min-height: 0;
+    border-left: 1px solid var(--border);
+    background: var(--surface)
+}
+
+.dock-side-panel[hidden] {
+    display: none
+}
+
+.dock-panel-header {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: space-between;
+    height: 34px;
+    padding: 0 4px 0 12px;
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+    font-weight: 750;
+    letter-spacing: .1em;
+    text-transform: uppercase
+}
+
+.dock-panel-close {
+    font-size: 17px;
+    line-height: 1
+}
+
+.dock-pages {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto
+}
+
+.dock-rail {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    width: var(--dock-rail-width);
+    padding: 6px 0;
+    border-left: 1px solid var(--border);
+    background: var(--surface)
+}
+
+.dock-rail-button.dock-active {
+    background: var(--surface2);
+    box-shadow: inset 2px 0 var(--accent);
+    color: var(--text)
+}
+
+/*
+ * A docked toolbar fills the side panel: it neither floats, moves, collapses,
+ * closes nor scrolls by itself. The html prefix outranks the floating toolbar rules.
+ */
+html[data-workspace-layout='docked'] .dock-pages>.panel {
+    display: none;
+    position: static;
+    width: auto;
+    max-height: none;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    overflow: visible;
+    scrollbar-gutter: auto
+}
+
+html[data-workspace-layout='docked'] .dock-pages>.panel.dock-active {
+    display: block
+}
+
+.dock-pages>.panel>.panel-header {
+    display: none
+}
+
+.dock-pages>.panel.collapsed>.panel-body {
+    display: block
+}
+
+/* The layers toolbar spaces its own parts, so its body stays out of the layout. */
+.dock-pages>.layers-panel.collapsed>.panel-body {
+    display: contents
 }

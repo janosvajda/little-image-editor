@@ -1,0 +1,10 @@
+{
+  "//": "Code that runs in Node: the VS Code extension host and the assistant server. The browser app is checked by tsconfig.json.",
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2022"],
+    "types": ["node"]
+  },
+  "include": ["src/shells/vscode/extension/**/*.ts", "src/shells/vscode/assistant/**/*.ts"],
+  "exclude": ["src/**/*.test.ts"]
+}

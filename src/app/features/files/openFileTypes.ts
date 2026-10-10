@@ -13,8 +13,9 @@ export const EDITOR_OPEN_FILE_ACCEPT = [
 ].join(',');
 
 export function isProjectFile(file: File): boolean {
-	return (
-		file.type === PROJECT_MIME_TYPE ||
-		file.name.toLowerCase().endsWith(PROJECT_FILE_SUFFIX)
-	);
+	return file.type === PROJECT_MIME_TYPE || isProjectFileName(file.name);
+}
+
+export function isProjectFileName(fileName: string): boolean {
+	return fileName.toLowerCase().endsWith(PROJECT_FILE_SUFFIX);
 }

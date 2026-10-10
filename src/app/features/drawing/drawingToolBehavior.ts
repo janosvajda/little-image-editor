@@ -54,6 +54,8 @@ export type ToolColorScope =
 
 /** The tool whose profile keeps the shared drawing colour. */
 const SHARED_COLOR_OWNER: Tool = PaintToolId.Brush;
+/** An eyedropper drawn for the colour picker; its tip, at the given point, samples the colour. */
+const PICKER_CURSOR = 'url("assets/cursors/pickerCursor.svg") 3 28, crosshair';
 
 export interface DrawingToolOptions {
 	readonly color: boolean;
@@ -183,7 +185,7 @@ export const DRAWING_TOOL_BEHAVIORS: Readonly<
 	},
 	[UtilityToolId.Picker]: {
 		kind: DrawingToolKind.Picker,
-		cursor: 'copy',
+		cursor: PICKER_CURSOR,
 		options: { ...NO_OPTIONS, picker: true },
 		optionSource: ToolOptionSource.Contextual,
 	},

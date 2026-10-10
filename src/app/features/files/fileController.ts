@@ -6,7 +6,7 @@ import {
 import type { CanvasDocument } from '../../core/document/imageDocument';
 import type { ImageFormat } from '../../core/document/appTypes';
 import { DocumentType } from '../../core/document/appTypes';
-import { imageFormat } from '../../core/document/imageFormats';
+import { imageFormat, imageFormatOfFileName } from '../../core/document/imageFormats';
 import { PROJECT_MIME_TYPE } from '../projects/projectTypes';
 import {
 	isImageFileType,
@@ -14,11 +14,17 @@ import {
 	populateSaveFileTypeSelect,
 } from './formatSelectHelpers';
 import { EDITOR_OPEN_FILE_ACCEPT, isProjectFile } from './openFileTypes';
+import {
+	editorPlatform,
+	type EditorPlatform,
+	type OpenTarget,
+	type SaveTarget,
+	writeToTarget,
+} from '../../platform/editorPlatform';
 
-type PickerWindow = Window & {
-	showSaveFilePicker?: (options: object) => Promise<FileSystemFileHandle>;
-};
-const OBJECT_URL_RELEASE_DELAY_MS = 1_000;
+/** How a cancelled file operation is reported, as the browser's pickers do. */
+const ABORT_ERROR_NAME = 'AbortError';
+const SAVE_CANCELLED_MESSAGE = 'Saving was cancelled.';
 const RASTER_LAYER_WARNING =
 	'This format saves a flattened image. Layers and editable objects remain available in the open document, but cannot be restored from the saved file. Continue?';
 
@@ -31,11 +37,13 @@ export class FileController {
 	readonly #saveButtons: HTMLButtonElement[];
 	readonly #beforeSaveListeners = new Set<() => void>();
 	#projectSave: ((saveAs: boolean) => Promise<void>) | null = null;
-	#projectOpen: ((file: File) => Promise<void>) | null = null;
+	#projectOpen: ((file: File, target?: SaveTarget) => Promise<void>) | null =
+		null;
 
 	constructor(
 		readonly documentModel: CanvasDocument,
 		private readonly hasEditableContent: EditableContentDetector = () => false,
+		private readonly platform: Pick<EditorPlatform, 'files' | 'dialogs'> = editorPlatform(),
 	) {
 		this.fileInput.accept = EDITOR_OPEN_FILE_ACCEPT;
 		element('#saveAsButton').insertAdjacentHTML(
@@ -77,8 +85,22 @@ export class FileController {
 	setProjectSaveHandler(handler: (saveAs: boolean) => Promise<void>): void {
 		this.#projectSave = handler;
 	}
-	setProjectOpenHandler(handler: (file: File) => Promise<void>): void {
+	setProjectOpenHandler(
+		handler: (file: File, target?: SaveTarget) => Promise<void>,
+	): void {
 		this.#projectOpen = handler;
+	}
+
+	/** Opens a file the host owns; Save then writes back into it. */
+	async openTarget(target: OpenTarget): Promise<void> {
+		const file = await target.getFile();
+		if (isProjectFile(file)) {
+			await this.#projectOpen?.(file, target);
+			return;
+		}
+		if (isImageFileType(file.type)) this.documentModel.savedType = file.type;
+		await this.documentModel.load(file);
+		this.documentModel.fileHandle = target;
 	}
 
 	async save(): Promise<void> {
@@ -93,12 +115,28 @@ export class FileController {
 			await this.saveAs();
 			return;
 		}
-		if (!this.canSaveRaster(this.documentModel.savedType)) return;
+		if (!(await this.canSaveRaster(this.documentModel.savedType))) return;
 		this.prepareDocumentForSave();
 		await this.write(
 			this.documentModel.fileHandle,
 			this.documentModel.savedType,
 		);
+	}
+
+	/**
+	 * Saves into a file a host chose, in the image format its name says. A
+	 * declined question rejects, so the host keeps the file marked unsaved.
+	 */
+	async saveInto(target: SaveTarget): Promise<void> {
+		if (!this.documentModel.hasImage) return;
+		const type =
+			imageFormatOfFileName(target.name)?.mimeType ?? this.documentModel.savedType;
+		if (!(await this.canSaveRaster(type)))
+			throw new DOMException(SAVE_CANCELLED_MESSAGE, ABORT_ERROR_NAME);
+		this.prepareDocumentForSave();
+		await this.write(target, type);
+		this.documentModel.fileHandle = target;
+		this.documentModel.savedType = type;
 	}
 
 	async saveAs(): Promise<void> {
@@ -125,26 +163,24 @@ export class FileController {
 	private async saveCopy(updateDocument: boolean): Promise<void> {
 		if (!this.documentModel.hasImage) return;
 		const type = this.selectedRasterFormat();
-		if (!this.canSaveRaster(type)) return;
+		if (!(await this.canSaveRaster(type))) return;
 		try {
-			const picker = (window as PickerWindow).showSaveFilePicker;
-			if (picker) {
-				const handle = await this.pickHandle(
-					picker,
+			if (this.platform.files.canPickSaveTarget()) {
+				const target = await this.pickTarget(
 					ensureImageExtension(this.documentModel.baseName, type),
 					type,
 				);
 				if (updateDocument) this.prepareDocumentForSave();
-				await this.write(handle, type);
+				await this.write(target, type);
 				if (updateDocument) {
-					this.documentModel.fileHandle = handle;
+					this.documentModel.fileHandle = target;
 					this.documentModel.savedType = type;
 					this.documentModel.baseName =
-						handle.name.replace(/\.[^.]+$/, '') || this.documentModel.baseName;
+						target.name.replace(/\.[^.]+$/, '') || this.documentModel.baseName;
 				}
 				return;
 			}
-			const requestedName = window.prompt(
+			const requestedName = await this.platform.dialogs.prompt(
 				'Save image as',
 				ensureImageExtension(this.documentModel.baseName, type),
 			);
@@ -153,16 +189,9 @@ export class FileController {
 				: null;
 			if (!filename) return;
 			if (updateDocument) this.prepareDocumentForSave();
-			const link = document.createElement('a');
-			link.href = URL.createObjectURL(await this.documentModel.toBlob(type));
-			link.download = filename;
-			link.click();
-			setTimeout(
-				() => URL.revokeObjectURL(link.href),
-				OBJECT_URL_RELEASE_DELAY_MS,
-			);
+			this.platform.files.download(await this.documentModel.toBlob(type), filename);
 		} catch (error) {
-			if (!(error instanceof DOMException && error.name === 'AbortError'))
+			if (!(error instanceof DOMException && error.name === ABORT_ERROR_NAME))
 				throw error;
 		}
 	}
@@ -218,39 +247,41 @@ export class FileController {
 		);
 	}
 
-	private confirmTransparency(type: ImageFormat): boolean {
+	private confirmTransparency(type: ImageFormat): Promise<boolean> {
 		const format = imageFormat(type);
-		return (
-			format.supportsTransparency ||
-			!this.documentModel.containsTransparency() ||
-			window.confirm(
-				`${format.label} does not support transparency. Transparent pixels will be replaced with white. Continue?`,
-			)
+		if (format.supportsTransparency || !this.documentModel.containsTransparency())
+			return Promise.resolve(true);
+		return this.platform.dialogs.confirm(
+			`${format.label} does not support transparency. Transparent pixels will be replaced with white. Continue?`,
 		);
 	}
 
-	private canSaveRaster(type: ImageFormat): boolean {
-		return this.confirmRasterFlattening() && this.confirmTransparency(type);
+	private async canSaveRaster(type: ImageFormat): Promise<boolean> {
+		return (
+			(await this.confirmRasterFlattening()) &&
+			(await this.confirmTransparency(type))
+		);
 	}
 
-	private confirmRasterFlattening(): boolean {
-		return !this.hasEditableContent() || window.confirm(RASTER_LAYER_WARNING);
+	private confirmRasterFlattening(): Promise<boolean> {
+		return this.hasEditableContent()
+			? this.platform.dialogs.confirm(RASTER_LAYER_WARNING)
+			: Promise.resolve(true);
 	}
 
 	private prepareDocumentForSave(): void {
 		this.#beforeSaveListeners.forEach((listener) => listener());
 	}
 
-	private async pickHandle(
-		picker: NonNullable<PickerWindow['showSaveFilePicker']>,
+	private async pickTarget(
 		suggestedName: string,
 		type: ImageFormat,
-	): Promise<FileSystemFileHandle> {
+	): Promise<SaveTarget> {
 		let suggestion = suggestedName;
 		for (;;) {
 			const format = imageFormat(type);
 			const extension = format.extensions[0]!;
-			const handle = await picker({
+			const target = await this.platform.files.pickSaveTarget({
 				suggestedName: suggestion,
 				types: [
 					{
@@ -259,20 +290,15 @@ export class FileController {
 					},
 				],
 			});
-			if (hasValidExtension(handle.name, type)) return handle;
-			suggestion = ensureImageExtension(handle.name, type);
-			window.alert(
+			if (hasValidExtension(target.name, type)) return target;
+			suggestion = ensureImageExtension(target.name, type);
+			this.platform.dialogs.alert(
 				`The file must use the .${extension} extension. Save As will reopen with the corrected filename.`,
 			);
 		}
 	}
 
-	private async write(
-		handle: FileSystemFileHandle,
-		type: ImageFormat,
-	): Promise<void> {
-		const writable = await handle.createWritable();
-		await writable.write(await this.documentModel.toBlob(type));
-		await writable.close();
+	private async write(target: SaveTarget, type: ImageFormat): Promise<void> {
+		await writeToTarget(target, await this.documentModel.toBlob(type));
 	}
 }

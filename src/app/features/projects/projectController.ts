@@ -12,13 +12,13 @@ import {
 import { element } from '../../shared/dom/domHelpers';
 import { ProjectCodec, ProjectFormatError } from './projectCodec';
 import { PROJECT_EXTENSION, PROJECT_MIME_TYPE } from './projectTypes';
-
-interface ProjectPickerWindow extends Window {
-	showOpenFilePicker?: (options: object) => Promise<FileSystemFileHandle[]>;
-	showSaveFilePicker?: (options: object) => Promise<FileSystemFileHandle>;
-}
-
-const OBJECT_URL_RELEASE_DELAY_MS = 1_000;
+import {
+	editorPlatform,
+	type PickerFileType,
+	type EditorPlatform,
+	type SaveTarget,
+	writeToTarget,
+} from '../../platform/editorPlatform';
 
 type EditableObjectDocument = Pick<
 	AnnotationDocument,
@@ -29,13 +29,14 @@ export class ProjectController {
 	readonly #openButton = menuButton('Open project…');
 	readonly #saveButton = menuButton('Save project…');
 	readonly #input = document.createElement('input');
-	#fileHandle: FileSystemFileHandle | null = null;
+	#fileHandle: SaveTarget | null = null;
 	readonly #persistence: ProjectPersistencePort;
 
 	constructor(
 		private readonly documentModel: CanvasDocument,
 		private readonly codec = new ProjectCodec(),
 		editableObjects?: EditableObjectDocument,
+		private readonly platform: Pick<EditorPlatform, 'files' | 'dialogs'> = editorPlatform(),
 	) {
 		this.#persistence = new ProjectEditorAdapter(
 			documentModel,
@@ -56,9 +57,8 @@ export class ProjectController {
 
 	async open(): Promise<void> {
 		try {
-			const picker = (window as ProjectPickerWindow).showOpenFilePicker;
-			if (picker) {
-				const [handle] = await picker({
+			if (this.platform.files.canPickOpenTarget()) {
+				const [handle] = await this.platform.files.pickOpenTargets({
 					types: [projectPickerType()],
 					multiple: false,
 				});
@@ -83,33 +83,40 @@ export class ProjectController {
 			);
 			const blob = new Blob([contents], { type: PROJECT_MIME_TYPE });
 			if (this.#fileHandle) {
-				await writeBlob(this.#fileHandle, blob);
+				await writeToTarget(this.#fileHandle, blob);
 				return;
 			}
-			const picker = (window as ProjectPickerWindow).showSaveFilePicker;
-			if (picker) {
-				const handle = await picker({
+			if (this.platform.files.canPickSaveTarget()) {
+				const handle = await this.platform.files.pickSaveTarget({
 					suggestedName: projectFileName(this.documentModel.baseName),
 					types: [projectPickerType()],
 				});
-				await writeBlob(handle, blob);
+				await writeToTarget(handle, blob);
 				this.#fileHandle = handle;
 				return;
 			}
-			const requestedName = window.prompt(
+			const requestedName = await this.platform.dialogs.prompt(
 				'Save project as',
 				projectFileName(this.documentModel.baseName),
 			);
 			if (!requestedName) return;
-			downloadBlob(blob, projectFileName(requestedName));
+			this.platform.files.download(blob, projectFileName(requestedName));
 		} catch (error) {
 			this.handleError(error);
 		}
 	}
 
-	async openFile(file: File): Promise<void> {
+	/** Saves the project into a file a host chose; later saves write there too. */
+	async saveInto(target: SaveTarget): Promise<void> {
+		this.#fileHandle = target;
+		await this.save();
+	}
+
+	/** Opens a project file; with a target, Save writes back into that file. */
+	async openFile(file: File, target: SaveTarget | null = null): Promise<void> {
 		try {
 			await this.load(file);
+			this.#fileHandle = target;
 		} catch (error) {
 			this.handleError(error);
 		}
@@ -138,7 +145,7 @@ export class ProjectController {
 
 	private handleError(error: unknown): void {
 		if (error instanceof DOMException && error.name === 'AbortError') return;
-		window.alert(
+		this.platform.dialogs.alert(
 			error instanceof ProjectFormatError
 				? error.message
 				: 'The project could not be opened or saved.',
@@ -163,7 +170,7 @@ function menuButton(label: string): HTMLButtonElement {
 	return button;
 }
 
-function projectPickerType(): object {
+function projectPickerType(): PickerFileType {
 	return {
 		description: 'Little Image Editor project',
 		accept: { [PROJECT_MIME_TYPE]: [`.${PROJECT_EXTENSION}`] },
@@ -173,21 +180,4 @@ function projectPickerType(): object {
 function projectFileName(name: string): string {
 	const normalized = name.trim().replace(/\.[^.]+$/, '');
 	return `${normalized || DEFAULT_DOCUMENT_NAME}.${PROJECT_EXTENSION}`;
-}
-
-async function writeBlob(
-	handle: FileSystemFileHandle,
-	blob: Blob,
-): Promise<void> {
-	const writable = await handle.createWritable();
-	await writable.write(blob);
-	await writable.close();
-}
-
-function downloadBlob(blob: Blob, filename: string): void {
-	const link = document.createElement('a');
-	link.href = URL.createObjectURL(blob);
-	link.download = filename;
-	link.click();
-	setTimeout(() => URL.revokeObjectURL(link.href), OBJECT_URL_RELEASE_DELAY_MS);
 }

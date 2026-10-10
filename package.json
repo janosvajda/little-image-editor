@@ -8,7 +8,7 @@
   "scripts": {
     "build": "npm run typecheck && node scripts/build.mjs",
     "publish": "npm run build",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.node.json",
     "lint": "biome lint .",
     "check": "npm run lint && npm run typecheck && npm run build",
     "dev": "npm run typecheck && node scripts/build.mjs --serve",
@@ -17,17 +17,23 @@
     "test:contracts": "node scripts/checkTestContracts.mjs",
     "test:unit": "vitest run src/app",
     "test:integration": "vitest run tests/integration",
-    "test:e2e": "playwright test",
-    "test:all": "npm run test:contracts && npm run test && npm run test:e2e"
+    "test:e2e": "npm run build:vscode && playwright test",
+    "test:all": "npm run test:contracts && npm run test && npm run test:e2e",
+    "build:vscode": "npm run build && node scripts/buildVsCode.mjs",
+    "package:vscode": "npm run build:vscode && cd vscode-extension && npx --yes @vscode/vsce package --no-dependencies"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.10",
+    "@modelcontextprotocol/sdk": "^1.32.1",
     "@playwright/test": "^1.62.1",
+    "@types/node": "^22.20.5",
+    "@types/vscode": "1.90.0",
     "@vitest/coverage-v8": "^4.1.11",
     "esbuild": "^0.28.2",
     "fake-indexeddb": "^6.2.5",
     "jsdom": "^30.0.1",
     "typescript": "^7.0.2",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.11",
+    "zod": "^4.6.5"
   }
 }

@@ -2,6 +2,10 @@ node_modules/
 dist/
 release/
 coverage/
+vscode-extension/dist/
+vscode-extension/webview/
+vscode-extension/LICENSE
+*.vsix
 playwright-report/
 test-results/
 
@@ -24,6 +28,12 @@ pnpm-debug.log*
 
 # Editors and operating systems
 .idea/
-.vscode/
+.vscode/*
+# Building and launching the VS Code plugin with F5 is part of the project.
+!.vscode/launch.json
+!.vscode/tasks.json
 .DS_Store
 Thumbs.db
+
+# Written by Little Image Editor's "Connect to Claude Code": this computer's server address and private key.
+.mcp.json
