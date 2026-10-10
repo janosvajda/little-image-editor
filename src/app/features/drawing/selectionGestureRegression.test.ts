@@ -42,15 +42,18 @@ describe('selection gestures do not change image content', () => {
 		expect(objects.snapshotSession()).toEqual(before);
 	});
 
-	it('continues painting the same raster after undo clears the selection', () => {
+	it('paints a selected raster, and a stroke item above it once undo clears the selection', () => {
 		objects.add({ id: 'crop', type: AnnotationObjectTypeId.RasterFragment, rect: { x: 40, y: 40, width: 80, height: 80 }, pixelWidth: 1, pixelHeight: 1, pixels: '/wAA/w==', rotation: 0 });
 		drawing.select(PaintToolId.Brush);
 		drag(60, 60, 80, 80);
+		expect(objects.state.objects.map(({ id }) => id)).toEqual(['crop']);
 		objects.undo();
 		expect(objects.selectedId).toBeNull();
+		const raster = structuredClone(objects.object('crop'));
 		drag(70, 70, 90, 90);
-		expect(objects.selectedId).toBe('crop');
-		expect(objects.state.objects).toHaveLength(1);
+		expect(objects.state.objects).toHaveLength(2);
+		expect(objects.object('crop')).toEqual(raster);
+		expect(objects.layerOf(objects.state.objects[1]!.id)?.id).toBe(objects.layerOf('crop')?.id);
 	});
 
 	it('preserves redo history when double-click selects a layer', () => {

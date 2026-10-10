@@ -17,16 +17,15 @@ import {
 	withShapeTransform,
 } from '../../core/geometry/shapeTransformHelpers';
 import { genericShape } from '../../core/geometry/genericShape';
+import { rectEndpoints } from '../../core/geometry/geometryHelpers';
 import { ColorPalette } from '../../core/document/colorPalette';
 import { textFont } from '../../core/geometry/textShapeMetrics';
 import { drawFreehandStroke } from '../drawing/drawingHelpers';
-import {
-	strokePathStyleAt,
-	transformedStrokePoints,
-} from './strokeGeometry';
+import { strokePathStyleAt, transformedStrokePoints } from './strokeGeometry';
 import {
 	objectErasureCanvasPoint,
 	objectErasureSize,
+	objectPixelMaskCanvasPoint,
 } from './objectErasures';
 import { decodePixelBytes } from '../../shared/image/pixelDataCodec';
 import { compositeLayers } from '../layers/layerCompositing';
@@ -86,7 +85,10 @@ export function renderAnnotations(
 	const selected = layered.objects.find((object) => object.id === selectedId);
 	if (
 		selected &&
-		!(selected.type === AnnotationObjectTypeId.Stroke && selected.points.length === 0)
+		!(
+			selected.type === AnnotationObjectTypeId.Stroke &&
+			selected.points.length === 0
+		)
 	)
 		renderAnnotationSelection(context, selected);
 }
@@ -210,14 +212,12 @@ function renderAnnotationObjectContent(
 			context.fillStyle = object.color;
 			context.lineWidth = object.width;
 			context.globalAlpha = object.opacity;
+			const endpoints = rectEndpoints(object.rect, object);
 			drawShape(
 				context,
 				object.shape,
-				{ x: object.rect.x, y: object.rect.y },
-				{
-					x: object.rect.x + object.rect.width,
-					y: object.rect.y + object.rect.height,
-				},
+				endpoints.from,
+				endpoints.to,
 				object.fill,
 			);
 		});
@@ -455,24 +455,13 @@ function fillStrokePixelMask(
 		fillPixelMask(context, stroke.rect, mask);
 		return;
 	}
-	const source = stroke.sourceRect ?? stroke.rect;
-	const scaleX = source.width === 0 ? 1 : stroke.rect.width / source.width;
-	const scaleY = source.height === 0 ? 1 : stroke.rect.height / source.height;
 	const first = mask.points[0];
 	if (!first) return;
-	const canvasPoint = (point: Readonly<{ xRatio: number; yRatio: number }>) => ({
-		x:
-			stroke.rect.x +
-			(reference.x + point.xRatio * reference.width - source.x) * scaleX,
-		y:
-			stroke.rect.y +
-			(reference.y + point.yRatio * reference.height - source.y) * scaleY,
-	});
-	const start = canvasPoint(first);
+	const start = objectPixelMaskCanvasPoint(stroke, mask, first);
 	context.beginPath();
 	context.moveTo(start.x, start.y);
 	for (const point of mask.points.slice(1)) {
-		const next = canvasPoint(point);
+		const next = objectPixelMaskCanvasPoint(stroke, mask, point);
 		context.lineTo(next.x, next.y);
 	}
 	context.closePath();
@@ -480,7 +469,10 @@ function fillStrokePixelMask(
 }
 
 function resizeErasedObjectCanvas(width: number, height: number): void {
-	if (erasedObjectCanvas.width === width && erasedObjectCanvas.height === height)
+	if (
+		erasedObjectCanvas.width === width &&
+		erasedObjectCanvas.height === height
+	)
 		return;
 	erasedObjectCanvas.width = width;
 	erasedObjectCanvas.height = height;
@@ -500,7 +492,8 @@ function drawStroke(
 	context: CanvasRenderingContext2D,
 	object: StrokeAnnotation,
 ): void {
-	if (object.points.length < AnnotationRendering.MinimumStrokePointCount) return;
+	if (object.points.length < AnnotationRendering.MinimumStrokePointCount)
+		return;
 	drawStrokeRange(
 		context,
 		object,
@@ -587,7 +580,10 @@ export function supportsIncrementalStrokeRendering(
 		{ type: typeof AnnotationObjectTypeId.Stroke }
 	>,
 ): boolean {
-	return strokePathStyleAt(object, object.points.length - 1).tool !== PaintToolId.Spray;
+	return (
+		strokePathStyleAt(object, object.points.length - 1).tool !==
+		PaintToolId.Spray
+	);
 }
 
 function seededRandom(seed: number): () => number {
@@ -724,7 +720,7 @@ export function renderAnnotationSelection(
 			AnnotationRendering.SelectionContrastLineWidth * visualScale;
 		context.setLineDash([]);
 		strokeRectangle(context, bounds.x, bounds.y, bounds.width, bounds.height);
-		context.strokeStyle = ColorPalette.Selection;
+		context.strokeStyle = ColorPalette.RoyalBlue;
 		context.lineWidth = AnnotationRendering.SelectionLineWidth * visualScale;
 		context.setLineDash([
 			AnnotationRendering.SelectionDash * visualScale,
@@ -734,14 +730,20 @@ export function renderAnnotationSelection(
 	});
 	context.setLineDash([]);
 	context.fillStyle = ColorPalette.White;
-	context.strokeStyle = ColorPalette.Selection;
+	context.strokeStyle = ColorPalette.RoyalBlue;
 	const handles = shapeHandles(genericShape(object).geometry);
 	const halfSize = AnnotationRendering.ResizeHandleHalfSize * visualScale;
 	const size = AnnotationRendering.ResizeHandleSize * visualScale;
 	for (const handle of RESIZE_HANDLES) {
 		const point = handles[handle];
 		context.fillRect(point.x - halfSize, point.y - halfSize, size, size);
-		strokeRectangle(context, point.x - halfSize, point.y - halfSize, size, size);
+		strokeRectangle(
+			context,
+			point.x - halfSize,
+			point.y - halfSize,
+			size,
+			size,
+		);
 	}
 	if (object.type === AnnotationObjectTypeId.Stroke)
 		renderStrokeEndpointHandles(context, object, visualScale);

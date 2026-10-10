@@ -14,7 +14,8 @@ test('crop stays active while extracting and moving multiple freehand regions', 
 	await expect(page.locator('.layer-item-row')).toHaveCount(1);
 	await page.locator('[data-panel="tools"] [data-tool="crop"]').click();
 	await page.locator('[data-panel="tools"] .panel-close').click();
-	await drag(overlay, bounds.x + 80, bounds.y + 80, bounds.x + 240, bounds.y + 220, 2);
+	// A cut takes what is under its starting point, here the stroke.
+	await drag(overlay, bounds.x + 100, bounds.y + 100, bounds.x + 240, bounds.y + 220, 2);
 
 	await expect(page.locator('.layer-item-row')).toHaveCount(2);
 	await expect(page.locator('[data-panel="tools"] [data-tool="crop"]')).toHaveClass(/active/);
@@ -35,7 +36,7 @@ test('crop stays active while extracting and moving multiple freehand regions', 
 	});
 	expect(movedPixels.sourceAlpha).toBe(0);
 	expect(movedPixels.destinationAlpha).toBeGreaterThan(0);
-	await drag(overlay, bounds.x + 300, bounds.y + 180, bounds.x + 520, bounds.y + 330, 4);
+	await drag(overlay, bounds.x + 300, bounds.y + 200, bounds.x + 520, bounds.y + 330, 4);
 
 	await expect(page.locator('.layer-item-row')).toHaveCount(3);
 	await expect(page.locator('[data-panel="tools"] [data-tool="crop"]')).toHaveClass(/active/);

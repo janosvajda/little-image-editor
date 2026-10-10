@@ -24,7 +24,7 @@ export class LayersPanel {
 	readonly opacityOutput = document.createElement('output');
 
 	constructor() {
-		const panel = createManagedPanel(ToolbarId.Layers, 'Layers', {
+		const panel = createManagedPanel(ToolbarId.Layers, 'Layers & Objects', {
 			className: 'layers-panel',
 			defaultDock: ToolbarDock.Right,
 		});

@@ -151,7 +151,8 @@ export class MarkupActions {
 		const size = textFontSize(style);
 		this.#textEditor.open({
 			value: '',
-			...client,
+			clientX: client.clientX,
+			clientY: client.clientY,
 			fontSize: size * this.screenScale(),
 			color: style.color,
 			onInput: () => undefined,
@@ -190,7 +191,8 @@ export class MarkupActions {
 		this.objects.select(item.id);
 		this.#textEditor.open({
 			value: item.text,
-			...client,
+			clientX: client.clientX,
+			clientY: client.clientY,
 			fontSize: item.size * this.screenScale(),
 			color: item.color,
 			onInput: (text) => apply(text, false),

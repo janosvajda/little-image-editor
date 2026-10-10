@@ -1,19 +1,21 @@
-import type {
-	CropRect,
-	Point,
-} from '../../core/document/appTypes';
+import type { CropRect, Point } from '../../core/document/appTypes';
 import type { CanvasDocument } from '../../core/document/imageDocument';
-import { genericShape } from '../../core/geometry/genericShape';
 import { normalizedRect } from '../../core/geometry/geometryHelpers';
-import { CoreLayerId } from '../../core/layers/layerTypes';
+import { CoreLayerId, LayerKind } from '../../core/layers/layerTypes';
 import type { AnnotationDocument } from '../annotations/annotationDocument';
 import { renderAnnotationObject } from '../annotations/annotationRenderer';
 import { createRasterFragmentItem } from '../annotations/paintLayerFactory';
-import type { AnnotationObject } from '../annotations/annotationTypes';
+import { LinkedHistoryDomain } from '../annotations/annotationTypes';
+import { CanvasCopyMode, copyCanvas } from '../files/canvasHelpers';
 import type { CanvasViewportController } from '../workspace/canvasViewportController';
 import { BaseImageCropSelection } from './baseImageCropSelection';
 import { CropSelectionOverlay } from './cropSelectionOverlay';
 import { CropSelectionKind } from './cropSelectionTypes';
+import {
+	drawingLayerTargetAt,
+	isDrawingLayerTargetEditable,
+	type DrawingLayerTarget,
+} from './drawingLayerTarget';
 import type { DrawingGesture } from './gestures/drawingGesture';
 import { extractPixelFragment } from './pixelCutMove';
 
@@ -22,7 +24,8 @@ const MINIMUM_POLYGON_POINTS = 3;
 interface CropDraft {
 	readonly start: Point;
 	readonly kind: CropSelectionKind;
-	readonly targetId: string | null;
+	readonly target: DrawingLayerTarget | null;
+	readonly restore: (() => void) | undefined;
 	points: Point[];
 }
 
@@ -61,7 +64,13 @@ export class CropTool implements DrawingGesture {
 			start: point,
 			kind,
 			points: [point],
-			targetId: this.shapes?.selectedId ?? null,
+			target: drawingLayerTargetAt(
+				this.documentModel,
+				this.shapes,
+				point,
+				this.shapes?.selectedId,
+			),
+			restore: this.shapes?.createCheckpoint(),
 		};
 		this.shapes?.clearSelection();
 		return this;
@@ -84,12 +93,16 @@ export class CropTool implements DrawingGesture {
 		const selection = draft?.points;
 		this.#draft = null;
 		this.render(null);
-		if (selection && selection.length >= MINIMUM_POLYGON_POINTS)
-			this.extractSelection(selection, draft?.targetId ?? null);
+		if (
+			selection &&
+			selection.length >= MINIMUM_POLYGON_POINTS &&
+			draft?.target
+		)
+			this.extractSelection(selection, draft.target);
 	}
 
 	cancel(): void {
-		if (this.#draft) this.shapes?.select(this.#draft.targetId);
+		this.#draft?.restore?.();
 		this.#draft = null;
 		this.#baseSelection.clear();
 	}
@@ -105,76 +118,60 @@ export class CropTool implements DrawingGesture {
 
 	private extractSelection(
 		selection: readonly Point[],
-		targetId: string | null,
+		target: DrawingLayerTarget,
 	): boolean {
-		if (
-			this.shapes &&
-			this.documentModel.layers.isEditable(CoreLayerId.Objects)
-		) {
-			const extractionCanvas = document.createElement('canvas');
-			extractionCanvas.width = this.documentModel.width;
-			extractionCanvas.height = this.documentModel.height;
-			const context = extractionCanvas.getContext('2d');
-			if (!context) return false;
-			for (const target of this.cropCandidates(selection, targetId)) {
-				context.clearRect(
-					0,
-					0,
-					extractionCanvas.width,
-					extractionCanvas.height,
-				);
-				renderAnnotationObject(context, this.documentModel.canvas, target);
-				const fragment = extractPixelFragment(
-					context,
-					extractionCanvas.width,
-					extractionCanvas.height,
-					selection,
-				);
-				if (
-					fragment &&
-					this.shapes.cutToRasterFragment(
-						target.id,
-						selection,
-						createRasterFragmentItem(fragment),
-					)
-				)
-					return true;
-			}
+		if (!isDrawingLayerTargetEditable(this.documentModel, this.shapes, target))
+			return false;
+		const shapes = this.shapes;
+		// CanvasDocument-only clients retain their existing bitmap selection workflow.
+		if (!shapes) {
+			this.#baseSelection.select(selection);
+			return true;
 		}
-		return this.extractBaseImageSelection(selection);
-	}
-
-	/** With no retained layer under the selection, pixels move within the image layer. */
-	private extractBaseImageSelection(selection: readonly Point[]): boolean {
-		if (!this.documentModel.layers.isEditable(CoreLayerId.Image)) return false;
-		this.shapes?.activate(null);
-		this.documentModel.layers.select(CoreLayerId.Image);
-		this.#baseSelection.select(selection);
+		if (!this.documentModel.layers.isEditable(CoreLayerId.Objects))
+			return false;
+		const surface =
+			target.kind === LayerKind.Raster
+				? copyCanvas(this.documentModel.canvas, CanvasCopyMode.Pixels)
+				: this.objectSurface(target.objectId);
+		const context = surface?.getContext('2d');
+		if (!surface || !context) return false;
+		const pixels = extractPixelFragment(
+			context,
+			surface.width,
+			surface.height,
+			selection,
+		);
+		if (!pixels) return false;
+		const fragment = createRasterFragmentItem(pixels);
+		if (target.kind === LayerKind.Objects) {
+			if (
+				shapes.cutToRasterFragment(target.objectId, selection, fragment) ===
+				null
+			)
+				return false;
+		} else {
+			// Cutting image pixels and creating their layer form one linked undo step.
+			this.documentModel.context.clearRect(0, 0, surface.width, surface.height);
+			this.documentModel.context.drawImage(surface, 0, 0);
+			this.documentModel.commit();
+			shapes.activate(null);
+			shapes.add(fragment, true, LinkedHistoryDomain.Document);
+		}
+		this.documentModel.layers.select(CoreLayerId.Objects);
 		return true;
 	}
 
-	private cropCandidates(
-		selection: readonly Point[],
-		targetId: string | null,
-	): AnnotationObject[] {
-		if (!this.shapes) return [];
-		const bounds = pointBounds(selection);
-		const selected = this.shapes.object(targetId);
-		const selectedCandidate =
-			selected &&
-			this.shapes.isEditable(selected.id) &&
-			rectanglesIntersect(genericShape(selected).geometry.rect, bounds)
-				? selected
-				: null;
-		const candidates = [...this.shapes.state.objects]
-			.reverse()
-			.filter(
-				(object) =>
-					object.id !== selectedCandidate?.id &&
-					this.shapes?.isEditable(object.id) &&
-					rectanglesIntersect(genericShape(object).geometry.rect, bounds),
-			);
-		return selectedCandidate ? [selectedCandidate, ...candidates] : candidates;
+	private objectSurface(objectId: string): HTMLCanvasElement | null {
+		const object = this.shapes?.object(objectId);
+		if (!object) return null;
+		const surface = document.createElement('canvas');
+		surface.width = this.documentModel.width;
+		surface.height = this.documentModel.height;
+		const context = surface.getContext('2d');
+		if (!context) return null;
+		renderAnnotationObject(context, this.documentModel.canvas, object);
+		return surface;
 	}
 }
 
@@ -185,27 +182,4 @@ function rectanglePoints(rect: CropRect): Point[] {
 		{ x: rect.x + rect.width, y: rect.y + rect.height },
 		{ x: rect.x, y: rect.y + rect.height },
 	];
-}
-
-function pointBounds(points: readonly Point[]): CropRect {
-	let left = Number.POSITIVE_INFINITY;
-	let top = Number.POSITIVE_INFINITY;
-	let right = Number.NEGATIVE_INFINITY;
-	let bottom = Number.NEGATIVE_INFINITY;
-	for (const point of points) {
-		left = Math.min(left, point.x);
-		top = Math.min(top, point.y);
-		right = Math.max(right, point.x);
-		bottom = Math.max(bottom, point.y);
-	}
-	return { x: left, y: top, width: right - left, height: bottom - top };
-}
-
-function rectanglesIntersect(left: CropRect, right: CropRect): boolean {
-	return (
-		left.x < right.x + right.width &&
-		left.x + left.width > right.x &&
-		left.y < right.y + right.height &&
-		left.y + left.height > right.y
-	);
 }

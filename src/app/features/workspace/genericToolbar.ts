@@ -26,17 +26,18 @@ export interface GenericToolbarOptions<TTool extends string> {
 	documentModel?: CanvasDocument;
 	stateKey?: string;
 	profiledControlIds?: readonly string[];
+	/** Tools may share individual settings while keeping their other profiles independent. */
+	profileOwner?: (tool: TTool, controlId: string) => TTool;
 	/** Starting values of profiled controls for tools that differ from the panel defaults. */
-	toolDefaults?: Readonly<Partial<Record<TTool, Readonly<Record<string, PersistedValue>>>>>;
+	toolDefaults?: Readonly<
+		Partial<Record<TTool, Readonly<Record<string, PersistedValue>>>>
+	>;
 }
 
 interface GenericToolbarDocumentState {
 	readonly activeTool?: string;
 	readonly controls?: Record<string, PersistedValue>;
-	readonly controlProfiles?: Record<
-		string,
-		Record<string, PersistedValue>
-	>;
+	readonly controlProfiles?: Record<string, Record<string, PersistedValue>>;
 }
 
 /** The button for one tool, shared by every toolbar that offers tools. */
@@ -53,18 +54,48 @@ export function createToolButton<TTool extends string>(
 	return button;
 }
 
+/** A stateless view of shared tool definitions. Selection and tool behaviour belong to its owner. */
+export class ToolButtonGroup<TTool extends string> {
+	constructor(
+		private readonly root: HTMLElement,
+		definitions: readonly ToolDefinition<TTool>[],
+		selectTool: (tool: TTool) => void,
+	) {
+		root.replaceChildren(...definitions.map(createToolButton));
+		root.addEventListener('click', (event) => {
+			if (!(event.target instanceof Element)) return;
+			const id = event.target.closest<HTMLElement>('[data-tool]')?.dataset.tool;
+			const definition = definitions.find((tool) => tool.id === id);
+			if (definition) selectTool(definition.id);
+		});
+	}
+
+	showActiveTool(tool: TTool): void {
+		for (const button of this.root.querySelectorAll<HTMLElement>(
+			'[data-tool]',
+		)) {
+			const active = button.dataset.tool === tool;
+			button.classList.toggle('active', active);
+			button.setAttribute('aria-pressed', String(active));
+		}
+	}
+}
+
 export class GenericToolbar<TTool extends string> {
 	readonly restoredControlIds: ReadonlySet<string>;
 	#activeTool: TTool;
 	#defaultControls: Record<string, PersistedValue> = {};
-	readonly #controlProfiles = new Map<
-		TTool,
-		Record<string, PersistedValue>
-	>();
+	readonly #controlProfiles = new Map<TTool, Record<string, PersistedValue>>();
 	#listeners = new Set<(tool: TTool) => void>();
+	readonly #buttonTools: ToolButtonGroup<TTool>;
 
 	constructor(readonly options: GenericToolbarOptions<TTool>) {
 		options.root.dataset.toolbarManaged = 'true';
+		this.#buttonTools = new ToolButtonGroup(
+			options.buttonContainer,
+			options.buttonTools,
+			(tool) => this.select(tool),
+		);
 		this.render();
 		this.#defaultControls = captureControlState(options.root);
 		const restored = options.documentModel
@@ -120,6 +151,22 @@ export class GenericToolbar<TTool extends string> {
 		this.#defaultControls = captureControlState(this.options.root);
 	}
 
+	/** Remembers an explicit setting edit for the tool that owns it. */
+	setProfileControl(
+		tool: TTool,
+		controlId: string,
+		value: PersistedValue,
+	): void {
+		if (!this.options.profiledControlIds?.includes(controlId)) return;
+		this.writeProfileControl(tool, controlId, value);
+		if (
+			this.profileOwner(tool, controlId) ===
+			this.profileOwner(this.#activeTool, controlId)
+		)
+			restoreControlState(this.options.root, { [controlId]: value });
+		this.persist();
+	}
+
 	private render(): void {
 		this.options.selectGroups.forEach((group) => {
 			group.select.replaceChildren(
@@ -127,9 +174,6 @@ export class GenericToolbar<TTool extends string> {
 			);
 			group.select.value = group.defaultTool;
 		});
-		this.options.buttonContainer.replaceChildren(
-			...this.options.buttonTools.map(createToolButton),
-		);
 	}
 
 	private bindEvents(): void {
@@ -140,13 +184,6 @@ export class GenericToolbar<TTool extends string> {
 			group.control.addEventListener('click', () =>
 				this.select(group.select.value as TTool),
 			);
-		});
-		this.options.buttonContainer.addEventListener('click', (event) => {
-			const button = (event.target as HTMLElement).closest<HTMLElement>(
-				'[data-tool]',
-			);
-			if (button?.dataset.tool && this.hasTool(button.dataset.tool))
-				this.select(button.dataset.tool);
 		});
 		for (const eventName of ['input', 'change'])
 			this.options.root.addEventListener(eventName, () => this.persist());
@@ -163,14 +200,7 @@ export class GenericToolbar<TTool extends string> {
 				group.icon.textContent = definition.icon;
 			}
 		});
-		this.options.buttonContainer
-			.querySelectorAll<HTMLElement>('[data-tool]')
-			.forEach((button) =>
-				button.classList.toggle(
-					'active',
-					button.dataset.tool === this.#activeTool,
-				),
-			);
+		this.#buttonTools.showActiveTool(this.#activeTool);
 	}
 
 	private restoreDocumentState(): void {
@@ -188,9 +218,8 @@ export class GenericToolbar<TTool extends string> {
 		this.#activeTool = this.hasTool(state?.activeTool ?? null)
 			? (state!.activeTool! as TTool)
 			: this.options.defaultTool;
-		if (this.#controlProfiles.has(this.#activeTool))
-			this.restoreProfile(this.#activeTool);
-		else this.captureActiveProfile();
+		this.restoreProfile(this.#activeTool, state?.controls);
+		this.captureActiveProfile();
 		this.updateSelection();
 		this.#listeners.forEach((listener) => listener(this.#activeTool));
 	}
@@ -204,25 +233,42 @@ export class GenericToolbar<TTool extends string> {
 	private captureActiveProfile(): void {
 		if (!this.options.profiledControlIds?.length) return;
 		const controls = captureControlState(this.options.root);
-		const profile: Record<string, PersistedValue> = {};
 		for (const id of this.options.profiledControlIds) {
 			const value = controls[id];
-			if (value !== undefined) profile[id] = value;
+			if (value !== undefined)
+				this.writeProfileControl(this.#activeTool, id, value);
 		}
-		this.#controlProfiles.set(this.#activeTool, profile);
 	}
 
-	private restoreProfile(tool: TTool): void {
+	private profileOwner(tool: TTool, controlId: string): TTool {
+		return this.options.profileOwner?.(tool, controlId) ?? tool;
+	}
+
+	private writeProfileControl(
+		tool: TTool,
+		controlId: string,
+		value: PersistedValue,
+	): void {
+		const owner = this.profileOwner(tool, controlId);
+		const profile = this.#controlProfiles.get(owner) ?? {};
+		profile[controlId] = value;
+		this.#controlProfiles.set(owner, profile);
+	}
+
+	private restoreProfile(
+		tool: TTool,
+		restoredControls?: Readonly<Record<string, PersistedValue>>,
+	): void {
 		if (!this.options.profiledControlIds?.length) return;
-		const profile = this.#controlProfiles.get(tool);
-		if (profile) {
-			restoreControlState(this.options.root, profile);
-			return;
-		}
 		const defaults: Record<string, PersistedValue> = {};
 		const toolDefaults = this.options.toolDefaults?.[tool];
 		for (const id of this.options.profiledControlIds) {
-			const value = toolDefaults?.[id] ?? this.#defaultControls[id];
+			const profile = this.#controlProfiles.get(this.profileOwner(tool, id));
+			const value =
+				profile?.[id] ??
+				restoredControls?.[id] ??
+				toolDefaults?.[id] ??
+				this.#defaultControls[id];
 			if (value !== undefined) defaults[id] = value;
 		}
 		restoreControlState(this.options.root, defaults);
@@ -287,9 +333,9 @@ export class PersistentDocumentToolbar<TExtra = never> {
 		const state = this.documentModel.toolbarState<DocumentToolbarState<TExtra>>(
 			this.stateKey,
 		);
-		if (state?.controls) restoreControlState(this.root, state.controls);
-		else if (this.restoreDefaultsWhenMissing)
-			restoreControlState(this.root, this.#defaults);
+		if (this.restoreDefaultsWhenMissing)
+			restoreControlState(this.root, { ...this.#defaults, ...state?.controls });
+		else if (state?.controls) restoreControlState(this.root, state.controls);
 		this.#extra = state?.extra;
 		this.#restoreListeners.forEach((listener) => listener(this.#extra));
 	}

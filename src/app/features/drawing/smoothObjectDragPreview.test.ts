@@ -51,15 +51,15 @@ describe('smooth retained-object drag preview', () => {
 
 		dispatch(overlay, 'pointerdown', 30, 30);
 		dispatch(overlay, 'pointermove', 31, 30);
-		expect(objects.selected?.rect.x).toBe(21);
+		expect(objects.object('shape')?.rect.x).toBe(21);
 		dispatch(overlay, 'pointerup', 31, 30);
-		expect(objects.selected?.rect.x).toBe(20);
+		expect(objects.object('shape')?.rect.x).toBe(20);
 
 		dispatch(overlay, 'pointerdown', 30, 30);
 		dispatch(overlay, 'pointermove', 31, 30);
 		dispatch(overlay, 'pointermove', 40, 30);
 		dispatch(overlay, 'pointerup', 40, 30);
-		expect(objects.selected?.rect.x).toBe(30);
+		expect(objects.object('shape')?.rect.x).toBe(30);
 	});
 });
 

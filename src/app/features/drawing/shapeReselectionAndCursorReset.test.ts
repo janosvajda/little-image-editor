@@ -47,7 +47,7 @@ describe("retained shape reselection", () => {
       right: CanvasFixture.Width, bottom: CanvasFixture.Height, x: 0, y: 0, toJSON: () => ({})
     });
     const shapes = new AnnotationDocument();
-    shapes.add(shape("older", ShapeFixture.OlderX)); shapes.add(shape("newer", ShapeFixture.NewerX));
+    shapes.add(shape("older", ShapeFixture.OlderX)); shapes.createLayer(); shapes.add(shape("newer", ShapeFixture.NewerX));
     const drawing = new DrawingController(model, undefined, shapes);
     drawing.select(ShapeToolId.Rectangle);
 

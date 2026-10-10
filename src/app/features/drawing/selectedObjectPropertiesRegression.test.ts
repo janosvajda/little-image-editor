@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { PaintToolId, ShapeToolId } from '../../core/document/appTypes';
+import { PaintToolId, ShapeToolId, UtilityToolId } from '../../core/document/appTypes';
 import { CoreLayerId } from '../../core/layers/layerTypes';
 import { AnnotationDocument } from '../annotations/annotationDocument';
 import { AnnotationObjectTypeId } from '../annotations/annotationTypes';
@@ -10,13 +10,18 @@ describe('selected object properties', () => {
 		document.body.innerHTML = '<div id="properties"></div>';
 	});
 
-	it('hides whole-object style editing for paint layers', () => {
+	it('offers whole-object style editing for a stroke item selected with Select', () => {
 		const objects = documentWithStroke();
 		const parent = document.querySelector<HTMLElement>('#properties')!;
-		new SelectedObjectPropertiesController(objects, parent);
+		const properties = new SelectedObjectPropertiesController(objects, parent);
+		properties.setTool(PaintToolId.Brush);
 		expect(parent.querySelector('.selected-object-options')?.classList).toContain(
 			'hidden',
 		);
+		properties.setTool(UtilityToolId.Select);
+		expect(
+			parent.querySelector('.selected-object-options')?.classList,
+		).not.toContain('hidden');
 		const color = parent.querySelector<HTMLInputElement>(
 			'[aria-label="Selected object color"]',
 		)!;
@@ -24,7 +29,7 @@ describe('selected object properties', () => {
 		color.dispatchEvent(new Event('input', { bubbles: true }));
 		color.dispatchEvent(new Event('change', { bubbles: true }));
 
-		expect(objects.selected).toMatchObject({ color: '#000000' });
+		expect(objects.selected).toMatchObject({ color: '#12ab34' });
 	});
 
 	it('keeps supported controls available for structured shapes', () => {

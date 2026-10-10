@@ -33,7 +33,7 @@ describe('stroke editing and movement isolation', () => {
 		drawing = new DrawingController(model, undefined, objects);
 	});
 
-	it('selects the paint layer and appends a later brush gesture to it', () => {
+	it('keeps an erased stroke unchanged and adds a later brush gesture to its layer', () => {
 		const original = objects.object('stroke') as StrokeAnnotation;
 		original.erasures = [
 			{
@@ -57,12 +57,15 @@ describe('stroke editing and movement isolation', () => {
 		pointer(model.overlay, 'pointermove', 55, 55);
 		pointer(model.overlay, 'pointerup', 55, 55);
 
-		expect(objects.state.objects).toHaveLength(1);
+		expect(objects.state.objects).toHaveLength(2);
 		const edited = objects.object('stroke') as StrokeAnnotation;
-		expect(edited.points.slice(0, before.length)).toEqual(before);
-		expect(edited.pathStarts).toEqual([before.length]);
+		expect(edited.points).toEqual(before);
+		expect(edited.pathStarts).toBeUndefined();
 		expect(edited.erasures?.[0]?.strokePointLimit).toBe(before.length);
-		expect(edited.points.at(-1)).toMatchObject({ x: 55, y: 55 });
+		const added = objects.state.objects[1] as StrokeAnnotation;
+		expect(objects.layerOf(added.id)?.id).toBe(objects.layerOf('stroke')?.id);
+		expect(added.erasures).toBeUndefined();
+		expect(added.points.at(-1)).toMatchObject({ x: 55, y: 55 });
 	});
 });
 

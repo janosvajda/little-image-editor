@@ -27,8 +27,9 @@ describe('individual object layer controls', () => {
 			controller.panel.list.querySelector<HTMLElement>(
 				`[data-object-id='${id}']`,
 			)!;
-		objectRow().querySelector<HTMLButtonElement>('.layer-edit')!.click();
+		objectRow().querySelector<HTMLButtonElement>('.layer-name')!.click();
 		expect(model.layers.state.activeLayerId).toBe(CoreLayerId.Objects);
+		expect(objects.selectedId).toBe(id);
 		objectRow().querySelector<HTMLButtonElement>('.layer-lock')!.click();
 		expect(objects.object(id)?.locked).toBe(true);
 		expect(objects.selected).toBeNull();

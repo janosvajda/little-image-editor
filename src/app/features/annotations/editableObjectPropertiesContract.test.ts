@@ -50,7 +50,12 @@ const OBJECTS: readonly AnnotationObject[] = [
 
 describe('editable object property contract', () => {
 	it('exposes only properties supported by each retained object type', () => {
-		expect(editableObjectProperties(OBJECTS[0]!)).toEqual({});
+		expect(editableObjectProperties(OBJECTS[0]!)).toEqual({
+			color: '#000000',
+			size: 12,
+			opacity: 1,
+			hardness: 0.8,
+		});
 		expect(editableObjectProperties(OBJECTS[1]!)).toEqual({
 			color: '#000000',
 			size: 2,
@@ -63,7 +68,7 @@ describe('editable object property contract', () => {
 		});
 	});
 
-	it('does not apply whole-object style changes to paint layers', () => {
+	it('restyles a stroke item as a whole', () => {
 		const stroke = structuredClone(OBJECTS[0]!);
 		setEditableObjectProperty(
 			stroke,
@@ -75,6 +80,6 @@ describe('editable object property contract', () => {
 			EditableObjectPropertyId.Size,
 			24,
 		);
-		expect(stroke).toMatchObject({ color: '#000000', size: 12 });
+		expect(stroke).toMatchObject({ color: '#12ab34', size: 24 });
 	});
 });

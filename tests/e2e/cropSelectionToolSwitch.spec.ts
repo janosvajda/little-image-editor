@@ -17,7 +17,10 @@ test('a JPEG crop remains movable after choosing Select', async ({ page }) => {
 	await drag([20, 20], [80, 80]);
 	await page.keyboard.press('v');
 	await drag([50, 50], [150, 100]);
-	const source = await page.locator('#canvas').evaluate((element) => [...(element as HTMLCanvasElement).getContext('2d')!.getImageData(50, 50, 1, 1).data]);
-	expect(source).toEqual([255, 255, 255, 255]);
-	await expect(page.locator('.layer-object-row')).toHaveCount(0);
+	const alphaAt = (canvas: string, x: number, y: number) => page.locator(canvas).evaluate((element, point) => (element as HTMLCanvasElement).getContext('2d')!.getImageData(point.x, point.y, 1, 1).data[3], { x, y });
+	// The cut leaves a hole in the image, and the piece moved with Select.
+	expect(await alphaAt('#canvas', 50, 50)).toBe(0);
+	expect(await alphaAt('.annotation-canvas', 50, 50)).toBe(0);
+	expect(await alphaAt('.annotation-canvas', 150, 100)).toBe(255);
+	await expect(page.locator('.layer-item-row')).toHaveCount(1);
 });

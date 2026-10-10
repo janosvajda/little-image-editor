@@ -17,6 +17,8 @@ import { DrawingController } from './drawingController';
 const CanvasSize = 60;
 const PointerId = 17;
 const Gesture = { From: 10, To: 30 } as const;
+/** Away from the eraser path, which presses on the image. */
+const RetainedStroke = { From: 40, To: 55 } as const;
 
 describe('layer-preserving drawing tools', () => {
 	let model: CanvasDocument;
@@ -109,10 +111,15 @@ function stroke(): StrokeAnnotation {
 		layerId: CoreLayerId.Objects,
 		tool: PaintToolId.Brush,
 		points: [
-			{ x: Gesture.From, y: Gesture.From, pressure: 1 },
-			{ x: Gesture.To, y: Gesture.To, pressure: 1 },
+			{ x: RetainedStroke.From, y: RetainedStroke.From, pressure: 1 },
+			{ x: RetainedStroke.To, y: RetainedStroke.To, pressure: 1 },
 		],
-		rect: { x: Gesture.From, y: Gesture.From, width: 20, height: 20 },
+		rect: {
+			x: RetainedStroke.From,
+			y: RetainedStroke.From,
+			width: RetainedStroke.To - RetainedStroke.From,
+			height: RetainedStroke.To - RetainedStroke.From,
+		},
 		color: '#000000',
 		size: 4,
 		opacity: 1,

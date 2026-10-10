@@ -15,6 +15,8 @@ const THEME_KEY = 'little-editor.theme.v1';
 const PANEL_MARGIN = 14;
 const PANEL_GAP = 14;
 const STATUS_BAR_HEIGHT = 28;
+const WORKSPACE_BOTTOM_INSET_PROPERTY = '--toolbar-workspace-bottom-inset';
+const WORKSPACE_MARGIN_PROPERTY = '--toolbar-workspace-margin';
 
 export class WorkspaceUi {
 	readonly workspace = element<HTMLElement>('.workspace');
@@ -42,6 +44,14 @@ export class WorkspaceUi {
 		readonly dialogs: readonly HTMLDialogElement[],
 		readonly toolbarLayoutStore = new ToolbarLayoutStore(),
 	) {
+		this.workspace.style.setProperty(
+			WORKSPACE_BOTTOM_INSET_PROPERTY,
+			`${STATUS_BAR_HEIGHT}px`,
+		);
+		this.workspace.style.setProperty(
+			WORKSPACE_MARGIN_PROPERTY,
+			`${PANEL_MARGIN}px`,
+		);
 		this.initializeFullscreenLabels();
 		this.initializeMenus();
 		this.initializePanels();

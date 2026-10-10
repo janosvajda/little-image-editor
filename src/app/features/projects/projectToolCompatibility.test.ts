@@ -2,11 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
 	DRAWING_TOOL_DEFINITIONS,
 } from '../drawing/drawingToolCatalog';
-import { AnnotationToolId } from '../annotations/annotationTypes';
 import { UtilityToolId } from '../../core/document/appTypes';
 import {
-	ANNOTATION_TOOL_PROJECT_COMPATIBILITY,
 	DRAWING_TOOL_PROJECT_COMPATIBILITY,
+	PROJECT_CAPABILITY_MANIFEST,
 } from './projectCompatibility';
 
 describe('.limg tool compatibility contract', () => {
@@ -21,11 +20,7 @@ describe('.limg tool compatibility contract', () => {
 				.filter((id) => !uiOnlyTools.has(id as UtilityToolId))
 				.sort(),
 		);
-		expect(Object.keys(ANNOTATION_TOOL_PROJECT_COMPATIBILITY).sort()).toEqual(
-			Object.values(AnnotationToolId)
-				.filter((id) => id !== AnnotationToolId.Select)
-				.sort(),
-		);
+		expect(Object.keys(PROJECT_CAPABILITY_MANIFEST)).toEqual(['drawingTools']);
 		for (const tool of uiOnlyTools)
 			expect(DRAWING_TOOL_PROJECT_COMPATIBILITY).not.toHaveProperty(tool);
 	});

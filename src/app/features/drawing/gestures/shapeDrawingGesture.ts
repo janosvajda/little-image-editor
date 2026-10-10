@@ -1,6 +1,9 @@
 import type { Point, ShapeTool } from '../../../core/document/appTypes';
 import type { CanvasDocument } from '../../../core/document/imageDocument';
-import { normalizedRect } from '../../../core/geometry/geometryHelpers';
+import {
+	normalizedRect,
+	rectOrientation,
+} from '../../../core/geometry/geometryHelpers';
 import type { AnnotationDocument } from '../../annotations/annotationDocument';
 import { AnnotationObjectTypeId } from '../../annotations/annotationTypes';
 import {
@@ -49,6 +52,7 @@ export class ShapeDrawingGesture implements DrawingGesture {
 			type: AnnotationObjectTypeId.Shape,
 			shape: this.tool,
 			rect: normalizedRect(this.start, point),
+			...rectOrientation(this.start, point),
 			rotation: 0,
 			color: style.color,
 			width: style.size,

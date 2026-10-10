@@ -54,26 +54,25 @@ describe('drawing tool routing to the active layer', () => {
 	});
 
 	it('does not paint into a locked active layer', () => {
-		objects.createPaintLayer();
-		const layer = objects.activeLayer!;
-		objects.setLocked(layer.id, true);
-		objects.activate(layer.id);
+		objects.add(shape('kept'));
+		const layerId = objects.layerOf('kept')!.id;
+		objects.setLayerLocked(layerId, true);
+		objects.activate(layerId);
 		drawing.select(PaintToolId.Brush);
 		drag(20, 20, 40, 40);
-		expect(objects.state.objects).toHaveLength(1);
-		expect(objects.object(layer.id)).toMatchObject({ points: [] });
+		expect(objects.state.objects.map(({ id }) => id)).toEqual(['kept']);
 	});
 
-	it('does not erase a hidden or empty active layer', () => {
+	it('does not erase a hidden item or an empty active layer', () => {
 		objects.add(shape('hidden', { visible: false }));
-		objects.activate('hidden');
 		drawing.select(PaintToolId.Eraser);
 		drag(20, 20, 30, 30);
 		expect(objects.object('hidden')?.erasures).toBeUndefined();
 
-		const empty = objects.createPaintLayer();
+		const empty = objects.createLayer();
 		drag(20, 20, 30, 30);
-		expect(objects.object(empty)?.erasures).toBeUndefined();
+		expect(objects.layerItems(empty)).toHaveLength(0);
+		expect(objects.object('hidden')?.erasures).toBeUndefined();
 	});
 
 	it('commits image paint directly when no layer document is attached', () => {
@@ -100,22 +99,30 @@ describe('drawing tool routing to the active layer', () => {
 		const frame = document.querySelector('.crop-selection-frame')?.getAttribute('d');
 		expect(frame).toBe('M12 12L30 12L30 30Z');
 		pointer('pointerup', 12, 30);
-		expect(
-			document.querySelector('.crop-selection-frame')?.getAttribute('d'),
-		).toBe('M12 12L30 12L30 30L12 30Z');
+		// Closing the lasso cuts the item it started on into a piece directly above it.
+		expect(document.querySelector('.crop-selection-frame')).toBeNull();
+		expect(objects.state.objects.map(({ type }) => type)).toEqual([
+			AnnotationObjectTypeId.Shape,
+			AnnotationObjectTypeId.RasterFragment,
+			AnnotationObjectTypeId.Shape,
+		]);
+		expect(objects.selectedId).toBe(objects.state.objects[1]?.id);
 	});
 
-	it('shows a move cursor inside an image selection', () => {
+	it('cuts a photo selection into its own layer item and shows a move cursor over it', () => {
 		Object.assign(model.context, { isPointInPath: vi.fn(() => true) });
 		drawing.select(UtilityToolId.Select);
 		drawing.select(UtilityToolId.Crop);
 		drag(5, 5, 50, 50);
+		const [piece] = objects.state.objects;
+		expect(piece?.type).toBe(AnnotationObjectTypeId.RasterFragment);
+		expect(objects.selectedId).toBe(piece?.id);
 		pointer('pointermove', 20, 20, 0);
 		expect(model.overlay.style.cursor).toBe('move');
 		drawing.select(UtilityToolId.Select);
 		pointer('pointerdown', 20, 20);
 		pointer('pointerup', 20, 20);
-		expect(objects.state.objects).toHaveLength(0);
+		expect(objects.state.objects).toHaveLength(1);
 	});
 
 	function drag(

@@ -1,14 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
+	MarkupToolId,
 	PaintToolId,
 	ShapeToolId,
 	UtilityToolId,
 } from '../../core/document/appTypes';
-import { AnnotationToolId } from '../annotations/annotationTypes';
 import { EffectId } from '../effects/imageFilterHelpers';
 import {
 	ADJUSTMENT_DOCUMENT_CONTRACT,
-	ANNOTATION_TOOL_DOCUMENT_CONTRACT,
 	DRAWING_TOOL_DOCUMENT_CONTRACT,
 	EFFECT_TOOL_DOCUMENT_CONTRACT,
 	EditableObjectKind,
@@ -26,13 +25,9 @@ describe('editor tool document enforcement contract', () => {
 				(tool) => DRAWING_TOOL_DOCUMENT_CONTRACT[tool],
 			),
 			DRAWING_TOOL_DOCUMENT_CONTRACT[UtilityToolId.Fill],
-			...Object.values(AnnotationToolId)
-				.filter(
-					(tool) =>
-						tool !== AnnotationToolId.Select &&
-						tool !== AnnotationToolId.Crop,
-				)
-				.map((tool) => ANNOTATION_TOOL_DOCUMENT_CONTRACT[tool]),
+			...Object.values(MarkupToolId).map(
+				(tool) => DRAWING_TOOL_DOCUMENT_CONTRACT[tool],
+			),
 			...Object.values(EFFECT_TOOL_DOCUMENT_CONTRACT),
 			...Object.values(ADJUSTMENT_DOCUMENT_CONTRACT),
 		];

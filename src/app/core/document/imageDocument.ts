@@ -20,6 +20,7 @@ import { DEFAULT_DOCUMENT_NAME, DocumentType } from './appTypes';
 import { DEFAULT_IMAGE_FORMAT } from './imageFormats';
 import { PIXELS_PER_INCH } from './measurementUnits';
 import { EditorLimit } from './editorLimits';
+import { ColorPalette } from './colorPalette';
 
 const HISTORY_LIMIT = EditorLimit.RasterHistory;
 const EMPTY_HISTORY_INDEX = -1;
@@ -69,6 +70,7 @@ export class CanvasDocument implements HistoryParticipant {
 	>();
 	#contentListeners = new Set<(hasImage: boolean) => void>();
 	#toolbarStates: Record<string, unknown> = {};
+	#toolbarStateListeners = new Set<(key: string) => void>();
 	#compositeRenderers = new Set<(context: CanvasRenderingContext2D) => void>();
 	#beforeGeometryChangeListeners = new Set<
 		(change: DocumentGeometryChange) => void
@@ -129,6 +131,11 @@ export class CanvasDocument implements HistoryParticipant {
 	/** Signals that recovery data is stale without eagerly copying the canvas. */
 	onContentChange(listener: (hasImage: boolean) => void): void {
 		this.#contentListeners.add(listener);
+	}
+
+	/** Signals an explicit toolbar-state edit; session restoration uses onDocumentChange. */
+	onToolbarStateChange(listener: (key: string) => void): void {
+		this.#toolbarStateListeners.add(listener);
 	}
 
 	/**
@@ -242,7 +249,7 @@ export class CanvasDocument implements HistoryParticipant {
 		this.context.drawImage(bitmap, 0, 0);
 		this.resolution = PIXELS_PER_INCH;
 		this.documentType = DocumentType.Image;
-		this.#opaqueBackgroundColor = '#ffffff';
+		this.#opaqueBackgroundColor = ColorPalette.White;
 		bitmap.close();
 		this.activate(file.name.replace(/\.[^.]+$/, '') || 'little-image');
 	}
@@ -325,6 +332,7 @@ export class CanvasDocument implements HistoryParticipant {
 	setToolbarState(key: string, state: unknown): void {
 		if (!this.hasImage) return;
 		this.#toolbarStates[key] = structuredClone(state);
+		this.#toolbarStateListeners.forEach((listener) => listener(key));
 		this.#emitContentChange();
 	}
 
@@ -405,7 +413,7 @@ export class CanvasDocument implements HistoryParticipant {
 		sample.width = 1;
 		sample.height = 1;
 		const context = sample.getContext('2d')!;
-		context.fillStyle = this.#opaqueBackgroundColor ?? '#ffffff';
+		context.fillStyle = this.#opaqueBackgroundColor ?? ColorPalette.White;
 		context.fillRect(0, 0, sample.width, sample.height);
 		return context.getImageData(0, 0, sample.width, sample.height).data;
 	}
@@ -465,7 +473,7 @@ export class CanvasDocument implements HistoryParticipant {
 		this.savedType = snapshot.savedType;
 		this.resolution = snapshot.resolution ?? PIXELS_PER_INCH;
 		this.documentType = snapshot.documentType ?? DocumentType.Image;
-		this.#opaqueBackgroundColor = this.containsTransparency() ? null : '#ffffff';
+		this.#opaqueBackgroundColor = this.containsTransparency() ? null : ColorPalette.White;
 	}
 
 	#updateImagePresentation(): void {

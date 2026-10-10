@@ -23,18 +23,31 @@ export class ClipboardController {
 		);
 	}
 
-	async copy(): Promise<boolean> {
-		if (!this.documentModel.hasImage) return false;
-		try {
+	copy(): Promise<boolean> {
+		if (!this.documentModel.hasImage) return Promise.resolve(false);
+		return this.write(async () => {
 			const blob = await this.documentModel.toBlob(ImageMimeType.Png);
 			await navigator.clipboard.write([
 				new ClipboardItem({ [ImageMimeType.Png]: blob }),
 			]);
-			this.showStatus('Image copied to clipboard.');
+		}, 'Image');
+	}
+
+	copyText(text: string, description = 'Text'): Promise<boolean> {
+		return this.write(() => navigator.clipboard.writeText(text), description);
+	}
+
+	private async write(
+		write: () => Promise<void>,
+		description: string,
+	): Promise<boolean> {
+		try {
+			await write();
+			this.showStatus(`${description} copied to clipboard.`);
 			return true;
 		} catch {
 			this.showStatus(
-				'Could not copy the image. Check clipboard permission.',
+				`Could not copy the ${description.toLowerCase()}. Check clipboard permission.`,
 				true,
 			);
 			return false;

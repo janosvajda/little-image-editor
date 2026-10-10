@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { toggleQaReporting } from "./support/qaReporting";
 
 test("selecting the active brush takes canvas control from annotation Highlight", async ({ page }) => {
   await page.goto("/");
@@ -11,7 +12,9 @@ test("selecting the active brush takes canvas control from annotation Highlight"
   await page.locator("#toolbarPickerButton").click();
   const toolsToggle = page.locator('[data-panel-toggle="tools"]');
   if (!(await toolsToggle.isChecked())) await toolsToggle.check();
+  await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "Brush tools: Brush", exact: true }).evaluate(button => (button as HTMLButtonElement).click());
+  await toggleQaReporting(page);
 
   const overlay = page.locator("#overlay");
   const bounds = await overlay.boundingBox();

@@ -52,15 +52,18 @@ describe('cropped raster paint ownership', () => {
 		drawPath(insideCrop ? 50 : 120, 50, 70, 70);
 		drawPath(60, 60, 80, 80);
 
-		expect(objects.state.objects).toHaveLength(insideCrop ? 2 : 3);
+		expect(objects.state.objects).toHaveLength(insideCrop ? 2 : 4);
 		expect(objects.state.objects[0]).toEqual(original);
 		const painted = objects.snapshotSession();
 		if (insideCrop) {
 			expect(objects.selectedId).toBe('cropped-raster');
 			expect(objects.state.objects[1]?.type).toBe(AnnotationObjectTypeId.RasterFragment);
 		} else {
-			expect(objects.state.objects[2]?.type).toBe(AnnotationObjectTypeId.Stroke);
-			expect(objects.activePaintLayer?.pathStarts).toHaveLength(1);
+			expect(objects.state.objects.slice(2).map(({ type }) => type)).toEqual([
+				AnnotationObjectTypeId.Stroke,
+				AnnotationObjectTypeId.Stroke,
+			]);
+			expect(objects.object('cropped-raster')).toEqual(beforePainting.state.objects[1]);
 		}
 		expect(layers.panel.list.querySelectorAll('.layer-object-row.active')).toHaveLength(1);
 		objects.undo();

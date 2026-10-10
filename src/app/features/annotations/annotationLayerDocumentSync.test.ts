@@ -1,15 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { ShapeToolId } from '../../core/document/appTypes';
+import { ShapeToolId, UtilityToolId } from '../../core/document/appTypes';
 import { CanvasDocument } from '../../core/document/imageDocument';
 import { BlendMode, CoreLayerId } from '../../core/layers/layerTypes';
+import { DrawingController } from '../drawing/drawingController';
 import { PersistentDocumentToolbar } from '../workspace/genericToolbar';
-import { AnnotationController } from './annotationController';
-import {
-	AnnotationObjectTypeId,
-	type AnnotationTool,
-	AnnotationToolId,
-	type ShapeAnnotation,
-} from './annotationTypes';
+import { AnnotationDocument } from './annotationDocument';
+import { ANNOTATION_TOOLBAR_KEY, AnnotationPanel } from './annotationPanel';
+import { AnnotationObjectTypeId, type ShapeAnnotation } from './annotationTypes';
+import { BugReportController, type BugReportPreferences } from './bugReportController';
+import { ContentLayerCanvas } from './contentLayerCanvas';
 
 const DocumentSize = { Width: 200, Height: 100 } as const;
 const CropOrigin = { x: 30, y: 20 } as const;
@@ -31,12 +30,20 @@ function shape(extra: Partial<ShapeAnnotation> = {}): ShapeAnnotation {
 
 describe('annotation layers follow the image document', () => {
 	let model: CanvasDocument;
-	let controller: AnnotationController;
+	let objects: AnnotationDocument;
+	let layerCanvas: ContentLayerCanvas;
 
 	beforeEach(() => {
 		model = new CanvasDocument(
 			document.querySelector('#canvas')!,
 			document.querySelector('#overlay')!,
+		);
+		objects = new AnnotationDocument();
+		layerCanvas = new ContentLayerCanvas(
+			model,
+			{ addCanvasLayer: (layer: HTMLCanvasElement) => model.overlay.before(layer) },
+			objects,
+			vi.fn(),
 		);
 		model.create({
 			name: 'sync',
@@ -45,87 +52,123 @@ describe('annotation layers follow the image document', () => {
 			transparent: false,
 			background: '#ffffff',
 		});
-		controller = new AnnotationController(model, {
-			addCanvasLayer: (layer: HTMLCanvasElement) => model.overlay.before(layer),
-		} as never);
-		for (const context of [controller.canvas.getContext('2d')!, model.context])
+		for (const context of [layerCanvas.canvas.getContext('2d')!, model.context])
 			for (const method of ['arc', 'fillText', 'strokeRect', 'clip'] as const)
 				if (!(method in context)) Object.assign(context, { [method]: vi.fn() });
 	});
 
 	it('keeps layers aligned with the image through a crop and its undo', () => {
-		controller.annotations.add(shape());
+		objects.add(shape());
 		model.crop({
 			x: CropOrigin.x,
 			y: CropOrigin.y,
 			width: DocumentSize.Width - CropOrigin.x,
 			height: DocumentSize.Height - CropOrigin.y,
 		});
-		expect(controller.annotations.object('layer')?.rect).toMatchObject({
+		expect(objects.object('layer')?.rect).toMatchObject({
 			x: LayerOrigin.x - CropOrigin.x,
 			y: LayerOrigin.y - CropOrigin.y,
 		});
 		model.undo();
-		expect(controller.annotations.object('layer')?.rect).toMatchObject({
+		expect(objects.object('layer')?.rect).toMatchObject({
 			x: LayerOrigin.x,
 			y: LayerOrigin.y,
 		});
 	});
 
 	it('lets the image canvas present itself again when the layers are hidden', () => {
-		controller.annotations.add(shape({ blendMode: BlendMode.Multiply }));
+		objects.add(shape());
+		objects.setLayerAppearance(objects.layerOf('layer')!.id, {
+			blendMode: BlendMode.Multiply,
+		});
 		expect(model.canvas.style.opacity).toBe('0');
 		model.layers.setVisible(CoreLayerId.Objects, false);
 		expect(model.canvas.style.opacity).toBe('1');
 	});
 
-	it('stops annotation editing while the layers are locked', () => {
-		controller.activate();
-		expect(controller.active).toBe(true);
+	it('adds no items while the layers are locked', () => {
+		const drawing = new DrawingController(model, undefined, objects);
 		model.layers.setLocked(CoreLayerId.Objects, true);
-		expect(controller.active).toBe(false);
-		controller.activate();
-		expect(controller.active).toBe(false);
+		drawing.select(ShapeToolId.Rectangle);
+		drag(model.overlay, { x: 10, y: 10 }, { x: 60, y: 40 });
+		expect(objects.state.objects).toHaveLength(0);
 	});
 
-	it('restores the last annotation tool from the document toolbar state', () => {
-		const preferences = new PersistentDocumentToolbar<{
-			tool: AnnotationTool;
-			reportEdited: boolean;
-		}>(document.createElement('section'), model, 'restored-annotations');
-		const restored = new AnnotationController(
-			model,
-			{ addCanvasLayer: vi.fn() } as never,
-			undefined,
-			preferences,
+	it('restores the tool in use with the document session and shows it in the capture toolbar', () => {
+		const drawing = new DrawingController(model, undefined, objects);
+		const panel = new AnnotationPanel((tool) => drawing.select(tool));
+		drawing.onToolChange((tool) => panel.showActiveTool(tool));
+		drawing.select(ShapeToolId.Rectangle);
+		const session = model.snapshotSession();
+		drawing.select(UtilityToolId.Select);
+		model.restoreSession(session);
+		expect(drawing.tool).toBe(ShapeToolId.Rectangle);
+		expect(panel.tools.querySelector('.active')?.getAttribute('data-tool')).toBe(
+			ShapeToolId.Rectangle,
 		);
-		preferences.setExtra({ tool: AnnotationToolId.Box, reportEdited: true });
-		model.restoreSession(model.snapshotSession());
-		expect(
-			restored.panel.toolButtons.get(AnnotationToolId.Box)?.classList,
-		).toContain('active');
 	});
 
-	it('edits text layers on double-click only while annotating', () => {
-		controller.annotations.add(shape());
-		const doubleClick = () =>
-			model.overlay.dispatchEvent(
-				new MouseEvent('dblclick', {
-					bubbles: true,
-					clientX: LayerOrigin.x + 1,
-					clientY: LayerOrigin.y + 1,
-				}),
-			);
-		doubleClick();
-		controller.activate();
-		doubleClick();
+	it('opens no text editor when a non-text item is double-clicked', () => {
+		const drawing = new DrawingController(model, undefined, objects);
+		objects.add(shape());
+		drawing.select(UtilityToolId.Select);
+		model.overlay.dispatchEvent(
+			new MouseEvent('dblclick', {
+				bubbles: true,
+				clientX: LayerOrigin.x + 1,
+				clientY: LayerOrigin.y + 1,
+			}),
+		);
 		expect(document.querySelector('.annotation-inline-text')).toBeNull();
 	});
 
 	it('keeps a manually edited bug report when the document changes', () => {
-		controller.panel.reportPreview.value = 'Manual report';
-		controller.panel.reportPreview.dispatchEvent(new Event('input'));
+		const panel = new AnnotationPanel(vi.fn());
+		document.body.append(panel.element);
+		new BugReportController(
+			model,
+			panel,
+			new PersistentDocumentToolbar<BugReportPreferences>(
+				panel.element,
+				model,
+				ANNOTATION_TOOLBAR_KEY,
+			),
+		);
+		panel.reportPreview.value = 'Manual report';
+		panel.reportPreview.dispatchEvent(new Event('input'));
 		model.resize(DocumentSize.Width / 2, DocumentSize.Height / 2);
-		expect(controller.panel.reportPreview.value).toBe('Manual report');
+		expect(panel.reportPreview.value).toBe('Manual report');
 	});
 });
+
+function drag(
+	overlay: HTMLCanvasElement,
+	from: Readonly<{ x: number; y: number }>,
+	to: Readonly<{ x: number; y: number }>,
+): void {
+	overlay.getBoundingClientRect = () =>
+		({
+			left: 0,
+			top: 0,
+			right: DocumentSize.Width,
+			bottom: DocumentSize.Height,
+			x: 0,
+			y: 0,
+			width: DocumentSize.Width,
+			height: DocumentSize.Height,
+		}) as DOMRect;
+	for (const [type, point] of [
+		['pointerdown', from],
+		['pointermove', to],
+		['pointerup', to],
+	] as const)
+		overlay.dispatchEvent(
+			new MouseEvent(type, {
+				bubbles: true,
+				cancelable: true,
+				button: 0,
+				clientX: point.x,
+				clientY: point.y,
+			}),
+		);
+}

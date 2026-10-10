@@ -54,7 +54,7 @@ async function openProjectWithStrokes(page: Page): Promise<void> {
 	await page.locator('#newImageName').fill('layer-drag-feedback');
 	await page.locator('#createImageButton').click();
 	await page.locator('#toolbarPickerButton').click();
-	await page.getByLabel('Layers', { exact: true }).check();
+	await page.locator('[data-panel-toggle="layers"]').check();
 	await page.keyboard.press('Escape');
 	for (let index = 0; index < StrokeCount; index += 1) {
 		await page.locator('[data-panel="layers"] .layer-new-paint').click();

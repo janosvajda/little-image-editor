@@ -80,12 +80,14 @@ describe('annotation document layer edge cases', () => {
 	it('ignores operations on layers that do not exist', () => {
 		const layers = document(shape('a'));
 		const before = historyLength(layers);
-		layers.activate('a');
+		layers.activate('missing');
 		layers.beginInteraction('missing');
 		layers.remove('missing');
 		layers.reorder('missing', AnnotationStackDirection.Forward);
-		layers.moveToObject('missing', 'a');
-		layers.moveToObject('a', 'a');
+		layers.moveItemTo('missing', 'a');
+		layers.moveItemTo('a', 'a');
+		layers.moveItemToLayer('a', 'missing');
+		layers.moveLayerTo('missing', layers.layerOf('a')!.id);
 		expect(layers.cutAndMove('missing', Selection, Delta)).toBeNull();
 		expect(layers.cutToRasterFragment('missing', Selection, fragment())).toBeNull();
 		expect(historyLength(layers)).toBe(before);
@@ -139,15 +141,16 @@ describe('annotation document layer edge cases', () => {
 		expect(historyLength(layers)).toBe(before + 1);
 	});
 
-	it('cuts pixels of a layer into a named layer directly above it', () => {
+	it('cuts pixels of an item into a piece directly above it in the same layer', () => {
 		const layers = document(stroke('paint'), shape('top'));
+		const layerId = layers.layerOf('paint')!.id;
 		expect(layers.cutAndMove('paint', Selection.slice(0, 2), Delta)).toBeNull();
 		const moved = layers.cutAndMove('paint', Selection, Delta)!;
 		expect(layers.state.objects.map(({ id }) => id)).toEqual(['paint', moved, 'top']);
-		expect(layers.layerName(moved)).toBe('Paint layer 2');
+		expect(layers.layerOf(moved)?.id).toBe(layerId);
 		const cut = layers.cutToRasterFragment('paint', Selection, fragment())!;
 		expect(layers.object('paint')?.pixelCutouts?.at(-1)?.strokePointLimit).toBe(2);
-		expect(layers.layerName(cut)).toBe('Raster fragment 1');
+		expect(layers.layerOf(cut)?.id).toBe(layerId);
 		expect(layers.cutToRasterFragment('paint', Selection.slice(0, 2), fragment())).toBeNull();
 	});
 

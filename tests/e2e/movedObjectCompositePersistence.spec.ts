@@ -40,7 +40,7 @@ async function createPaintLayer(page: Page): Promise<void> {
 	const layers = page.locator('[data-panel="layers"]');
 	if (!(await layers.isVisible())) {
 		await page.locator('#toolbarPickerButton').click();
-		await page.getByLabel('Layers', { exact: true }).check();
+		await page.locator('[data-panel-toggle="layers"]').check();
 		await page.keyboard.press('Escape');
 	}
 	await layers.locator('.layer-new-paint').click();

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { BROWSER_CAPTURE_MENU_IDS, BrowserCaptureController } from "./browserCaptureController";
 import { readCaptureSource } from "./browserPageCapture";
+import { QA_REPORTING_TITLE } from "../annotations/bugReportMetadata";
 import type { BrowserCapturePlatform, BrowserContextMenu, BrowserMenuClick, BrowserTab } from "./browserCapturePlatform";
 
 class Platform implements BrowserCapturePlatform {
@@ -22,7 +23,7 @@ describe("bug-report screenshot context workflow", () => {
     const put = vi.fn().mockResolvedValue(undefined);
     await new BrowserCaptureController(platform, { put }).start();
     expect(platform.replaceContextMenus).toHaveBeenLastCalledWith(expect.arrayContaining([
-      { id: BROWSER_CAPTURE_MENU_IDS.bugReport, title: "Capture & annotate", contexts: ["page", "image"] }
+      { id: BROWSER_CAPTURE_MENU_IDS.bugReport, title: QA_REPORTING_TITLE, contexts: ["page", "image"] }
     ]));
     platform.menu!({ menuItemId: BROWSER_CAPTURE_MENU_IDS.bugReport }, { id: 3, windowId: 7 });
     await vi.waitFor(() => expect(put).toHaveBeenCalledOnce());

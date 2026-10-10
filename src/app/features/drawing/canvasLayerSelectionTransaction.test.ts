@@ -40,12 +40,13 @@ describe('canvas and Layers selection transaction', () => {
 	});
 
 	it('keeps a click gesture in the active paint layer and aligns Layers selection', () => {
+		const layerId = objects.layerOf(OriginalStrokeId)!.id;
 		pointer('pointerdown');
 		pointer('pointerup');
 
-		expect(objects.state.objects).toHaveLength(1);
-		expect(objects.selectedId).toBe(OriginalStrokeId);
-		expect(activeObjectId()).toBe(OriginalStrokeId);
+		expect(objects.state.layers).toHaveLength(1);
+		expect(objects.layerItems(layerId)).toHaveLength(2);
+		expect(activeLayerRowId()).toBe(layerId);
 
 		model.overlay.dispatchEvent(
 			new MouseEvent('dblclick', {
@@ -58,10 +59,10 @@ describe('canvas and Layers selection transaction', () => {
 
 		expect(objects.state.objects.map(({ id }) => id)).toEqual([OriginalStrokeId]);
 		expect(objects.selectedId).toBe(OriginalStrokeId);
-		expect(activeObjectId()).toBe(OriginalStrokeId);
+		expect(activeItemRowId()).toBe(OriginalStrokeId);
 
 		layers.panel.list
-			.querySelector<HTMLElement>('.layer-object-row.active .layer-delete')
+			.querySelector<HTMLElement>(`[data-content-layer-id="${layerId}"] .layer-delete`)
 			?.click();
 		expect(objects.state.objects).toHaveLength(0);
 		expect(objects.selectedId).toBeNull();
@@ -80,9 +81,15 @@ describe('canvas and Layers selection transaction', () => {
 		);
 	}
 
-	function activeObjectId(): string | undefined {
+	function activeLayerRowId(): string | undefined {
 		return layers.panel.list.querySelector<HTMLElement>(
 			'.layer-object-row.active',
+		)?.dataset.contentLayerId;
+	}
+
+	function activeItemRowId(): string | undefined {
+		return layers.panel.list.querySelector<HTMLElement>(
+			'.layer-item-row.active',
 		)?.dataset.objectId;
 	}
 });

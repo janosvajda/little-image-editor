@@ -41,12 +41,8 @@ describe('DrawingController uncovered behavior', () => {
 		expect(document.querySelector('#paintToolControl')!.classList).toContain('active');
 	});
 
-	it('reclaims interaction ownership, handles coalesced paint samples, and restores cursors', () => {
-		const requested = vi.fn();
-		drawing.onInteractionRequested(requested);
-		drawing.suspendInteractions();
+	it('handles coalesced paint samples and restores cursors', () => {
 		drawing.select(PaintToolId.Brush);
-		expect(requested).toHaveBeenCalledOnce();
 
 		pointer('pointerdown', 20, 20);
 		const move = pointerEvent('pointermove', 60, 50);

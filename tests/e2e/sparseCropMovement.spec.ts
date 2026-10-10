@@ -14,12 +14,13 @@ test('dragging blank space inside a cropped stroke moves its pixels instead of d
 	};
 	await drag(300, 150, 0, 250);
 	await page.keyboard.press('c');
-	await drag(250, 220, 150, 100);
+	// A cut takes what is under its starting point, so it starts on the stroke.
+	await drag(300, 220, 150, 100);
 	await expect(page.locator('.layer-item-row.active')).toContainText('Pixels');
 	const count = await page.locator('.layer-item-row').count();
 	// This lies inside the selected rectangle, but away from the stroke's opaque pixels.
 	await drag(360, 260, 100, 60);
-	await expect(page.locator('.selection-frame')).toHaveAttribute('x', '350');
+	await expect(page.locator('.selection-frame')).toHaveAttribute('x', '400');
 	await expect(page.locator('.selection-frame')).toHaveAttribute('y', '280');
 	await expect(page.locator('.layer-item-row')).toHaveCount(count);
 	await expect(page.locator('.crop-selection-frame')).toHaveCount(0);
@@ -31,7 +32,7 @@ test('dragging blank space inside a cropped stroke moves its pixels instead of d
 	expect(alpha.destination).toBeGreaterThan(0);
 	// Move the same crop again from blank space, then undo and redo that move.
 	await drag(460, 320, -50, 40);
-	await expect(page.locator('.selection-frame')).toHaveAttribute('x', '300');
+	await expect(page.locator('.selection-frame')).toHaveAttribute('x', '350');
 	await expect(page.locator('.selection-frame')).toHaveAttribute('y', '320');
 	await expect(page.locator('.crop-selection-frame')).toHaveCount(0);
 	await page.locator('#undoButton').click();
@@ -40,14 +41,14 @@ test('dragging blank space inside a cropped stroke moves its pixels instead of d
 	// The first click selects the piece's layer; the second drills in to the piece.
 	await page.mouse.click(bounds.x + 350, bounds.y + 370);
 	await page.mouse.click(bounds.x + 350, bounds.y + 370);
-	await expect(page.locator('.selection-frame')).toHaveAttribute('x', '300');
+	await expect(page.locator('.selection-frame')).toHaveAttribute('x', '350');
 	await page.keyboard.press('c');
 	// Crop a different remaining section of the original stroke.
-	await drag(250, 150, 100, 50);
+	await drag(300, 150, 100, 50);
 	await expect(page.locator('.layer-item-row')).toHaveCount(count + 1);
 	await expect(page.locator('.selection-frame')).toHaveAttribute('y', '150');
 	await drag(330, 175, 200, 0);
-	await expect(page.locator('.selection-frame')).toHaveAttribute('x', '450');
+	await expect(page.locator('.selection-frame')).toHaveAttribute('x', '500');
 	await expect(page.locator('.crop-selection-frame')).toHaveCount(0);
 
 	await page.mouse.move(bounds.x + 600, bounds.y + 400);

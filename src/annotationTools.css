@@ -12,49 +12,67 @@
     padding: 2px 4px;
     border: 1px solid var(--accent);
     border-radius: 3px;
-    outline: 2px solid color-mix(in srgb, var(--accent) 25%, transparent);
+    outline: 2px solid color-mix(in srgb, var(--accent) 25%, var(--color-transparent));
     background: var(--surface);
     font-family: system-ui, sans-serif;
     transform: translateY(-1em)
 }
 
 .annotation-panel {
-    width: min(320px, calc(100vw - 36px));
+    --toolbar-panel-width: min(460px, calc(100vw - 32px));
     left: 14px;
     top: 14px
 }
 
 .annotation-panel h3 {
-    text-transform: uppercase;
-    letter-spacing: .12em;
-    font-size: 11px
+    font-size: 13px;
+    font-weight: 650
 }
 
-.annotation-panel .panel-body { max-height: calc(100vh - 125px); overflow: auto }
+.panel.annotation-panel[data-toolbar-panel=managed]:not([hidden]) {
+    display: flex;
+    flex-direction: column;
+    overflow-y: hidden
+}
+.annotation-panel > .panel-body { display: contents }
+.annotation-panel .panel-header { flex: none }
+.annotation-content { flex: 1 1 auto; overflow: auto; min-height: 0 }
+.panel.editing-unavailable.annotation-panel > .panel-body > * { opacity: .55 }
+.annotation-introduction { margin: 0; padding: 12px 14px; color: var(--muted); line-height: 1.5 }
 .annotation-panel section {
     display: grid;
-    gap: 8px;
-    padding: 10px 12px;
+    gap: 12px;
+    padding: 14px;
     border-top: 1px solid var(--border)
 }
 
-.annotation-panel h3 { margin: 0; color: var(--muted) }
-.annotation-panel label { display: grid; grid-template-columns: 82px 1fr; align-items: center; gap: 8px; font-size: 12px }
-.annotation-panel input[type="text"], .annotation-panel textarea { width: 100%; min-width: 0 }
-.annotation-panel textarea { resize: vertical; font: 11px/1.4 ui-monospace, monospace }
-.annotation-check { grid-template-columns: auto 1fr !important }
-.annotation-check input { grid-column: 1; grid-row: 1 }
+.annotation-panel h3 { margin: 0; color: var(--text) }
+.annotation-panel label { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; margin: 0; font-size: 12px; font-weight: 550 }
+.annotation-panel input, .annotation-panel textarea { width: 100%; min-width: 0; padding: 8px; border: 1px solid var(--border); border-radius: 6px; color: var(--text); background: var(--surface2); user-select: text }
+.annotation-panel textarea { resize: vertical; font: inherit; font-weight: 400; font-size: 12px; line-height: 1.5 }
+.annotation-panel .annotation-markdown { min-height: 260px; font: 12px/1.5 ui-monospace, monospace }
+.annotation-source-page { color: var(--muted); overflow-wrap: anywhere; font-size: 12px; line-height: 1.5 }
+.annotation-report { border-top: 1px solid var(--border); padding: 14px }
+.annotation-report summary { cursor: pointer; font-weight: 650; font-size: 13px }
+.annotation-report-hint { color: var(--muted); font-size: 11px; line-height: 1.5 }
+.annotation-footer { flex-shrink: 0; border-top: 1px solid var(--border); padding: 12px 14px; background: var(--surface) }
+.annotation-actions { display: grid; grid-template-columns: auto 1fr; gap: 8px }
+.annotation-feedback { margin: 8px 0 0; font-size: 12px; color: var(--muted) }
+.annotation-feedback:empty { display: none }
+.annotation-feedback.error { color: var(--color-firebrick) }
+html[data-theme=dark] .annotation-feedback.error { color: var(--color-rose) }
+html[data-theme=contrast] .annotation-feedback.error { color: var(--color-yellow) }
 
 .annotation-tool-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 6px;
-    padding: 10px 12px
+    padding: 0
 }
 
 .annotation-action {
-    min-height: 30px;
-    padding: 5px 8px;
+    min-height: 36px;
+    padding: 7px 10px;
     border: 1px solid var(--border);
     border-radius: 6px;
     background: var(--surface2);
@@ -62,8 +80,9 @@
 }
 
 .annotation-action:hover { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--surface)) }
+.annotation-action.primary { border-color: var(--accent2); background: var(--accent2); color: var(--color-white) }
+html[data-theme=contrast] .annotation-action.primary { color: var(--color-black) }
 
 @media(max-width:700px) {
-    .annotation-panel { width: 280px }
-    .annotation-panel .panel-body { max-height: calc(100vh - 100px) }
+    .annotation-actions { grid-template-columns: 1fr }
 }

@@ -11,7 +11,11 @@ import {
 	type TextAnnotation,
 } from '../../features/annotations/annotationTypes';
 import type { CropRect, Point } from '../document/appTypes';
-import { normalizedRect } from './geometryHelpers';
+import {
+	normalizedRect,
+	rectEndpoints,
+	rectOrientation,
+} from './geometryHelpers';
 import {
 	DEFAULT_SHAPE_INTERACTION,
 	type RotationDrag,
@@ -92,8 +96,12 @@ export class ArrowShape extends GenericShape<ArrowAnnotation> {
 		return normalizedRect(this.object.from, this.object.to);
 	}
 	protected writeRect(rect: CropRect): void {
-		this.object.from = { x: rect.x, y: rect.y };
-		this.object.to = { x: rect.x + rect.width, y: rect.y + rect.height };
+		const endpoints = rectEndpoints(
+			rect,
+			rectOrientation(this.object.from, this.object.to),
+		);
+		this.object.from = endpoints.from;
+		this.object.to = endpoints.to;
 	}
 }
 

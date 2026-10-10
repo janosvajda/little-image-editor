@@ -19,17 +19,17 @@ test('paint layers can be selected from Layers and by double-clicking', async ({
 
 	await showLayers(page);
 	const objectRow = page.locator('[data-panel="layers"] .layer-object-row');
-	await objectRow.getByRole('button', { name: /Edit Paint layer/ }).click();
+	await objectRow.getByRole('button', { name: /Edit Layer/ }).click();
 	await expect(objectRow).toHaveClass(/active/);
 	await chooseBrush(page);
 	await drag(page, Stroke.End, Stroke.LayerEditedEnd);
-	await expectStroke(page, 1, Stroke.LayerEditedEnd);
+	await expectStroke(page, 2, Stroke.LayerEditedEnd);
 
 	await doubleClickCanvasPoint(page, Stroke.LayerEditedEnd);
 	await expect(objectRow).toHaveClass(/active/);
 	await chooseBrush(page);
 	await drag(page, Stroke.LayerEditedEnd, Stroke.DoubleClickEditedEnd);
-	await expectStroke(page, 1, Stroke.DoubleClickEditedEnd);
+	await expectStroke(page, 3, Stroke.DoubleClickEditedEnd);
 });
 
 async function createProject(page: Page): Promise<void> {
@@ -53,18 +53,19 @@ async function showLayers(page: Page): Promise<void> {
 	if (!(await toggle.isChecked())) await toggle.check();
 }
 
+/** Every stroke stays in the one layer; the newest one ends where it was drawn to. */
 async function expectStroke(
 	page: Page,
-	expectedObjectCount: number,
+	expectedItemCount: number,
 	expectedEnd: Readonly<{ x: number; y: number }>,
 ): Promise<void> {
 	await page.locator('#quickSaveButton').click();
 	const project = await savedProject(page);
-	const objects = project.editableObjects.state.objects;
-	expect(objects).toHaveLength(expectedObjectCount);
-	const stroke = objects[0];
-	expect(stroke?.type).toBe('stroke');
-	expect(stroke?.points.at(-1)).toMatchObject(expectedEnd);
+	const { objects, layers } = project.editableObjects.state;
+	expect(layers).toHaveLength(1);
+	expect(layers[0]?.itemIds).toHaveLength(expectedItemCount);
+	expect(objects.every((item) => item.type === 'stroke')).toBe(true);
+	expect(objects.at(-1)?.points.at(-1)).toMatchObject(expectedEnd);
 }
 
 async function doubleClickCanvasPoint(
@@ -140,6 +141,7 @@ async function savedProject(page: Page): Promise<{
 				readonly type: string;
 				readonly points: ReadonlyArray<{ x: number; y: number }>;
 			}>;
+			readonly layers: ReadonlyArray<{ readonly itemIds: readonly string[] }>;
 		};
 	};
 }> {

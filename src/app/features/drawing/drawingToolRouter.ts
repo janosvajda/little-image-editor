@@ -8,7 +8,7 @@ import {
 	UtilityToolId,
 } from '../../core/document/appTypes';
 import type { CanvasDocument } from '../../core/document/imageDocument';
-import { CoreLayerId } from '../../core/layers/layerTypes';
+import { CoreLayerId, LayerKind } from '../../core/layers/layerTypes';
 import type { AnnotationDocument } from '../annotations/annotationDocument';
 import {
 	AnnotationObjectTypeId,
@@ -20,12 +20,9 @@ import {
 	ZoomDirection,
 } from '../workspace/canvasViewportController';
 import { CropTool } from './cropTool';
+import { drawingLayerTargetAt } from './drawingLayerTarget';
 import { DrawingImageActions } from './drawingImageActions';
-import {
-	isMarkupTool,
-	isPaintTool,
-	isShapeTool,
-} from './drawingToolBehavior';
+import { isMarkupTool, isPaintTool, isShapeTool } from './drawingToolBehavior';
 import type { DrawingToolSettings } from './drawingToolSettings';
 import { BaseImagePaintGesture } from './gestures/baseImagePaintGesture';
 import type { DrawingGesture } from './gestures/drawingGesture';
@@ -119,7 +116,8 @@ export class DrawingToolRouter {
 	): DrawingGesture | null {
 		if (!this.#markup) return null;
 		const style = this.settings.strokeOptions();
-		if (isFramedMarkupTool(tool)) return this.#markup.beginFrame(tool, point, style);
+		if (isFramedMarkupTool(tool))
+			return this.#markup.beginFrame(tool, point, style);
 		if (tool === MarkupToolId.Number) this.#markup.placeNumber(point, style);
 		else this.#markup.createText(point, event, style);
 		return null;
@@ -150,22 +148,29 @@ export class DrawingToolRouter {
 		);
 	}
 
-	/** Erases the active layer's items; with the image layer active, erases image pixels. */
+	/** Targets the visible layer under the press, keeping that target for the whole stroke. */
 	private beginErasure(point: Point, pressure: number): DrawingGesture | null {
-		const layer = this.shapes?.activeLayer;
-		if (!this.shapes || !layer) return this.beginImageErasure(point, pressure);
-		if (!this.shapes.isLayerEditable(layer.id)) return null;
-		const itemIds = this.shapes
-			.layerItems(layer.id)
+		const shapes = this.shapes;
+		const target = drawingLayerTargetAt(this.documentModel, shapes, point);
+		if (!target) return null;
+		if (target.kind === LayerKind.Raster) return this.beginImageErasure(point, pressure);
+		if (!shapes) return null;
+		shapes.activate(target.layerId);
+		this.documentModel.layers.select(CoreLayerId.Objects);
+		const itemIds = shapes
+			.layerItems(target.layerId)
 			.filter(
 				(item) =>
-					this.shapes?.isEditable(item.id) &&
-					!(item.type === AnnotationObjectTypeId.Stroke && item.points.length === 0),
+					shapes.isEditable(item.id) &&
+					!(
+						item.type === AnnotationObjectTypeId.Stroke &&
+						item.points.length === 0
+					),
 			)
 			.map((item) => item.id);
 		if (itemIds.length === 0) return null;
 		return new ObjectErasureGesture(
-			this.shapes,
+			shapes,
 			itemIds,
 			point,
 			pressure,
@@ -178,6 +183,8 @@ export class DrawingToolRouter {
 		pressure: number,
 	): DrawingGesture | null {
 		if (!this.documentModel.layers.isEditable(CoreLayerId.Image)) return null;
+		this.shapes?.activate(null);
+		this.documentModel.layers.select(CoreLayerId.Image);
 		return new BaseImagePaintGesture(
 			this.documentModel,
 			PaintToolId.Eraser,

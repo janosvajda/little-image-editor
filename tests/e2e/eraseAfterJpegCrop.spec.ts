@@ -21,13 +21,14 @@ test('erases pixels from a selected crop created after drawing on a JPEG', async
 	if (!bounds) throw new Error('Canvas overlay is not visible.');
 	await drag(page, bounds.x + 340, bounds.y + 260, bounds.x + 440, bounds.y + 260);
 	await page.locator('[data-panel="tools"] [data-tool="crop"]').click();
-	await drag(page, bounds.x + 300, bounds.y + 220, bounds.x + 480, bounds.y + 300);
+	// Cuts and erasing take what is under their starting point, so both start on the stroke.
+	await drag(page, bounds.x + 345, bounds.y + 255, bounds.x + 480, bounds.y + 300);
 
 	const selected = page.locator('.layer-item-row.active');
 	await expect(selected).toContainText('Pixels');
 	const selectedId = await selected.getAttribute('data-object-id');
 	await page.locator('[data-tool="eraser"]').click();
-	await drag(page, bounds.x + 380, bounds.y + 240, bounds.x + 380, bounds.y + 280);
+	await drag(page, bounds.x + 380, bounds.y + 262, bounds.x + 380, bounds.y + 280);
 
 	await expect(page.locator('.layer-item-row.active')).toHaveAttribute(
 		'data-object-id',

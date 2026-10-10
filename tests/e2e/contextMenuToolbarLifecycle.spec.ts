@@ -1,10 +1,12 @@
 import { expect, type Page, test } from '@playwright/test';
+import { QA_REPORTING_TITLE } from '../../src/app/features/annotations/bugReportMetadata';
 
 const CAPTURE_DATABASE = 'little-image-editor-browser-captures';
 const CAPTURE_STORE = 'captures';
 const CAPTURE_DATABASE_VERSION = 1;
 const CAPTURE_CANVAS_SIZE = 80;
-const FIRST_RUN_LEFT_OFFSET = 14;
+/** Gap the layout keeps between docked toolbars. */
+const TOOLBAR_GAP = 14;
 const POSITION_TOLERANCE = 2;
 const USER_POSITION = { x: 520, y: 0 } as const;
 const TOOLBAR_LAYOUT_STORAGE_KEY = 'little-editor.panel-layout.v2';
@@ -84,9 +86,11 @@ test('bug-report auto-open uses first-run left dock then preserves a collision-s
 	await expect(annotations).toBeVisible();
 	await expect(annotations.locator(':scope > .panel-body')).toBeEnabled();
 	const firstPosition = await annotations.boundingBox();
+	const tools = await page.locator('[data-panel="tools"]').boundingBox();
 	expect(firstPosition).not.toBeNull();
+	// The first free left column is beside the Tools toolbar, never overlapping it.
 	expect(
-		Math.abs(firstPosition!.x - FIRST_RUN_LEFT_OFFSET),
+		Math.abs(firstPosition!.x - (tools!.x + tools!.width + TOOLBAR_GAP)),
 	).toBeLessThanOrEqual(POSITION_TOLERANCE);
 
 	const annotationHeader = annotations.locator('.panel-header');
@@ -111,7 +115,7 @@ test('bug-report auto-open uses first-run left dock then preserves a collision-s
 	await annotations.locator('.collapse').click();
 	await annotations.locator('.collapse').click();
 	await annotations
-		.getByRole('button', { name: 'Close Capture & annotate' })
+		.getByRole('button', { name: `Close ${QA_REPORTING_TITLE}` })
 		.click();
 	await seedBrowserCapture(page, 'second-bug-report');
 	await page.goto('/?capture=second-bug-report&mode=annotate');

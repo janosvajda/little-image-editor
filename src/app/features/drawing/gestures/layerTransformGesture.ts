@@ -53,11 +53,12 @@ export class LayerTransformGesture extends RetainedDrawingGesture {
 		this.#dragging ||=
 			Math.hypot(point.x - this.start.x, point.y - this.start.y) >=
 			POINTER_DRAG_THRESHOLD;
-		if (!this.#dragging) return;
+		// A move follows the pointer at once, like an item move; a click restores it.
 		if (this.handle === null) {
 			this.moveTo(point);
 			return;
 		}
+		if (!this.#dragging) return;
 		const frame = this.frameAt(point, modifiers);
 		this.objects.transformLayer(
 			this.layerId,

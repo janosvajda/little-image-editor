@@ -7,7 +7,7 @@ import {
 } from '../../core/document/appTypes';
 import { DEFAULT_LAYER_STATE } from '../../core/layers/layerTypes';
 import { AnnotationDocument } from '../annotations/annotationDocument';
-import { createPaintLayer } from '../annotations/paintLayerFactory';
+import { createEmptyStroke } from '../annotations/paintLayerFactory';
 import { AnnotationObjectTypeId } from '../annotations/annotationTypes';
 import { ProjectCodec } from './projectCodec';
 
@@ -16,7 +16,7 @@ const Canvas = { Width: 20, Height: 10, Channels: 4 } as const;
 describe('paint layer project round trip', () => {
 	it('preserves multiple styled paths as one editable .limg layer', () => {
 		const objects = new AnnotationDocument();
-		const layer = createPaintLayer();
+		const layer = createEmptyStroke();
 		layer.points = [
 			{ x: 1, y: 1, pressure: 1 },
 			{ x: 5, y: 5, pressure: 1 },
@@ -56,6 +56,7 @@ describe('paint layer project round trip', () => {
 		restored.restoreSession(codec.toEditableObjects(project));
 
 		expect(restored.state.objects).toHaveLength(1);
+		expect(restored.state.layers).toEqual(objects.state.layers);
 		expect(restored.state.objects[0]).toMatchObject({
 			type: AnnotationObjectTypeId.Stroke,
 			pathStarts: [2],
