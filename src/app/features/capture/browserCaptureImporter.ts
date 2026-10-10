@@ -6,6 +6,9 @@ import type { CanvasDocument } from '../../core/document/imageDocument';
 import { ImageMimeType } from '../../core/document/appTypes';
 import { BrowserCaptureStore } from './browserCaptureStore';
 
+/** Where a capture's source details are kept in the document state. */
+export const CAPTURE_METADATA_KEY = 'captureMetadata';
+
 interface CaptureStore {
 	take(id: string): ReturnType<BrowserCaptureStore['take']>;
 }
@@ -41,7 +44,7 @@ export class BrowserCaptureImporter {
 				);
 		}
 		if (capture.source)
-			this.documentModel.setToolbarState('captureMetadata', capture.source);
+			this.documentModel.setToolbarState(CAPTURE_METADATA_KEY, capture.source);
 		if (capture.crop && capture.viewport) {
 			const crop = scaledCaptureRect(
 				capture.crop,

@@ -4,5 +4,4 @@ export const ColorPalette = {
 	NearBlack: '#111111',
 	White: '#ffffff',
 	Selection: '#2563eb',
-	Annotation: '#e11d48',
 } as const;

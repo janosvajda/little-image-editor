@@ -17,7 +17,7 @@ test('moving a lower object preserves every object and canonical z-order after r
 	await createPaintLayer(page);
 	await drag(page, { x: 400, y: 260 }, { x: 650, y: 260 });
 
-	await page.locator('[data-tool="select"]').click();
+	await page.locator('[data-panel="tools"] [data-tool="select"]').click();
 	await drag(page, { x: 300, y: 260 }, { x: 360, y: 320 });
 	await page.locator('#quickSaveButton').click();
 	const source = await savedProject(page);

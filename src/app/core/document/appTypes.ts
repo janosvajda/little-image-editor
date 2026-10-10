@@ -21,6 +21,16 @@ export const ShapeToolId = {
 } as const;
 export type ShapeTool = (typeof ShapeToolId)[keyof typeof ShapeToolId];
 
+/** Markup tools add callout items; their ids are the item types they create. */
+export const MarkupToolId = {
+	Number: 'step',
+	Highlight: 'highlight',
+	Text: 'text',
+	Blur: 'blur',
+	Redact: 'redact',
+} as const;
+export type MarkupTool = (typeof MarkupToolId)[keyof typeof MarkupToolId];
+
 export const UtilityToolId = {
 	Select: 'select',
 	Picker: 'picker',
@@ -29,7 +39,7 @@ export const UtilityToolId = {
 	Fill: 'fill',
 } as const;
 export type UtilityTool = (typeof UtilityToolId)[keyof typeof UtilityToolId];
-export type Tool = PaintTool | ShapeTool | UtilityTool;
+export type Tool = PaintTool | ShapeTool | MarkupTool | UtilityTool;
 export const DEFAULT_DOCUMENT_NAME = 'untitled';
 export type Point = Readonly<{ x: number; y: number }>;
 export type CropRect = Readonly<{

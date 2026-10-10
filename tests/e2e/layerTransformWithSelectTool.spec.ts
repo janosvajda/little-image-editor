@@ -95,7 +95,7 @@ async function chooseBrush(page: Page): Promise<void> {
 }
 
 async function selectTool(page: Page): Promise<void> {
-	await page.locator('[data-tool="select"]').click();
+	await page.locator('[data-panel="tools"] [data-tool="select"]').click();
 }
 
 async function canvasBox(page: Page): Promise<CanvasBox> {

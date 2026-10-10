@@ -1,4 +1,5 @@
 import {
+	MarkupToolId,
 	PaintToolId,
 	ShapeToolId,
 	type Tool,
@@ -18,6 +19,7 @@ import {
 	BRUSH_TOOL_DEFINITIONS,
 	DRAWING_TOOL_DEFINITIONS,
 	ERASER_TOOL_DEFINITION,
+	MARKUP_TOOL_DEFINITIONS,
 	SHAPE_TOOL_DEFINITIONS,
 	UTILITY_TOOL_DEFINITIONS,
 } from './drawingToolCatalog';
@@ -26,6 +28,9 @@ import type { FloodFillOptions } from './floodFillHelpers';
 import { SelectedObjectPropertiesController } from './selectedObjectPropertiesController';
 
 const PERCENT_SCALE = 100;
+const MarkerNumber = { First: 1, Minimum: 0, Maximum: 9_999 } as const;
+/** A highlight marks an area without hiding it. */
+const HIGHLIGHT_OPACITY_PERCENT = '35';
 const COLOR_CHANNEL_MAXIMUM = 255;
 const DrawingControlId = {
 	Color: 'colorInput',
@@ -35,6 +40,9 @@ const DrawingControlId = {
 	Fill: 'fillInput',
 	FillColor: 'fillColorInput',
 	FillTolerance: 'fillToleranceInput',
+} as const;
+const TOOL_CONTROL_DEFAULTS = {
+	[MarkupToolId.Highlight]: { [DrawingControlId.Opacity]: HIGHLIGHT_OPACITY_PERCENT },
 } as const;
 const PROFILED_DRAWING_CONTROL_IDS = [
 	DrawingControlId.Size,
@@ -53,6 +61,7 @@ export class DrawingToolControls implements DrawingToolSettings {
 	readonly #fill = element<HTMLInputElement>('#fillInput');
 	readonly #paintSelect = element<HTMLSelectElement>('#paintToolSelect');
 	readonly #shapeSelect = element<HTMLSelectElement>('#shapeToolSelect');
+	readonly #markupSelect = element<HTMLSelectElement>('#markupToolSelect');
 	readonly #toolbar: GenericToolbar<Tool>;
 	readonly #palette: GroupedToolPalette<Tool>;
 	readonly #fillOptions: HTMLElement;
@@ -62,6 +71,7 @@ export class DrawingToolControls implements DrawingToolSettings {
 	readonly #pickerSwatch: HTMLElement;
 	readonly #sampledColor: HTMLInputElement;
 	readonly #cropOptions: HTMLElement;
+	readonly #markerOptions: HTMLElement | null;
 	#cropSelectionKind: CropSelectionKind = CropSelectionKind.Rectangle;
 	readonly #contextHint: HTMLElement;
 	readonly #selectedObjectProperties?: SelectedObjectPropertiesController;
@@ -82,6 +92,7 @@ export class DrawingToolControls implements DrawingToolSettings {
 		this.#pickerSwatch = pickerControls.swatch;
 		this.#sampledColor = pickerControls.color;
 		this.#cropOptions = this.createCropOptions();
+		this.#markerOptions = shapes ? this.createMarkerOptions(shapes) : null;
 		this.#contextHint = this.createContextHint();
 		if (shapes)
 			this.#selectedObjectProperties = new SelectedObjectPropertiesController(
@@ -106,6 +117,13 @@ export class DrawingToolControls implements DrawingToolSettings {
 					tools: SHAPE_TOOL_DEFINITIONS,
 					defaultTool: ShapeToolId.Rectangle,
 				},
+				{
+					control: element('#markupToolControl'),
+					icon: element('.tool-select-icon', element('#markupToolControl')),
+					select: this.#markupSelect,
+					tools: MARKUP_TOOL_DEFINITIONS,
+					defaultTool: MarkupToolId.Number,
+				},
 			],
 			buttonContainer: element('.utility-tools'),
 			buttonTools: [ERASER_TOOL_DEFINITION, ...UTILITY_TOOL_DEFINITIONS],
@@ -113,6 +131,7 @@ export class DrawingToolControls implements DrawingToolSettings {
 			documentModel,
 			stateKey: 'drawing',
 			profiledControlIds: PROFILED_DRAWING_CONTROL_IDS,
+			toolDefaults: TOOL_CONTROL_DEFAULTS,
 		});
 		element('.tool-choosers').classList.add('hidden');
 		this.#palette = new GroupedToolPalette<Tool>(
@@ -127,6 +146,11 @@ export class DrawingToolControls implements DrawingToolSettings {
 					label: 'Shape tools',
 					select: this.#shapeSelect,
 					tools: SHAPE_TOOL_DEFINITIONS,
+				},
+				{
+					label: 'Markup tools',
+					select: this.#markupSelect,
+					tools: MARKUP_TOOL_DEFINITIONS,
 				},
 			],
 			this.#toolbar.activeTool,
@@ -239,6 +263,7 @@ export class DrawingToolControls implements DrawingToolSettings {
 		this.#fillOptions.classList.toggle('hidden', !options.fill);
 		this.#pickerOptions.classList.toggle('hidden', !options.picker);
 		this.#cropOptions.classList.toggle('hidden', !options.crop);
+		this.#markerOptions?.classList.toggle('hidden', !options.marker);
 		this.#contextHint.classList.toggle('hidden', !options.zoom);
 		if (options.picker) this.updatePickerSwatch(this.#sampledColor.value);
 	}
@@ -318,6 +343,37 @@ export class DrawingToolControls implements DrawingToolSettings {
 			'click',
 			() => this.cancelCrop(),
 		);
+		element('.tool-options', this.#toolsPanel).prepend(root);
+		return root;
+	}
+
+	/** The next number a marker gets; it belongs to the document, so it is not persisted here. */
+	private createMarkerOptions(shapes: AnnotationDocument): HTMLElement {
+		const root = document.createElement('div');
+		root.className = 'marker-tool-options hidden';
+		const label = document.createElement('label');
+		label.textContent = 'Next number ';
+		const next = document.createElement('input');
+		next.type = 'number';
+		next.className = 'marker-next-number';
+		next.min = String(MarkerNumber.Minimum);
+		next.max = String(MarkerNumber.Maximum);
+		next.step = '1';
+		next.setAttribute('aria-label', 'Next marker number');
+		label.append(next);
+		const reset = document.createElement('button');
+		reset.type = 'button';
+		reset.className = 'marker-reset';
+		reset.textContent = `↺ Reset to ${MarkerNumber.First}`;
+		root.append(label, reset);
+		next.addEventListener('change', () => {
+			const value = Number(next.value);
+			if (Number.isInteger(value)) shapes.restartSteps(value);
+		});
+		reset.addEventListener('click', () => shapes.restartSteps(MarkerNumber.First));
+		shapes.onChange((state) => {
+			if (document.activeElement !== next) next.value = String(state.nextStep);
+		});
 		element('.tool-options', this.#toolsPanel).prepend(root);
 		return root;
 	}

@@ -22,7 +22,7 @@ test('layer dragging clearly identifies the source, preview, and destination', a
 	});
 	await dispatchPointer(handle, 'pointerdown', downPointer);
 	await expect(source).toHaveClass(/dragging-source/);
-	await expect(page.locator('.layer-drag-preview')).toHaveText('Moving Paint layer 2');
+	await expect(page.locator('.layer-drag-preview')).toHaveText('Moving Layer 2');
 	const destinationBounds = await destination.boundingBox();
 	const dragPointer = {
 		clientX: destinationBounds!.x + destinationBounds!.width / 2,
@@ -33,10 +33,10 @@ test('layer dragging clearly identifies the source, preview, and destination', a
 		({ clientX, clientY }) =>
 			document
 				.elementFromPoint(clientX, clientY)
-				?.closest<HTMLElement>('.layer-object-row')?.dataset.objectId,
+				?.closest<HTMLElement>('.layer-object-row')?.dataset.contentLayerId,
 		dragPointer,
 	);
-	expect(hitObjectId).toBe(await destination.getAttribute('data-object-id'));
+	expect(hitObjectId).toBe(await destination.getAttribute('data-content-layer-id'));
 	await dispatchPointer(handle, 'pointermove', dragPointer);
 
 	await expect(destination).toHaveClass(/drag-target/);

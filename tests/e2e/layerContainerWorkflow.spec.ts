@@ -38,7 +38,7 @@ test('a layer lists its items, and each item is selected, recoloured and moved o
 		'Image',
 	]);
 
-	await page.locator('[data-tool="select"]').click();
+	await page.locator('[data-panel="tools"] [data-tool="select"]').click();
 	await page.mouse.click(...screen(await canvasBox(page), OnSecondStroke));
 	await expect(page.locator(`${LAYERS} .layer-item-row.active`)).toHaveCount(1);
 	await page.getByLabel('Selected object color').fill(RED);
@@ -60,7 +60,7 @@ test('a whole layer moves with its items, and new layers collect new items', asy
 	await chooseShape(page, 'Line');
 	await drag(page, Line.from, Line.to);
 
-	await page.locator('[data-tool="select"]').click();
+	await page.locator('[data-panel="tools"] [data-tool="select"]').click();
 	await page.locator(`${LAYERS} .layer-object-row .layer-name`).click();
 	await expect(page.locator(FRAME)).toHaveAttribute('x', String(Rectangle.from.x));
 	await drag(page, OnLine, { x: OnLine.x + MoveBy.x, y: OnLine.y + MoveBy.y });
@@ -104,7 +104,7 @@ test('the Select tool alone moves, resizes and rotates a whole layer on the canv
 	await chooseBrush(page);
 	await drag(page, FirstStroke.from, FirstStroke.to);
 	await drag(page, SecondStroke.from, SecondStroke.to);
-	await page.locator('[data-tool="select"]').click();
+	await page.locator('[data-panel="tools"] [data-tool="select"]').click();
 	const layerFrame = page.locator(`.selection-layer-frame ${FRAME}`);
 	await expect(layerFrame).toHaveCount(1);
 

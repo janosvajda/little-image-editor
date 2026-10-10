@@ -15,7 +15,7 @@ test('selects and moves pixels within an opened raster image layer', async ({
 		buffer: source,
 	});
 	await expect(page.locator('#canvasWrap')).toBeVisible();
-	await page.locator('[data-tool="crop"]').click();
+	await page.locator('[data-panel="tools"] [data-tool="crop"]').click();
 	await page.locator('[data-panel="tools"] .panel-close').click();
 
 	const overlay = page.locator('#overlay');
@@ -66,7 +66,7 @@ test('leaves an empty source when cropping a transparent raster image', async ({
 		buffer: source,
 	});
 	await expect(page.locator('#canvasWrap')).toBeVisible();
-	await page.locator('[data-tool="crop"]').click();
+	await page.locator('[data-panel="tools"] [data-tool="crop"]').click();
 	await page.locator('[data-panel="tools"] .panel-close').click();
 	const overlay = page.locator('#overlay');
 	const bounds = await overlay.boundingBox();

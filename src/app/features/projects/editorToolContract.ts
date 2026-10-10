@@ -1,13 +1,10 @@
 import {
+	MarkupToolId,
 	PaintToolId,
 	ShapeToolId,
 	type Tool,
 	UtilityToolId,
 } from '../../core/document/appTypes';
-import {
-	AnnotationToolId,
-	type AnnotationTool,
-} from '../annotations/annotationTypes';
 import {
 	type ColorEffect,
 	EffectId,
@@ -68,10 +65,6 @@ export type ImageAffectingDrawingTool = Exclude<
 	| typeof UtilityToolId.Picker
 	| typeof UtilityToolId.Zoom
 >;
-export type ImageAffectingAnnotationTool = Exclude<
-	AnnotationTool,
-	typeof AnnotationToolId.Select
->;
 
 export type ToolDocumentRegistration =
 	| Readonly<{
@@ -117,25 +110,15 @@ export const DRAWING_TOOL_DOCUMENT_CONTRACT = {
 	[ShapeToolId.Triangle]: editable(EditableObjectKind.Shape),
 	[ShapeToolId.Diamond]: editable(EditableObjectKind.Shape),
 	[ShapeToolId.Star]: editable(EditableObjectKind.Shape),
+	[MarkupToolId.Number]: editable(EditableObjectKind.Annotation),
+	[MarkupToolId.Highlight]: editable(EditableObjectKind.Annotation),
+	[MarkupToolId.Text]: editable(EditableObjectKind.Annotation),
+	[MarkupToolId.Blur]: editable(EditableObjectKind.Annotation),
+	[MarkupToolId.Redact]: editable(EditableObjectKind.Annotation),
 	[UtilityToolId.Crop]: editable(EditableObjectKind.PixelSelection),
 	[UtilityToolId.Fill]: editable(EditableObjectKind.Fill),
 } as const satisfies Record<
 	ImageAffectingDrawingTool,
-	ToolDocumentRegistration
->;
-
-/** Exhaustive compile-time boundary for Capture & annotate tools. */
-export const ANNOTATION_TOOL_DOCUMENT_CONTRACT = {
-	[AnnotationToolId.Arrow]: editable(EditableObjectKind.Annotation),
-	[AnnotationToolId.Step]: editable(EditableObjectKind.Annotation),
-	[AnnotationToolId.Box]: editable(EditableObjectKind.Annotation),
-	[AnnotationToolId.Highlight]: editable(EditableObjectKind.Annotation),
-	[AnnotationToolId.Text]: editable(EditableObjectKind.Annotation),
-	[AnnotationToolId.Blur]: editable(EditableObjectKind.Annotation),
-	[AnnotationToolId.Redact]: editable(EditableObjectKind.Annotation),
-	[AnnotationToolId.Crop]: editable(EditableObjectKind.PixelSelection),
-} as const satisfies Record<
-	ImageAffectingAnnotationTool,
 	ToolDocumentRegistration
 >;
 

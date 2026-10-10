@@ -100,3 +100,24 @@ layer steps.
 
 `.limg` has a single format, version 1. `editableObjects` stores the layers and
 their items.
+
+## Tools and toolbars
+
+Every canvas tool is one shared tool: brushes, shapes, markup (numbered
+markers, highlight, blur, redaction, text) and utilities (Select, Crop, Fill,
+Picker, Zoom). `DrawingToolControls` holds the one active tool and its options,
+`DrawingToolRouter` turns pointer input into gestures, and each tool is listed
+once in `drawingToolCatalog` (labels, icons, shortcuts) and registered once in
+`DRAWING_TOOL_DOCUMENT_CONTRACT` for layers and `.limg`.
+
+Toolbars only present tools. The Tools panel groups them; Capture & annotate
+(`AnnotationPanel`) shows a subset of the same tools with the same buttons
+(`createToolButton`) and picks them through `DrawingController.select`. Its
+only own behaviour is opening by itself after a browser capture, through the
+generic toolbar auto-open mode, and the bug report that goes with a capture
+(`BugReportController`).
+
+`ContentLayerCanvas` draws the layers and the selection for every tool, adds
+them to exports, keeps them aligned through crops and saves them with the
+document. `LayerMerger` flattens layers into the image, both for the Layers
+panel's Flatten action and before the image is resized or turned.

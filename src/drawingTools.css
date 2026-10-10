@@ -192,7 +192,8 @@
   margin-top: 8px;
 }
 
-.drawing-panel .utility-tool {
+/* Tool buttons look the same in every toolbar that offers tools. */
+.utility-tool {
   flex-direction: row;
   justify-content: center;
   gap: 6px;
@@ -202,13 +203,13 @@
   font-size: 11px;
 }
 
-.drawing-panel .utility-tool span {
+.utility-tool span {
   height: auto;
   font-size: 16px;
   line-height: 1;
 }
 
-.drawing-panel .utility-tool svg {
+.utility-tool svg {
   width: 17px;
   height: 17px;
   fill: none;
@@ -249,7 +250,7 @@
   stroke: none;
 }
 
-.drawing-panel .utility-tool.active {
+.utility-tool.active {
   border-color: Highlight;
   background: var(--surface2);
 }
@@ -555,4 +556,22 @@
   .panel[data-panel="effects"] {
     display: none;
   }
+}
+
+.marker-tool-options {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.marker-tool-options label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.marker-tool-options input {
+  width: 72px;
 }

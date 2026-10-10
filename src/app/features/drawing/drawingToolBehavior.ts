@@ -1,7 +1,9 @@
 import {
+	MarkupToolId,
 	PaintToolId,
 	ShapeToolId,
 	UtilityToolId,
+	type MarkupTool,
 	type Tool,
 	type PaintTool,
 	type ShapeTool,
@@ -15,6 +17,7 @@ import { SelectionPresentation } from '../annotations/selectionOverlayRenderer';
 export const DrawingToolKind = {
 	Paint: 'paint',
 	Shape: 'shape',
+	Markup: 'markup',
 	Select: 'select',
 	Picker: 'picker',
 	Crop: 'crop',
@@ -35,6 +38,9 @@ export const ToolSizeLabel = {
 	PaintWidth: 'Width',
 	EraserWidth: 'Eraser width',
 	ShapeStrokeWidth: 'Stroke width',
+	MarkerSize: 'Marker size',
+	TextSize: 'Text size',
+	BlurStrength: 'Blur strength',
 } as const;
 export type ToolSizeLabel = (typeof ToolSizeLabel)[keyof typeof ToolSizeLabel];
 
@@ -48,6 +54,8 @@ export interface DrawingToolOptions {
 	readonly picker: boolean;
 	readonly crop: boolean;
 	readonly zoom: boolean;
+	/** The next number a numbered marker gets, with a reset. */
+	readonly marker: boolean;
 }
 
 export interface DrawingToolBehavior {
@@ -68,6 +76,7 @@ const NO_OPTIONS: DrawingToolOptions = {
 	picker: false,
 	crop: false,
 	zoom: false,
+	marker: false,
 };
 const PAINT_OPTIONS: DrawingToolOptions = {
 	...NO_OPTIONS,
@@ -102,6 +111,18 @@ const shape = (): DrawingToolBehavior => ({
 	sizeLabel: ToolSizeLabel.ShapeStrokeWidth,
 });
 
+const markup = (
+	options: Partial<DrawingToolOptions>,
+	sizeLabel?: ToolSizeLabel,
+	cursor = 'crosshair',
+): DrawingToolBehavior => ({
+	kind: DrawingToolKind.Markup,
+	cursor,
+	options: { ...NO_OPTIONS, ...options },
+	optionSource: ToolOptionSource.Contextual,
+	...(sizeLabel ? { sizeLabel } : {}),
+});
+
 export const DRAWING_TOOL_BEHAVIORS: Readonly<
 	Record<Tool, DrawingToolBehavior>
 > = {
@@ -124,6 +145,18 @@ export const DRAWING_TOOL_BEHAVIORS: Readonly<
 	[ShapeToolId.Triangle]: shape(),
 	[ShapeToolId.Diamond]: shape(),
 	[ShapeToolId.Star]: shape(),
+	[MarkupToolId.Number]: markup(
+		{ color: true, size: true, marker: true },
+		ToolSizeLabel.MarkerSize,
+	),
+	[MarkupToolId.Highlight]: markup({ color: true, opacity: true }),
+	[MarkupToolId.Text]: markup(
+		{ color: true, size: true },
+		ToolSizeLabel.TextSize,
+		'text',
+	),
+	[MarkupToolId.Blur]: markup({ size: true }, ToolSizeLabel.BlurStrength),
+	[MarkupToolId.Redact]: markup({}),
 	[UtilityToolId.Select]: {
 		kind: DrawingToolKind.Select,
 		cursor: 'default',
@@ -169,6 +202,9 @@ export function isPaintTool(tool: Tool): tool is PaintTool {
 }
 export function isShapeTool(tool: Tool): tool is ShapeTool {
 	return isToolKind(tool, DrawingToolKind.Shape);
+}
+export function isMarkupTool(tool: Tool): tool is MarkupTool {
+	return isToolKind(tool, DrawingToolKind.Markup);
 }
 
 /**

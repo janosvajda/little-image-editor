@@ -1,7 +1,10 @@
 import type { CanvasDocument } from '../../core/document/imageDocument';
 import { CoreLayerId } from '../../core/layers/layerTypes';
 import type { AnnotationDocument } from '../annotations/annotationDocument';
-import { renderAnnotationObject } from '../annotations/annotationRenderer';
+import {
+	renderAnnotationObject,
+	renderAnnotations,
+} from '../annotations/annotationRenderer';
 import {
 	type ContentLayer,
 	LinkedHistoryDomain,
@@ -41,6 +44,41 @@ export class LayerMerger {
 			this.objects.mergeItemsDown(layerId);
 		else this.bakeInto(upper, below);
 		return true;
+	}
+
+	canFlatten(): boolean {
+		return (
+			this.objects.state.objects.length > 0 &&
+			this.documentModel.layers.isEditable(CoreLayerId.Image)
+		);
+	}
+
+	/** Bakes every visible layer into the image and removes the layers, as one undo step. */
+	flatten(): boolean {
+		if (!this.canFlatten()) return false;
+		this.drawLayersIntoImage();
+		this.documentModel.commit();
+		this.objects.clear(LinkedHistoryDomain.Document);
+		return true;
+	}
+
+	/**
+	 * Bakes the layers into the image just before the image is resized or
+	 * turned; that operation records the step, and the layers start afresh.
+	 */
+	flattenBeforeGeometryChange(): void {
+		if (this.objects.state.objects.length === 0) return;
+		this.drawLayersIntoImage();
+		this.objects.restore();
+	}
+
+	/** Layers blend against the image, so they are composited over a copy of it. */
+	private drawLayersIntoImage(): void {
+		const { canvas, context } = this.documentModel;
+		const flattened = copyCanvas(canvas);
+		renderAnnotations(flattened.getContext('2d')!, canvas, this.objects.state);
+		context.clearRect(0, 0, canvas.width, canvas.height);
+		context.drawImage(flattened, 0, 0);
 	}
 
 	private mergeIntoImage(upper: ContentLayer): void {

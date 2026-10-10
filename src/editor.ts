@@ -1,10 +1,9 @@
-import { type Tool, UtilityToolId } from './app/core/document/appTypes';
+import type { Tool } from './app/core/document/appTypes';
 import {
 	EditorHistory,
 	HistoryDomain,
 } from './app/core/history/editorHistory';
 import { CanvasDocument } from './app/core/document/imageDocument';
-import { AnnotationController } from './app/features/annotations/annotationController';
 import {
 	AnnotationDocument,
 	LinkedHistoryDirection,
@@ -13,8 +12,12 @@ import {
 	ANNOTATION_TOOLBAR_KEY,
 	AnnotationPanel,
 } from './app/features/annotations/annotationPanel';
-import type { AnnotationTool } from './app/features/annotations/annotationTypes';
 import { LinkedHistoryDomain } from './app/features/annotations/annotationTypes';
+import {
+	BugReportController,
+	type BugReportPreferences,
+} from './app/features/annotations/bugReportController';
+import { ContentLayerCanvas } from './app/features/annotations/contentLayerCanvas';
 import { BrowserCaptureImporter } from './app/features/capture/browserCaptureImporter';
 import { DrawingController } from './app/features/drawing/drawingController';
 import { selectionPresentationFor } from './app/features/drawing/drawingToolBehavior';
@@ -25,11 +28,11 @@ import { FileController } from './app/features/files/fileController';
 import { NewImageController } from './app/features/files/newImageController';
 import { SessionPersistence } from './app/features/files/sessionPersistence';
 import { SpriteController } from './app/features/files/spriteController';
+import { LayerMerger } from './app/features/layers/layerMerge';
 import { LayersController } from './app/features/layers/layersController';
 import { RasterSelection } from './app/features/selection/rasterSelection';
 import { ProjectController } from './app/features/projects/projectController';
 import { DocumentLimitController } from './app/features/projects/documentLimitController';
-import { CanvasToolCoordinator } from './app/features/workspace/canvasToolCoordinator';
 import { CanvasViewportController } from './app/features/workspace/canvasViewportController';
 import { ToolbarManager } from './app/features/workspace/genericToolbar';
 import { enhancePanelButtons } from './app/features/workspace/panelButtonEnhancer';
@@ -60,7 +63,7 @@ const files = new FileController(
 );
 const clipboard = new ClipboardController(documentModel);
 const sprites = new SpriteController(documentModel);
-const annotationPanel = new AnnotationPanel();
+const annotationPanel = new AnnotationPanel((tool) => drawing.select(tool));
 const layers = new LayersController(documentModel, vectorShapes);
 element<HTMLElement>(toolbarSelector(ToolbarId.Transform)).before(
 	annotationPanel.element,
@@ -81,37 +84,35 @@ const drawing = new DrawingController(
 	vectorShapes,
 	rasterSelection,
 );
-drawing.onToolChange((tool) =>
-	annotationPanel.reflectSharedCropTool(tool === UtilityToolId.Crop),
-);
+annotationPanel.showActiveTool(drawing.tool);
+drawing.onToolChange((tool) => annotationPanel.showActiveTool(tool));
 layers.onEditRequested((layerId) => drawing.editLayer(layerId));
 layers.onItemChosen((itemId) => drawing.revealItem(itemId));
 new ImageOperations(documentModel, rasterSelection);
 new EffectsController(documentModel, rasterSelection);
 const toolbarManager = new ToolbarManager(documentModel);
-const annotationPreferences = toolbarManager.get<{
-	tool: AnnotationTool;
-	reportEdited: boolean;
-}>(ANNOTATION_TOOLBAR_KEY);
-if (!annotationPreferences)
+const bugReportPreferences = toolbarManager.get<BugReportPreferences>(
+	ANNOTATION_TOOLBAR_KEY,
+);
+if (!bugReportPreferences)
 	throw new Error(
 		'The annotations panel was not registered by ToolbarManager.',
 	);
-const annotations = new AnnotationController(
+new BugReportController(documentModel, annotationPanel, bugReportPreferences);
+const layerMerger = new LayerMerger(documentModel, vectorShapes);
+const layerCanvas = new ContentLayerCanvas(
 	documentModel,
 	viewport,
-	annotationPanel,
-	annotationPreferences,
 	vectorShapes,
+	() => layerMerger.flattenBeforeGeometryChange(),
 );
 const presentSelectionFor = (tool: Tool) =>
-	annotations.setDrawingSelectionPresentation(selectionPresentationFor(tool));
+	layerCanvas.setSelectionPresentation(selectionPresentationFor(tool));
 presentSelectionFor(drawing.tool);
 drawing.onToolChange(presentSelectionFor);
 const projects = new ProjectController(documentModel, undefined, vectorShapes);
 files.setProjectSaveHandler((saveAs) => projects.save(saveAs));
 files.setProjectOpenHandler((file) => projects.openFile(file));
-new CanvasToolCoordinator([drawing, annotations]);
 enhancePanelButtons();
 const sessionPersistence = new SessionPersistence(documentModel);
 new TooltipController();

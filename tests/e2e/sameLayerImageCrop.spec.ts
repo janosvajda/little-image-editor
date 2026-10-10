@@ -20,7 +20,7 @@ for (const type of ['jpeg', 'png'] as const) {
 		const buffer = await page.locator('#source').screenshot({ type });
 		await page.goto('/');
 		await page.locator('#fileInput').setInputFiles({ name: `source.${type}`, mimeType: `image/${type}`, buffer });
-		await page.locator('[data-tool="crop"]').click();
+		await page.locator('[data-panel="tools"] [data-tool="crop"]').click();
 		await page.locator('[data-panel="tools"] .panel-close').click();
 		const original = await page.locator('#canvas').evaluate((element) => (element as HTMLCanvasElement).toDataURL());
 		await drag(page, [20, 20], [80, 80]);
@@ -62,7 +62,7 @@ test('transparent PNG move preserves transparency and Escape cancels the preview
 	const buffer = await page.locator('#source').screenshot({ omitBackground: true });
 	await page.goto('/');
 	await page.locator('#fileInput').setInputFiles({ name: 'transparent.png', mimeType: 'image/png', buffer });
-	await page.locator('[data-tool="crop"]').click();
+	await page.locator('[data-panel="tools"] [data-tool="crop"]').click();
 	await page.locator('[data-panel="tools"] .panel-close').click();
 	await drag(page, [20, 20], [80, 80]);
 	const bounds = (await page.locator('#overlay').boundingBox())!;
@@ -85,7 +85,7 @@ test('lasso moves only the selected polygon inside the image layer', async ({ pa
 	const buffer = await page.locator('#source').screenshot();
 	await page.goto('/');
 	await page.locator('#fileInput').setInputFiles({ name: 'lasso.png', mimeType: 'image/png', buffer });
-	await page.locator('[data-tool="crop"]').click();
+	await page.locator('[data-panel="tools"] [data-tool="crop"]').click();
 	await page.locator('[data-crop-selection-kind="lasso"]').click();
 	await page.locator('[data-panel="tools"] .panel-close').click();
 	const bounds = (await page.locator('#overlay').boundingBox())!;

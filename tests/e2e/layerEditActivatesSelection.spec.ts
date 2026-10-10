@@ -6,7 +6,7 @@ const Gesture = {
 	MoveBy: { x: 80, y: 60 },
 } as const;
 
-test('Layers Edit activates Select and moves the chosen retained object', async ({
+test('Layers Edit activates Select and moves the chosen layer', async ({
 	page,
 }) => {
 	await page.addInitScript(() => localStorage.clear());
@@ -22,9 +22,9 @@ test('Layers Edit activates Select and moves the chosen retained object', async 
 	await page.locator('[data-panel-toggle="layers"]').check();
 	const edit = page
 		.locator('[data-panel="layers"] .layer-object-row')
-		.getByRole('button', { name: /Edit Paint layer/ });
+		.getByRole('button', { name: /Edit Layer 1/ });
 	await edit.click();
-	await expect(page.locator('[data-tool="select"]')).toHaveClass(/active/);
+	await expect(page.locator('[data-panel="tools"] [data-tool="select"]')).toHaveClass(/active/);
 
 	const before = {
 		x: Gesture.Start.x,

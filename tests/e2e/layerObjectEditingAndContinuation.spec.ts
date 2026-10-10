@@ -6,7 +6,7 @@ const Stroke = {
 	ContinuedEnd: { x: 500, y: 300 },
 } as const;
 
-test('layers expose paint-layer actions and split painting only on explicit request', async ({
+test('layers expose their actions and keep painting in one layer until a new one is made', async ({
 	page,
 }) => {
 	await page.addInitScript(() => localStorage.clear());
@@ -27,22 +27,22 @@ test('layers expose paint-layer actions and split painting only on explicit requ
 	await page.locator('[data-panel-toggle="layers"]').check();
 	const objectRow = page.locator('[data-panel="layers"] .layer-object-row');
 	await expect(objectRow).toHaveCount(1);
-	await expect(objectRow.getByRole('button', { name: /Edit Paint layer/ })).toBeVisible();
-	await expect(objectRow.getByRole('button', { name: /Lock Paint layer/ })).toBeVisible();
-	await expect(objectRow.getByRole('button', { name: /Delete Paint layer/ })).toBeVisible();
+	await expect(objectRow.getByRole('button', { name: /Edit Layer 1/ })).toBeVisible();
+	await expect(objectRow.getByRole('button', { name: /Lock Layer 1/ })).toBeVisible();
+	await expect(objectRow.getByRole('button', { name: /Delete Layer 1/ })).toBeVisible();
 
 	await chooseBrush(page);
 	await drag(page, Stroke.End, Stroke.ContinuedEnd);
 	await page.locator('#quickSaveButton').click();
 	const project = await savedProject(page);
-	const objects = project.editableObjects.state.objects;
-	expect(objects).toHaveLength(1);
-	expect(objects[0]?.type).toBe('stroke');
-	expect(objects[0]?.points.length).toBeGreaterThan(2);
+	const { objects, layers } = project.editableObjects.state;
+	expect(layers).toHaveLength(1);
+	expect(objects.map((object) => object.type)).toEqual(['stroke', 'stroke']);
+	expect(layers[0]?.itemIds).toEqual(objects.map((object) => object.id));
 
-	await objectRow.getByRole('button', { name: /Lock Paint layer/ }).click();
-	await expect(objectRow.getByRole('button', { name: /Edit Paint layer/ })).toBeDisabled();
-	await objectRow.getByRole('button', { name: /Delete Paint layer/ }).click();
+	await objectRow.getByRole('button', { name: /Lock Layer 1/ }).click();
+	await expect(objectRow.getByRole('button', { name: /Edit Layer 1/ })).toBeDisabled();
+	await objectRow.getByRole('button', { name: /Delete Layer 1/ }).click();
 	await expect(page.locator('[data-panel="layers"] .layer-object-row')).toHaveCount(0);
 	await page.locator('#undoButton').click();
 	await expect(page.locator('[data-panel="layers"] .layer-object-row')).toHaveCount(1);

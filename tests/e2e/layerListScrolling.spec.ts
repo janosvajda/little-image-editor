@@ -33,7 +33,7 @@ test('only the layer list scrolls, and a canvas selection scrolls its row into v
 	await list.evaluate((element) => {
 		element.scrollTop = 0;
 	});
-	await page.locator('[data-tool="select"]').click();
+	await page.locator('[data-panel="tools"] [data-tool="select"]').click();
 	const bottomLayerStroke = strokeStart(0);
 	await page.mouse.click(...screen(await canvasBox(page), {
 		x: bottomLayerStroke.x + STROKE_LENGTH.x / 2,

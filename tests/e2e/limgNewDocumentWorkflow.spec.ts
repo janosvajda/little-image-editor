@@ -66,7 +66,8 @@ test('a new .limg document saves and reopens its editable shape through primary 
 	await expect.poll(() => annotationAlphaCount(page)).toBeGreaterThan(0);
 	await page.locator('#toolbarPickerButton').click();
 	await page.locator('[data-panel-toggle="annotations"]').check();
-	await page.locator('[data-annotation-tool="select"]').click();
+	await page.locator('[data-panel="annotations"] [data-tool="select"]').click();
+	await page.locator('[data-panel="annotations"] > .panel-header > .collapse').click();
 	await page.locator('#overlay').click({ position: { x: 430, y: 260 } });
 	await expect.poll(() => selectionHandleCount(page)).toBeGreaterThan(0);
 });
