@@ -28,6 +28,7 @@ test('erases pixels from a selected crop created after drawing on a JPEG', async
 	await expect(selected).toContainText('Pixels');
 	const selectedId = await selected.getAttribute('data-object-id');
 	await page.locator('[data-tool="eraser"]').click();
+	await page.locator('#sizeInput').fill('12');
 	await drag(page, bounds.x + 380, bounds.y + 262, bounds.x + 380, bounds.y + 280);
 
 	await expect(page.locator('.layer-item-row.active')).toHaveAttribute(

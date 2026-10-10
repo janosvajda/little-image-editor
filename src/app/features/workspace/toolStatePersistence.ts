@@ -1,3 +1,8 @@
+import {
+	editorPlatform,
+	type KeyValueStorage,
+} from '../../platform/editorPlatform';
+
 const STORAGE_KEY = 'littleImageEditor.drawingPreferences';
 
 export type PersistedValue = string | boolean;
@@ -15,7 +20,7 @@ export interface RestoredToolState {
 export function saveToolState(
 	root: ParentNode,
 	activeTool: string,
-	storage: Storage = localStorage,
+	storage: KeyValueStorage = editorPlatform().storage,
 ): void {
 	const controls = captureControlState(root);
 	try {
@@ -54,7 +59,7 @@ export function restoreControlState(
 
 export function restoreToolState(
 	root: ParentNode,
-	storage: Storage = localStorage,
+	storage: KeyValueStorage = editorPlatform().storage,
 ): RestoredToolState {
 	const restoredControlIds = new Set<string>();
 	try {

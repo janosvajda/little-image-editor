@@ -46,6 +46,25 @@ export const ZoomDirection = { Out: -1, In: 1 } as const;
 export type ZoomDirection = (typeof ZoomDirection)[keyof typeof ZoomDirection];
 type StageLayer = HTMLElement | SVGElement;
 
+/** Where the image sits while it is smaller than the canvas area. */
+export const ImagePlacement = {
+	/** In the top left corner, beside the rulers. */
+	Start: 'start',
+	/** In the middle of the canvas area. */
+	Center: 'center',
+} as const;
+export type ImagePlacement = (typeof ImagePlacement)[keyof typeof ImagePlacement];
+
+interface ViewportOffset {
+	readonly x: number;
+	readonly y: number;
+}
+const NO_OFFSET: ViewportOffset = { x: 0, y: 0 };
+
+function pixels(cssLength: string): number {
+	return Number.parseFloat(cssLength) || 0;
+}
+
 export class CanvasViewportController {
 	readonly #wrap = element<HTMLElement>('#canvasWrap');
 	readonly #viewport = document.createElement('div');
@@ -61,8 +80,12 @@ export class CanvasViewportController {
 	readonly #rulerVisible = document.createElement('input');
 	readonly #toolbar: PersistentDocumentToolbar;
 	readonly #viewListeners = new Set<() => void>();
+	#offset: ViewportOffset = NO_OFFSET;
 
-	constructor(readonly documentModel: CanvasDocument) {
+	constructor(
+		readonly documentModel: CanvasDocument,
+		private readonly placement: ImagePlacement = ImagePlacement.Start,
+	) {
 		this.createViewport();
 		this.createControls();
 		this.#toolbar = new PersistentDocumentToolbar(
@@ -113,8 +136,21 @@ export class CanvasViewportController {
 		this.setZoomLevel(ViewportConfiguration.ActualPixelsPercent);
 	}
 
+	/** Zooms to the largest level that shows the whole image. */
 	fitToWindow(): void {
-		if (!this.documentModel.hasImage) return;
+		const level = this.fittingZoomLevel();
+		if (level !== null) this.setZoomLevel(level);
+	}
+
+	/** Shows the whole image: zooms out when it is larger than the canvas area, but never enlarges it. */
+	showWholeImage(): void {
+		const level = this.fittingZoomLevel();
+		if (level !== null)
+			this.setZoomLevel(Math.min(level, ViewportConfiguration.ActualPixelsPercent));
+	}
+
+	private fittingZoomLevel(): number | null {
+		if (!this.documentModel.hasImage) return null;
 		const rulerSize = this.rulersVisible ? RULER_SIZE : 0;
 		const availableWidth = Math.max(
 			1,
@@ -129,11 +165,11 @@ export class CanvasViewportController {
 				availableWidth / this.documentModel.width,
 				availableHeight / this.documentModel.height,
 			) * Numeric.PercentScale;
-		const level =
+		return (
 			[...ZOOM_LEVELS]
 				.reverse()
-				.find((candidate) => candidate <= maximumPercent) ?? ZOOM_LEVELS[0];
-		this.setZoomLevel(level);
+				.find((candidate) => candidate <= maximumPercent) ?? ZOOM_LEVELS[0]
+		);
 	}
 
 	zoomAt(clientX: number, clientY: number, direction: ZoomDirection): void {
@@ -235,6 +271,7 @@ export class CanvasViewportController {
 	private bindEvents(): void {
 		this.#zoomSelect.addEventListener('change', () => this.applyView());
 		this.#unitSelect.addEventListener('change', () => this.renderRulers());
+		this.#corner.addEventListener('click', () => this.nextUnit());
 		this.#rulerButton.addEventListener('click', () => {
 			const visible = !this.rulersVisible;
 			this.#rulerVisible.checked = visible;
@@ -247,6 +284,9 @@ export class CanvasViewportController {
 			passive: true,
 		});
 		window.addEventListener('resize', () => this.applyView());
+		// A centred image follows the canvas area when panels beside it open or close.
+		if (this.placement === ImagePlacement.Center && 'ResizeObserver' in window)
+			new ResizeObserver(() => this.applyView()).observe(this.#wrap);
 		document.addEventListener('keydown', (event) => {
 			if (!(event.ctrlKey || event.metaKey)) return;
 			if (event.key === '+' || event.key === '=') {
@@ -263,6 +303,13 @@ export class CanvasViewportController {
 				this.actualPixels();
 			}
 		});
+	}
+
+	/** Switches the rulers to the next measurement unit, as choosing it in the unit menu does. */
+	nextUnit(): void {
+		const next = (MEASUREMENT_UNITS.indexOf(this.unit) + 1) % MEASUREMENT_UNITS.length;
+		this.#unitSelect.value = MEASUREMENT_UNITS[next]!;
+		this.#unitSelect.dispatchEvent(new Event('change', { bubbles: true }));
 	}
 
 	private stepZoom(direction: ZoomDirection): void {
@@ -300,6 +347,7 @@ export class CanvasViewportController {
 		this.#stage.style.top = `${rulerSize}px`;
 		this.#stage.style.width = `${width}px`;
 		this.#stage.style.height = `${height}px`;
+		this.placeViewport(width + rulerSize, height + rulerSize);
 		this.#stage.classList.toggle('magnified', zoom > 1);
 		this.#stage
 			.querySelectorAll<StageLayer>(':scope > *')
@@ -327,9 +375,23 @@ export class CanvasViewportController {
 		layer.style.height = `${height}px`;
 	}
 
+	/** Centres the image with margins, so the rulers can follow it by the same offset. */
+	private placeViewport(width: number, height: number): void {
+		if (this.placement !== ImagePlacement.Center) return;
+		const wrap = getComputedStyle(this.#wrap);
+		const spare = (client: number, start: string, end: string, size: number) =>
+			Math.max(0, (client - pixels(start) - pixels(end) - size) / Numeric.HalfDivisor);
+		this.#offset = {
+			x: spare(this.#wrap.clientWidth, wrap.paddingLeft, wrap.paddingRight, width),
+			y: spare(this.#wrap.clientHeight, wrap.paddingTop, wrap.paddingBottom, height),
+		};
+		this.#viewport.style.marginLeft = `${this.#offset.x}px`;
+		this.#viewport.style.marginTop = `${this.#offset.y}px`;
+	}
+
 	private pinRulersToViewport(): void {
-		const x = Math.max(0, this.#wrap.scrollLeft);
-		const y = Math.max(0, this.#wrap.scrollTop);
+		const x = Math.max(0, this.#wrap.scrollLeft) - this.#offset.x;
+		const y = Math.max(0, this.#wrap.scrollTop) - this.#offset.y;
 		this.#horizontalRuler.style.setProperty('--ruler-scroll', `${x}px`);
 		this.#verticalRuler.style.setProperty('--ruler-scroll', `${y}px`);
 	}

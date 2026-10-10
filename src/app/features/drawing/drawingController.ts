@@ -6,7 +6,7 @@ import {
 } from '../../core/document/appTypes';
 import type { CanvasDocument } from '../../core/document/imageDocument';
 import { CoreLayerId } from '../../core/layers/layerTypes';
-import { element } from '../../shared/dom/domHelpers';
+import { acceptsTyping, element } from '../../shared/dom/domHelpers';
 import type { AnnotationDocument } from '../annotations/annotationDocument';
 import { AnnotationObjectTypeId } from '../annotations/annotationTypes';
 import type { RasterSelection } from '../selection/rasterSelection';
@@ -270,7 +270,7 @@ export class DrawingController {
 		this.updateZoomCursor(event.altKey);
 		if (
 			(event.key === 'Delete' || event.key === 'Backspace') &&
-			!isEditableTarget(event.target) &&
+			!acceptsTyping(event.target) &&
 			this.shapes?.selected &&
 			this.shapes.isEditable(this.shapes.selected.id)
 		) {
@@ -281,7 +281,7 @@ export class DrawingController {
 		if (
 			(this.#controls.tool === UtilityToolId.Crop ||
 				this.#controls.tool === UtilityToolId.Select) &&
-			!isEditableTarget(event.target) &&
+			!acceptsTyping(event.target) &&
 			event.key === 'Escape'
 		) {
 			event.preventDefault();
@@ -336,14 +336,6 @@ export class DrawingController {
 	}
 }
 
-function isEditableTarget(target: EventTarget | null): boolean {
-	return (
-		target instanceof HTMLInputElement ||
-		target instanceof HTMLSelectElement ||
-		target instanceof HTMLTextAreaElement ||
-		(target instanceof HTMLElement && target.isContentEditable)
-	);
-}
 
 /** Tools that draw new items: brushes, shapes and markup; the eraser only edits. */
 function createsItems(tool: Tool): boolean {

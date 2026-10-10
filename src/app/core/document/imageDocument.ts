@@ -21,6 +21,7 @@ import { DEFAULT_IMAGE_FORMAT } from './imageFormats';
 import { PIXELS_PER_INCH } from './measurementUnits';
 import { EditorLimit } from './editorLimits';
 import { ColorPalette } from './colorPalette';
+import type { SaveTarget } from '../../platform/editorPlatform';
 
 const HISTORY_LIMIT = EditorLimit.RasterHistory;
 const EMPTY_HISTORY_INDEX = -1;
@@ -50,7 +51,8 @@ export class CanvasDocument implements HistoryParticipant {
 	readonly layers = new LayerDocument();
 
 	hasImage = false;
-	fileHandle: FileSystemFileHandle | null = null;
+	/** Where Save writes without asking, once the document has been saved. */
+	fileHandle: SaveTarget | null = null;
 	baseName = 'little-image';
 	savedType: ImageFormat = DEFAULT_IMAGE_FORMAT.mimeType;
 	resolution = PIXELS_PER_INCH;

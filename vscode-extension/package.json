@@ -1,0 +1,82 @@
+{
+  "name": "little-image-editor",
+  "displayName": "Little Image Editor",
+  "description": "Edit images and layered .limg projects inside VS Code.",
+  "icon": "webview/assets/images/extensionIcon-128.png",
+  "version": "0.3.0",
+  "publisher": "janosvajda",
+  "license": "SEE LICENSE IN LICENSE",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/janosvajda/little-image-editor.git"
+  },
+  "private": true,
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Visualization",
+    "Other"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "customEditors": [
+      {
+        "viewType": "littleImageEditor.project",
+        "displayName": "Little Image Editor",
+        "selector": [
+          {
+            "filenamePattern": "*.limg"
+          }
+        ],
+        "priority": "default"
+      },
+      {
+        "viewType": "littleImageEditor.image",
+        "displayName": "Little Image Editor",
+        "selector": [
+          {
+            "filenamePattern": "*.png"
+          },
+          {
+            "filenamePattern": "*.jpg"
+          },
+          {
+            "filenamePattern": "*.jpeg"
+          },
+          {
+            "filenamePattern": "*.webp"
+          }
+        ],
+        "priority": "option"
+      }
+    ],
+    "commands": [
+      {
+        "command": "littleImageEditor.newImage",
+        "title": "New Image – Little Image Editor",
+        "icon": "$(file-media)"
+      },
+      {
+        "command": "littleImageEditor.connectAssistant",
+        "title": "Connect to Claude Code – Little Image Editor"
+      },
+      {
+        "command": "littleImageEditor.disconnectAssistant",
+        "title": "Disconnect from Claude Code – Little Image Editor"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "littleImageEditor.newImage",
+          "when": "explorerResourceIsFolder",
+          "group": "navigation@10"
+        }
+      ]
+    }
+  }
+}

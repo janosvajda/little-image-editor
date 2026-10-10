@@ -546,14 +546,15 @@
   background: var(--color-transparent) url("assets/images/extensionIcon.png") center / 88px 88px no-repeat;
 }
 
+/* Floating toolbars only: a docked toolbar fills its side panel and is always reachable by its tab. */
 @media (max-width: 900px) {
-  .panel[data-panel="tools"] {
+  html:not([data-workspace-layout='docked']) .panel[data-panel="tools"] {
     width: 230px !important;
   }
 }
 
 @media (max-width: 640px) {
-  .panel[data-panel="effects"] {
+  html:not([data-workspace-layout='docked']) .panel[data-panel="effects"] {
     display: none;
   }
 }

@@ -1,6 +1,10 @@
 import { element } from '../../shared/dom/domHelpers';
 import type { CanvasDocument } from '../../core/document/imageDocument';
 import { ImageMimeType } from '../../core/document/appTypes';
+import {
+	editorPlatform,
+	type PlatformClipboard,
+} from '../../platform/editorPlatform';
 
 const STATUS_VISIBILITY_MS = 2_400;
 
@@ -8,7 +12,10 @@ export class ClipboardController {
 	readonly #buttons: HTMLButtonElement[];
 	readonly #status = element<HTMLElement>('#clipboardStatus');
 
-	constructor(private readonly documentModel: CanvasDocument) {
+	constructor(
+		private readonly documentModel: CanvasDocument,
+		private readonly clipboard: PlatformClipboard = editorPlatform().clipboard,
+	) {
 		this.#buttons = [
 			element<HTMLButtonElement>('#copyImageButton'),
 			element<HTMLButtonElement>('#quickCopyButton'),
@@ -26,15 +33,14 @@ export class ClipboardController {
 	copy(): Promise<boolean> {
 		if (!this.documentModel.hasImage) return Promise.resolve(false);
 		return this.write(async () => {
-			const blob = await this.documentModel.toBlob(ImageMimeType.Png);
-			await navigator.clipboard.write([
-				new ClipboardItem({ [ImageMimeType.Png]: blob }),
-			]);
+			await this.clipboard.writeImage(
+				await this.documentModel.toBlob(ImageMimeType.Png),
+			);
 		}, 'Image');
 	}
 
 	copyText(text: string, description = 'Text'): Promise<boolean> {
-		return this.write(() => navigator.clipboard.writeText(text), description);
+		return this.write(() => this.clipboard.writeText(text), description);
 	}
 
 	private async write(

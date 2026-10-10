@@ -56,3 +56,14 @@ export function imageFormat(mimeType: string): ImageFormatDefinition {
 export function isImageFormat(value: string): value is ImageFormat {
 	return IMAGE_FORMATS.some((format) => format.mimeType === value);
 }
+
+/** The format a file name's extension stands for, if it is an image format. */
+export function imageFormatOfFileName(
+	fileName: string,
+): ImageFormatDefinition | null {
+	const extension = fileName.slice(fileName.lastIndexOf('.') + 1).toLowerCase();
+	return (
+		IMAGE_FORMATS.find((format) => format.extensions.includes(extension)) ??
+		null
+	);
+}
