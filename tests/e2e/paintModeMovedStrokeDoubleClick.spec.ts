@@ -15,7 +15,7 @@ test('paint-mode double-click does not displace a moved stroke', async ({
 	await createProject(page);
 	await chooseBrush(page);
 	await drag(page, Gesture.Start, Gesture.End);
-	await page.locator('[data-tool="select"]').click();
+	await page.locator('[data-panel="tools"] [data-tool="select"]').click();
 	await drag(page, midpoint(Gesture.Start, Gesture.End), {
 		x: midpoint(Gesture.Start, Gesture.End).x + Gesture.Move.x,
 		y: midpoint(Gesture.Start, Gesture.End).y + Gesture.Move.y,

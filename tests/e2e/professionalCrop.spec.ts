@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-test('immediately cuts selected pixels into a movable, deletable layer', async ({
+test('immediately cuts selected pixels into a movable, deletable item', async ({
 	page,
 }) => {
 	await page.goto('/');
@@ -27,7 +27,7 @@ test('immediately cuts selected pixels into a movable, deletable layer', async (
 		pointerId: 1,
 	});
 
-	await page.locator('[data-tool="crop"]').click();
+	await page.locator('[data-panel="tools"] [data-tool="crop"]').click();
 	await overlay.dispatchEvent('pointerdown', {
 		clientX: bounds.x + 50,
 		clientY: bounds.y + 50,
@@ -46,10 +46,10 @@ test('immediately cuts selected pixels into a movable, deletable layer', async (
 
 	await expect(page.locator('#applyCropButton')).toHaveCount(0);
 	await expect(page.locator('#dimensions')).toHaveText('800 × 600 px');
-	await expect(page.locator('.layer-object-row')).toHaveCount(2);
-	await expect(page.locator('[data-tool="crop"]')).toHaveClass(/active/);
-	const selectedRow = page.locator('.layer-object-row.active');
-	await expect(selectedRow).toContainText('Raster fragment');
+	await expect(page.locator('.layer-item-row')).toHaveCount(2);
+	await expect(page.locator('[data-panel="tools"] [data-tool="crop"]')).toHaveClass(/active/);
+	const selectedRow = page.locator('.layer-item-row.active');
+	await expect(selectedRow).toContainText('Pixels');
 	const pixels = await page.locator('.annotation-canvas').evaluate((canvas) => {
 		const context = (canvas as HTMLCanvasElement).getContext('2d')!;
 		return {
@@ -58,8 +58,8 @@ test('immediately cuts selected pixels into a movable, deletable layer', async (
 	});
 	expect(pixels.inside).toBeGreaterThan(0);
 	await page.keyboard.press('Delete');
-	await expect(page.locator('.layer-object-row')).toHaveCount(1);
+	await expect(page.locator('.layer-item-row')).toHaveCount(1);
 	await page.locator('#undoButton').click();
 	await expect(page.locator('#dimensions')).toHaveText('800 × 600 px');
-	await expect(page.locator('.layer-object-row')).toHaveCount(2);
+	await expect(page.locator('.layer-item-row')).toHaveCount(2);
 });

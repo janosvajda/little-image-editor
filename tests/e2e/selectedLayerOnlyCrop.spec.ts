@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-test('crop extracts only the selected object layer', async ({ page }) => {
+test('crop extracts only the selected item', async ({ page }) => {
 	await page.goto('/');
 	await page.locator('#quickNewButton').click();
 	await page.locator('#newImageTransparent').check();
@@ -16,12 +16,13 @@ test('crop extracts only the selected object layer', async ({ page }) => {
 	await page.getByRole('button', { name: 'Shape tools: Rectangle' }).click();
 	await page.locator('#colorInput').fill('#2050d0');
 	await drag(page, bounds.x + 580, bounds.y + 220, bounds.x + 380, bounds.y + 100);
+	// The first, red rectangle is the bottom item of the layer.
 	await page
-		.locator('.layer-object-row')
-		.filter({ hasText: 'Shape 1' })
+		.locator('.layer-item-row')
+		.last()
 		.evaluate((row) => (row as HTMLElement).click());
 
-	await page.locator('[data-tool="crop"]').click();
+	await page.locator('[data-panel="tools"] [data-tool="crop"]').click();
 	await drag(page, bounds.x + 400, bounds.y + 120, bounds.x + 460, bounds.y + 200);
 	await drag(page, bounds.x + 430, bounds.y + 150, bounds.x + 430, bounds.y + 350);
 

@@ -14,15 +14,15 @@ test('a moved crop fragment does not block cropping another retained layer', asy
 
 	await drag(overlay, bounds.x + 100, bounds.y + 100, bounds.x + 200, bounds.y + 200, 1);
 	await drag(overlay, bounds.x + 300, bounds.y + 100, bounds.x + 400, bounds.y + 200, 2);
-	await expect(page.locator('.layer-object-row')).toHaveCount(2);
+	await expect(page.locator('.layer-item-row')).toHaveCount(2);
 
-	await page.locator('[data-tool="crop"]').click();
+	await page.locator('[data-panel="tools"] [data-tool="crop"]').click();
 	await drag(overlay, bounds.x + 90, bounds.y + 90, bounds.x + 210, bounds.y + 210, 3);
-	await expect(page.locator('.layer-object-row')).toHaveCount(3);
-	await expect(page.locator('[data-tool="crop"]')).toHaveClass(/active/);
+	await expect(page.locator('.layer-item-row')).toHaveCount(3);
+	await expect(page.locator('[data-panel="tools"] [data-tool="crop"]')).toHaveClass(/active/);
 
 	await drag(overlay, bounds.x + 150, bounds.y + 150, bounds.x + 150, bounds.y + 350, 4);
-	await expect(page.locator('[data-tool="crop"]')).toHaveClass(/active/);
+	await expect(page.locator('[data-panel="tools"] [data-tool="crop"]')).toHaveClass(/active/);
 	const pixels = await page.locator('.annotation-canvas').evaluate((canvas) => {
 		const context = (canvas as HTMLCanvasElement).getContext('2d')!;
 		return {
@@ -34,10 +34,8 @@ test('a moved crop fragment does not block cropping another retained layer', asy
 	expect(pixels.destinationAlpha).toBeGreaterThan(0);
 	await drag(overlay, bounds.x + 290, bounds.y + 90, bounds.x + 410, bounds.y + 210, 5);
 
-	await expect(page.locator('.layer-object-row')).toHaveCount(4);
-	await expect(page.locator('.layer-object-row.active')).toContainText(
-		'Raster fragment',
-	);
+	await expect(page.locator('.layer-item-row')).toHaveCount(4);
+	await expect(page.locator('.layer-item-row.active')).toContainText('Pixels');
 });
 
 async function drag(

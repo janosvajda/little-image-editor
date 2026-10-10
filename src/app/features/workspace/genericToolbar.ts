@@ -26,6 +26,8 @@ export interface GenericToolbarOptions<TTool extends string> {
 	documentModel?: CanvasDocument;
 	stateKey?: string;
 	profiledControlIds?: readonly string[];
+	/** Starting values of profiled controls for tools that differ from the panel defaults. */
+	toolDefaults?: Readonly<Partial<Record<TTool, Readonly<Record<string, PersistedValue>>>>>;
 }
 
 interface GenericToolbarDocumentState {
@@ -35,6 +37,20 @@ interface GenericToolbarDocumentState {
 		string,
 		Record<string, PersistedValue>
 	>;
+}
+
+/** The button for one tool, shared by every toolbar that offers tools. */
+export function createToolButton<TTool extends string>(
+	tool: ToolDefinition<TTool>,
+): HTMLButtonElement {
+	const button = document.createElement('button');
+	button.type = 'button';
+	button.className = 'tool utility-tool';
+	button.dataset.tool = tool.id;
+	button.title = tool.title;
+	button.setAttribute('aria-label', tool.label);
+	button.innerHTML = `<span>${tool.icon}</span><small class="tool-label">${tool.label}</small>`;
+	return button;
 }
 
 export class GenericToolbar<TTool extends string> {
@@ -112,15 +128,7 @@ export class GenericToolbar<TTool extends string> {
 			group.select.value = group.defaultTool;
 		});
 		this.options.buttonContainer.replaceChildren(
-			...this.options.buttonTools.map((tool) => {
-				const button = document.createElement('button');
-				button.className = 'tool utility-tool';
-				button.dataset.tool = tool.id;
-				button.title = tool.title;
-				button.setAttribute('aria-label', tool.label);
-				button.innerHTML = `<span>${tool.icon}</span><small class="tool-label">${tool.label}</small>`;
-				return button;
-			}),
+			...this.options.buttonTools.map(createToolButton),
 		);
 	}
 
@@ -212,8 +220,9 @@ export class GenericToolbar<TTool extends string> {
 			return;
 		}
 		const defaults: Record<string, PersistedValue> = {};
+		const toolDefaults = this.options.toolDefaults?.[tool];
 		for (const id of this.options.profiledControlIds) {
-			const value = this.#defaultControls[id];
+			const value = toolDefaults?.[id] ?? this.#defaultControls[id];
 			if (value !== undefined) defaults[id] = value;
 		}
 		restoreControlState(this.options.root, defaults);

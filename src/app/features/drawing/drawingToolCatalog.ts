@@ -1,7 +1,9 @@
 import {
+	MarkupToolId,
 	PaintToolId,
 	ShapeToolId,
 	UtilityToolId,
+	type MarkupTool,
 	type PaintTool,
 	type ShapeTool,
 	type Tool,
@@ -109,6 +111,32 @@ export const SHAPE_TOOL_DEFINITIONS = [
 	{ id: ShapeToolId.Star, label: 'Star', icon: '☆', title: 'Star' },
 ] as const satisfies readonly ToolDefinition<ShapeTool>[];
 
+export const MARKUP_TOOL_DEFINITIONS = [
+	{
+		id: MarkupToolId.Number,
+		label: 'Number',
+		icon: '①',
+		title: 'Numbered marker (N)',
+		shortcut: 'n',
+	},
+	{
+		id: MarkupToolId.Highlight,
+		label: 'Highlight',
+		icon: '▰',
+		title: 'Highlight area (G)',
+		shortcut: 'g',
+	},
+	{ id: MarkupToolId.Text, label: 'Text', icon: 'T', title: 'Text (T)', shortcut: 't' },
+	{ id: MarkupToolId.Blur, label: 'Blur', icon: '▦', title: 'Blur area (U)', shortcut: 'u' },
+	{
+		id: MarkupToolId.Redact,
+		label: 'Redact',
+		icon: '■',
+		title: 'Redact area (X)',
+		shortcut: 'x',
+	},
+] as const satisfies readonly ToolDefinition<MarkupTool>[];
+
 export const UTILITY_TOOL_DEFINITIONS = [
 	{
 		id: UtilityToolId.Select,
@@ -150,6 +178,7 @@ export const UTILITY_TOOL_DEFINITIONS = [
 export const DRAWING_TOOL_DEFINITIONS: readonly ToolDefinition<Tool>[] = [
 	...PAINT_TOOL_DEFINITIONS,
 	...SHAPE_TOOL_DEFINITIONS,
+	...MARKUP_TOOL_DEFINITIONS,
 	...UTILITY_TOOL_DEFINITIONS,
 ];
 

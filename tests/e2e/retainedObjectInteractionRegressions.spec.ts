@@ -53,7 +53,7 @@ test('select mode exposes stable 400% resize handles and edits the retained stro
 	);
 
 	expect(stroke?.rect).toMatchObject({ width: 232, height: 132 });
-	await expect(page.locator('[data-tool="select"]')).toHaveClass(/active/);
+	await expect(page.locator('[data-panel="tools"] [data-tool="select"]')).toHaveClass(/active/);
 });
 
 interface SavedObject {

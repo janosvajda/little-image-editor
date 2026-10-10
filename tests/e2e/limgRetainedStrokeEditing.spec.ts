@@ -22,7 +22,7 @@ test('a .limg brush stroke remains selectable, movable, saved, and editable afte
 	await page.locator('#quickSaveButton').click();
 	const original = lastStroke(await savedProject(page));
 
-	await page.locator('[data-tool="select"]').click();
+	await page.locator('[data-panel="tools"] [data-tool="select"]').click();
 	const midpoint = {
 		x: (Gesture.Start.x + Gesture.End.x) / 2,
 		y: (Gesture.Start.y + Gesture.End.y) / 2,
@@ -56,8 +56,11 @@ test('a .limg brush stroke remains selectable, movable, saved, and editable afte
 	);
 	await expect(restoredStrokeLayer).toHaveCount(1);
 	await expect(
-		restoredStrokeLayer.getByRole('button', { name: /Edit Paint layer/ }),
+		restoredStrokeLayer.getByRole('button', { name: /Edit Layer 1/ }),
 	).toBeEnabled();
+	await expect(page.locator('[data-panel="layers"] .layer-item-row')).toHaveText([
+		/Brush stroke/,
+	]);
 });
 
 async function chooseBrush(page: Page): Promise<void> {

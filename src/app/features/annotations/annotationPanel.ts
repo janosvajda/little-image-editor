@@ -1,57 +1,52 @@
+import {
+	MarkupToolId,
+	ShapeToolId,
+	type Tool,
+	UtilityToolId,
+} from '../../core/document/appTypes';
+import {
+	DRAWING_TOOL_DEFINITIONS,
+	type ToolDefinition,
+} from '../drawing/drawingToolCatalog';
+import { createToolButton } from '../workspace/genericToolbar';
 import { createManagedPanel } from '../workspace/managedPanel';
 import { ToolbarDock } from '../workspace/managedToolbarPanel';
 import { ToolbarAutoOpenMode, ToolbarId } from '../workspace/toolbarTypes';
-import { type AnnotationTool, AnnotationToolId } from './annotationTypes';
 
 const BUG_REPORT_VISIBLE_ROWS = 7;
 
-import { ColorPalette } from '../../core/document/colorPalette';
-
-/** Toolbar preferences key; distinct from the annotation layers' document state. */
+/** Toolbar preferences key; distinct from the layers' document state. */
 export const ANNOTATION_TOOLBAR_KEY = 'annotationToolbar';
-const TOOLS: ReadonlyArray<
-	Readonly<{ tool: AnnotationTool; icon: string; label: string; key?: string }>
-> = [
-	{ tool: AnnotationToolId.Select, icon: '↖', label: 'Select', key: 'V' },
-	{ tool: AnnotationToolId.Arrow, icon: '↗', label: 'Arrow', key: 'A' },
-	{ tool: AnnotationToolId.Step, icon: '①', label: 'Number', key: '1' },
-	{ tool: AnnotationToolId.Box, icon: '□', label: 'Box', key: 'B' },
-	{ tool: AnnotationToolId.Highlight, icon: '▰', label: 'Highlight', key: 'H' },
-	{ tool: AnnotationToolId.Text, icon: 'T', label: 'Text', key: 'T' },
-	{ tool: AnnotationToolId.Blur, icon: '▦', label: 'Blur', key: 'U' },
-	{ tool: AnnotationToolId.Redact, icon: '■', label: 'Redact', key: 'R' },
-	{ tool: AnnotationToolId.Crop, icon: '⌗', label: 'Crop', key: 'C' },
+
+/** The shared tools this toolbar offers for marking up a screenshot. */
+export const CAPTURE_TOOLS: readonly Tool[] = [
+	UtilityToolId.Select,
+	ShapeToolId.Arrow,
+	MarkupToolId.Number,
+	ShapeToolId.Rectangle,
+	MarkupToolId.Highlight,
+	MarkupToolId.Text,
+	MarkupToolId.Blur,
+	MarkupToolId.Redact,
+	UtilityToolId.Crop,
 ];
 
+/**
+ * Capture & annotate: opens on its own after a browser capture. Its buttons
+ * pick the same shared tools as the Tools panel, and it holds the bug report
+ * that goes with the capture.
+ */
 export class AnnotationPanel {
 	readonly element: HTMLElement;
-	readonly color = input('color', ColorPalette.Annotation);
-	readonly size = input('range', '5', { min: '1', max: '40' });
-	readonly opacity = input('range', '35', { min: '5', max: '100' });
-	readonly blur = input('range', '12', { min: '2', max: '40' });
-	readonly text = input('text', '', { placeholder: 'Callout text' });
-	readonly nextStep = document.createElement('strong');
-	readonly markerControls = document.createElement('div');
-	readonly markerValue = input('number', '1', {
-		min: '0',
-		max: '9999',
-		step: '1',
-		'aria-label': 'Next marker number',
-	});
-	readonly undo = action('↶', 'Undo annotation');
-	readonly redo = action('↷', 'Redo annotation');
-	readonly restart = action('①', 'Restart numbering at 1');
-	readonly flatten = action('✓', 'Apply annotations to image');
-	readonly clear = action('⌫', 'Clear annotations');
+	readonly tools = document.createElement('div');
 	readonly reportPreview = document.createElement('textarea');
 	readonly expected = input('text', '', { placeholder: 'Expected result' });
 	readonly actual = input('text', '', { placeholder: 'Actual result' });
 	readonly includeUrl = checkbox(true);
 	readonly includeEnvironment = checkbox(true);
 	readonly copyReport = action('⧉', 'Copy report details');
-	readonly toolButtons = new Map<AnnotationTool, HTMLButtonElement>();
 
-	constructor() {
+	constructor(selectTool: (tool: Tool) => void) {
 		const panel = createManagedPanel(
 			ToolbarId.Annotations,
 			'Capture & annotate',
@@ -63,44 +58,21 @@ export class AnnotationPanel {
 		);
 		this.element = panel.element;
 		this.element.dataset.toolbarKey = ANNOTATION_TOOLBAR_KEY;
-		assignId(this.color, 'annotationColor');
-		assignId(this.size, 'annotationSize');
-		assignId(this.opacity, 'annotationOpacity');
-		assignId(this.blur, 'annotationBlur');
-		assignId(this.text, 'annotationText');
-		assignId(this.expected, 'annotationExpected');
-		assignId(this.actual, 'annotationActual');
-		assignId(this.includeUrl, 'annotationIncludeUrl');
-		assignId(this.includeEnvironment, 'annotationIncludeEnvironment');
-		assignId(this.markerValue, 'annotationMarkerValue');
-		assignId(this.reportPreview, 'annotationReportText');
-		const tools = document.createElement('div');
-		tools.className = 'annotation-tool-grid';
-		for (const definition of TOOLS) {
-			const button = action(definition.icon, definition.label);
-			button.dataset.annotationTool = definition.tool;
-			button.title = `${definition.label}${definition.key ? ` (${definition.key})` : ''}`;
-			button.innerHTML = `<span aria-hidden="true">${definition.icon}</span><small>${definition.label}</small>`;
-			this.toolButtons.set(definition.tool, button);
-			tools.append(button);
-		}
-		this.nextStep.className = 'annotation-next-step';
-		this.markerControls.className = 'annotation-marker-controls hidden';
-		const markerInput = field('Set next', this.markerValue);
-		this.restart.textContent = '↺ Reset to 1';
-		this.restart.classList.add('annotation-reset-marker');
-		this.markerControls.append(this.nextStep, markerInput, this.restart);
-		const options = section(
-			'Options',
-			field('Color', this.color),
-			field('Size', this.size),
-			field('Opacity', this.opacity),
-			field('Blur', this.blur),
-			field('Text', this.text),
-		);
-		const history = document.createElement('div');
-		history.className = 'annotation-actions';
-		history.append(this.undo, this.redo, this.flatten, this.clear);
+		this.expected.id = 'annotationExpected';
+		this.actual.id = 'annotationActual';
+		this.includeUrl.id = 'annotationIncludeUrl';
+		this.includeEnvironment.id = 'annotationIncludeEnvironment';
+		this.reportPreview.id = 'annotationReportText';
+		this.tools.className = 'annotation-tool-grid';
+		this.tools.setAttribute('aria-label', 'Capture tools');
+		this.tools.append(...captureToolDefinitions().map(createToolButton));
+		this.tools.addEventListener('click', (event) => {
+			const tool = (event.target as HTMLElement).closest<HTMLElement>(
+				'[data-tool]',
+			)?.dataset.tool;
+			const chosen = CAPTURE_TOOLS.find((candidate) => candidate === tool);
+			if (chosen) selectTool(chosen);
+		});
 		const report = section(
 			'Bug report',
 			field('Expected', this.expected),
@@ -111,40 +83,23 @@ export class AnnotationPanel {
 		this.reportPreview.rows = BUG_REPORT_VISIBLE_ROWS;
 		this.reportPreview.setAttribute('aria-label', 'Editable bug report');
 		report.append(this.reportPreview, this.copyReport);
-		panel.body.append(
-			tools,
-			this.markerControls,
-			options,
-			history,
-			report,
-		);
+		panel.body.append(this.tools, report);
 	}
 
-	/** Crop is owned by the shared drawing tool; its button mirrors that tool's state. */
-	reflectSharedCropTool(active: boolean): void {
-		this.toolButtons
-			.get(AnnotationToolId.Crop)
-			?.classList.toggle('active', active);
+	/** Marks the shared tool in use, wherever it was chosen. */
+	showActiveTool(tool: Tool): void {
+		for (const button of this.tools.querySelectorAll<HTMLElement>('[data-tool]'))
+			button.classList.toggle('active', button.dataset.tool === tool);
 	}
+}
 
-	setActiveTool(tool: AnnotationTool): void {
-		this.toolButtons.forEach((button, candidate) =>
-			button.classList.toggle('active', candidate === tool),
+function captureToolDefinitions(): ToolDefinition<Tool>[] {
+	return CAPTURE_TOOLS.flatMap((tool) => {
+		const definition = DRAWING_TOOL_DEFINITIONS.find(
+			(candidate) => candidate.id === tool,
 		);
-		this.markerControls.classList.toggle(
-			'hidden',
-			tool !== AnnotationToolId.Step,
-		);
-		this.text
-			.closest('label')
-			?.classList.toggle('hidden', tool !== AnnotationToolId.Text);
-		this.blur
-			.closest('label')
-			?.classList.toggle('hidden', tool !== AnnotationToolId.Blur);
-		this.opacity
-			.closest('label')
-			?.classList.toggle('hidden', tool !== AnnotationToolId.Highlight);
-	}
+		return definition ? [definition] : [];
+	});
 }
 
 function input(
@@ -166,6 +121,7 @@ function checkbox(checked: boolean): HTMLInputElement {
 	result.checked = checked;
 	return result;
 }
+
 function action(icon: string, label: string): HTMLButtonElement {
 	const button = document.createElement('button');
 	button.type = 'button';
@@ -175,26 +131,23 @@ function action(icon: string, label: string): HTMLButtonElement {
 	button.setAttribute('aria-label', label);
 	return button;
 }
+
 function field(label: string, control: HTMLElement): HTMLLabelElement {
 	const result = document.createElement('label');
 	result.append(document.createTextNode(label), control);
 	return result;
 }
-function checkField(
-	label: string,
-	control: HTMLInputElement,
-): HTMLLabelElement {
+
+function checkField(label: string, control: HTMLInputElement): HTMLLabelElement {
 	const result = field(label, control);
 	result.className = 'annotation-check';
 	return result;
 }
+
 function section(title: string, ...children: HTMLElement[]): HTMLElement {
 	const result = document.createElement('section');
 	const heading = document.createElement('h3');
 	heading.textContent = title;
 	result.append(heading, ...children);
 	return result;
-}
-function assignId(element: HTMLElement, id: string): void {
-	element.id = id;
 }

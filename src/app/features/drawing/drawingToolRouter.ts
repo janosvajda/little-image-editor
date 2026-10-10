@@ -1,4 +1,6 @@
 import {
+	MarkupToolId,
+	type MarkupTool,
 	type PaintTool,
 	PaintToolId,
 	type Point,
@@ -8,7 +10,10 @@ import {
 import type { CanvasDocument } from '../../core/document/imageDocument';
 import { CoreLayerId } from '../../core/layers/layerTypes';
 import type { AnnotationDocument } from '../annotations/annotationDocument';
-import { AnnotationObjectTypeId } from '../annotations/annotationTypes';
+import {
+	AnnotationObjectTypeId,
+	type TextAnnotation,
+} from '../annotations/annotationTypes';
 import type { RasterSelection } from '../selection/rasterSelection';
 import {
 	type CanvasViewportController,
@@ -16,13 +21,18 @@ import {
 } from '../workspace/canvasViewportController';
 import { CropTool } from './cropTool';
 import { DrawingImageActions } from './drawingImageActions';
-import { isPaintTool, isShapeTool } from './drawingToolBehavior';
+import {
+	isMarkupTool,
+	isPaintTool,
+	isShapeTool,
+} from './drawingToolBehavior';
 import type { DrawingToolSettings } from './drawingToolSettings';
 import { BaseImagePaintGesture } from './gestures/baseImagePaintGesture';
 import type { DrawingGesture } from './gestures/drawingGesture';
 import { ObjectErasureGesture } from './gestures/objectErasureGesture';
 import { PaintStrokeGesture } from './gestures/paintStrokeGesture';
 import { ShapeDrawingGesture } from './gestures/shapeDrawingGesture';
+import { isFramedMarkupTool, MarkupActions } from './markupActions';
 import { ObjectInteractionTool } from './objectInteractionTool';
 
 /** Chooses a tool action. Each returned gesture owns its own mutation and lifecycle. */
@@ -30,6 +40,7 @@ export class DrawingToolRouter {
 	readonly #crop: CropTool;
 	readonly #objects: ObjectInteractionTool;
 	readonly #imageActions: DrawingImageActions;
+	readonly #markup: MarkupActions | null;
 
 	constructor(
 		private readonly documentModel: CanvasDocument,
@@ -41,6 +52,15 @@ export class DrawingToolRouter {
 		this.#crop = new CropTool(documentModel, shapes, viewport);
 		this.#objects = new ObjectInteractionTool(shapes, rasterSelection);
 		this.#imageActions = new DrawingImageActions(documentModel, shapes);
+		this.#markup = shapes ? new MarkupActions(documentModel, shapes) : null;
+	}
+
+	/** Edits a text item in place, as a double-click on it does with any tool. */
+	editText(
+		item: TextAnnotation,
+		client: Readonly<{ clientX: number; clientY: number }>,
+	): void {
+		this.#markup?.editText(item, client);
 	}
 
 	cancelCrop(): void {
@@ -63,6 +83,7 @@ export class DrawingToolRouter {
 	): DrawingGesture | null {
 		if (tool === PaintToolId.Eraser)
 			return this.beginErasure(point, event.pressure);
+		if (isMarkupTool(tool)) return this.beginMarkup(tool, point, event);
 		const shape = isShapeTool(tool)
 			? new ShapeDrawingGesture(
 					this.documentModel,
@@ -87,6 +108,20 @@ export class DrawingToolRouter {
 		if (isPaintTool(tool)) return this.beginPaint(tool, point, event.pressure);
 		if (shape) return shape;
 		this.runImmediateTool(tool, point, event);
+		return null;
+	}
+
+	/** Highlight, blur and redaction are dragged out; numbers and text are placed by a click. */
+	private beginMarkup(
+		tool: MarkupTool,
+		point: Point,
+		event: PointerEvent,
+	): DrawingGesture | null {
+		if (!this.#markup) return null;
+		const style = this.settings.strokeOptions();
+		if (isFramedMarkupTool(tool)) return this.#markup.beginFrame(tool, point, style);
+		if (tool === MarkupToolId.Number) this.#markup.placeNumber(point, style);
+		else this.#markup.createText(point, event, style);
 		return null;
 	}
 

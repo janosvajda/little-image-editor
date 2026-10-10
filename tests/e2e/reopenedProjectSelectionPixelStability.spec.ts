@@ -17,7 +17,7 @@ test('selecting a reopened paint layer does not change its rendered pixels', asy
 	await draw(page, { x: 80, y: 100 }, { x: 250, y: 100 });
 	await setPaintStyle(page, '#d32020', 6);
 	await draw(page, { x: 80, y: 150 }, { x: 250, y: 150 });
-	await page.locator('[data-tool="select"]').click();
+	await page.locator('[data-panel="tools"] [data-tool="select"]').click();
 	await dispatchCanvasClick(page, { x: 150, y: 100 });
 	const southEast = await selectionHandleCenter(page, 2);
 	await dispatchCanvasDrag(
@@ -38,7 +38,7 @@ test('selecting a reopened paint layer does not change its rendered pixels', asy
 	await expect(page.locator('#canvasWrap')).toBeVisible();
 
 	const before = await annotationPixels(page);
-	await page.locator('[data-tool="select"]').click();
+	await page.locator('[data-panel="tools"] [data-tool="select"]').click();
 	await dispatchCanvasPointer(page, 'pointerdown', transformedCenter);
 	await expect(page.locator('.selection-overlay .selection-frame')).toBeVisible();
 	const duringSelection = await annotationPixels(page);

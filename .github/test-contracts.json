@@ -236,5 +236,8 @@
   "tests/e2e/layerDragPreviewQuality.spec.ts": "b69366e9023b32e89cfb3d875e9c634e3bcc05a6bf31368a7b85384eb5c8b28b",
   "src/app/features/annotations/resizedStrokeSharpness.test.ts": "d8cf86015562d532411ad35a74cf910b61fe95d5a78d8ea535ea70ca8adb456c",
   "tests/e2e/layerListScrolling.spec.ts": "ff9b30074dcbd65fae49767bf0d2294c2d434abc97ad5d2656d94bb71b1a6938",
-  "src/app/features/drawing/selectionScopedFill.test.ts": "4544724a5fd9e7450044123c15a59272f8ce799bb4e21ce3756955a4b3f50d40"
+  "src/app/features/drawing/selectionScopedFill.test.ts": "4544724a5fd9e7450044123c15a59272f8ce799bb4e21ce3756955a4b3f50d40",
+  "src/app/features/drawing/markupTools.test.ts": "707adf2e73d9edf5d9f60cac813727d3a0cec0cf1c66657c68c89cedbbdcedd9",
+  "src/app/features/annotations/captureToolbarGeneric.test.ts": "1c89395b4279756b6a1b91dc1f26df20d5c7e42cf7a511aa9cbcd49a429ba0b3",
+  "tests/e2e/captureToolbarGeneric.spec.ts": "c3cb59807be07a8921a4b0791be69648978076525cbc554b08f9db17f860c5f3"
 }

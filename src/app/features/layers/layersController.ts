@@ -164,6 +164,7 @@ export class LayersController {
 			const active = this.objects?.activeLayer;
 			if (active) this.#merger?.mergeDown(active.id);
 		});
+		this.panel.flattenButton.addEventListener('click', () => this.#merger?.flatten());
 		nameInput.addEventListener('change', () =>
 			this.changeActiveLayer({ name: nameInput.value }),
 		);
@@ -207,6 +208,7 @@ export class LayersController {
 		this.panel.duplicateLayerButton.disabled = active === null;
 		this.panel.mergeDownButton.disabled =
 			active === null || !this.#merger?.canMergeDown(active.id);
+		this.panel.flattenButton.disabled = !this.#merger?.canFlatten();
 		const appearance = active
 			? layerAppearance(active)
 			: { opacity: LayerOpacity.Opaque, blendMode: BlendMode.Normal };

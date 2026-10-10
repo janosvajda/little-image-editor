@@ -11,23 +11,21 @@ test('crop stays active while extracting and moving multiple freehand regions', 
 	if (!bounds) throw new Error('Canvas overlay is not visible.');
 
 	await drag(overlay, bounds.x + 100, bounds.y + 100, bounds.x + 500, bounds.y + 300, 1);
-	await expect(page.locator('.layer-object-row')).toHaveCount(1);
-	await page.locator('[data-tool="crop"]').click();
+	await expect(page.locator('.layer-item-row')).toHaveCount(1);
+	await page.locator('[data-panel="tools"] [data-tool="crop"]').click();
 	await page.locator('[data-panel="tools"] .panel-close').click();
 	await drag(overlay, bounds.x + 80, bounds.y + 80, bounds.x + 240, bounds.y + 220, 2);
 
-	await expect(page.locator('.layer-object-row')).toHaveCount(2);
-	await expect(page.locator('[data-tool="crop"]')).toHaveClass(/active/);
-	await expect(page.locator('.layer-object-row.active')).toContainText(
-		'Raster fragment',
-	);
+	await expect(page.locator('.layer-item-row')).toHaveCount(2);
+	await expect(page.locator('[data-panel="tools"] [data-tool="crop"]')).toHaveClass(/active/);
+	await expect(page.locator('.layer-item-row.active')).toContainText('Pixels');
 
 	const moveFrom = { x: bounds.x + 150, y: bounds.y + 125 };
 	await page.mouse.move(moveFrom.x, moveFrom.y);
 	await page.mouse.down();
 	await page.mouse.move(moveFrom.x, moveFrom.y + 300, { steps: 5 });
 	await page.mouse.up();
-	await expect(page.locator('[data-tool="crop"]')).toHaveClass(/active/);
+	await expect(page.locator('[data-panel="tools"] [data-tool="crop"]')).toHaveClass(/active/);
 	const movedPixels = await page.locator('.annotation-canvas').evaluate((canvas) => {
 		const context = (canvas as HTMLCanvasElement).getContext('2d')!;
 		return {
@@ -39,8 +37,8 @@ test('crop stays active while extracting and moving multiple freehand regions', 
 	expect(movedPixels.destinationAlpha).toBeGreaterThan(0);
 	await drag(overlay, bounds.x + 300, bounds.y + 180, bounds.x + 520, bounds.y + 330, 4);
 
-	await expect(page.locator('.layer-object-row')).toHaveCount(3);
-	await expect(page.locator('[data-tool="crop"]')).toHaveClass(/active/);
+	await expect(page.locator('.layer-item-row')).toHaveCount(3);
+	await expect(page.locator('[data-panel="tools"] [data-tool="crop"]')).toHaveClass(/active/);
 });
 
 async function drag(

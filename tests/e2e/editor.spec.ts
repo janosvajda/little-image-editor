@@ -139,7 +139,7 @@ test("keeps edit pixel math independent from 200% zoom", async ({ page }) => {
   const overlay = page.locator("#overlay");
   const bounds = await overlay.boundingBox();
 
-  await page.locator('[data-tool="crop"]').click();
+  await page.locator('[data-panel="tools"] [data-tool="crop"]').click();
   await overlay.dispatchEvent("pointerdown", { clientX: bounds!.x + bounds!.width * .25, clientY: bounds!.y + bounds!.height * .25, pointerId: 1 });
   await overlay.dispatchEvent("pointerup", { clientX: bounds!.x + bounds!.width * .75, clientY: bounds!.y + bounds!.height * .75, pointerId: 1 });
 	await expect(page.locator("#applyCropButton")).toHaveCount(0);
@@ -264,7 +264,7 @@ test("shows the correct contextual UI for every drawing tool", async ({ page }) 
   await expect(page.locator("#fillColorInput")).toHaveValue("#000000");
   await page.getByRole("button", { name: "Use for paint" }).click(); await expect(page.locator("#colorInput")).toHaveValue("#ffffff");
   await page.getByRole("button", { name: "Use for fill" }).click(); await expect(page.locator("#fillColorInput")).toHaveValue("#ffffff");
-  await page.locator('[data-tool="crop"]').click(); await expect(page.locator(".crop-tool-options")).toBeVisible();
+  await page.locator('[data-panel="tools"] [data-tool="crop"]').click(); await expect(page.locator(".crop-tool-options")).toBeVisible();
   await page.locator('[data-tool="zoom"]').click(); await expect(page.locator(".zoom-tool-hint")).toBeVisible();
   await page.locator('[data-tool="fill"]').click(); await expect(page.locator(".fill-tool-options")).toBeVisible(); await expect(paintColour).toBeHidden();
 });

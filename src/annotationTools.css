@@ -48,7 +48,7 @@
 .annotation-tool-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 4px;
+    gap: 6px;
     padding: 10px 12px
 }
 
@@ -61,17 +61,7 @@
     color: var(--text)
 }
 
-.annotation-tool-grid .annotation-action { display: grid; place-items: center; gap: 2px; min-height: 48px }
-.annotation-tool-grid .annotation-action span { font-size: 20px; line-height: 1 }
-.annotation-tool-grid .annotation-action small { font-size: 10px }
-.annotation-action:hover, .annotation-action.active { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--surface)) }
-.annotation-next-step { display: block; margin: 0 12px 10px; padding: 6px 8px; border-radius: 5px; color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); font-size: 11px }
-.annotation-marker-controls { display: grid; grid-template-columns: 1fr auto; align-items: end; gap: 6px; padding: 0 12px 10px }
-.annotation-marker-controls .annotation-next-step { grid-column: 1 / -1; margin: 0 }
-.annotation-marker-controls label { grid-template-columns: auto 72px }
-.annotation-marker-controls input { width: 72px }
-.annotation-reset-marker { white-space: nowrap }
-.annotation-actions { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; padding: 0 12px 10px }
+.annotation-action:hover { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--surface)) }
 
 @media(max-width:700px) {
     .annotation-panel { width: 280px }

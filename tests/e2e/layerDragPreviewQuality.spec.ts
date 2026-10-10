@@ -21,7 +21,7 @@ for (const opacity of [null, HALF_OPACITY_PERCENT])
 			if (index > 0) await page.locator(`${LAYERS} .layer-new-paint`).click();
 			await drawPath(page, stroke);
 		}
-		await page.locator('[data-tool="select"]').click();
+		await page.locator('[data-panel="tools"] [data-tool="select"]').click();
 		await page.locator(`${LAYERS} .layer-object-row .layer-name`).nth(1).click();
 		if (opacity) await page.locator(`${LAYERS} .layer-opacity`).fill(opacity);
 

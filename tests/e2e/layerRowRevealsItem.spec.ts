@@ -8,7 +8,7 @@ const Stroke = { from: { x: 600, y: 500 }, to: { x: 760, y: 560 } } as const;
 const MoveBy = { x: 30, y: 40 } as const;
 const FRAME = '.selection-frame';
 const ItemRow = '[data-panel="layers"] .layer-item-row';
-const SELECT_TOOL = '[data-tool="select"]';
+const SELECT_TOOL = '[data-panel="tools"] [data-tool="select"]';
 
 test('choosing a shape row with a shape tool shows it and the tool moves it', async ({ page }) => {
 	await createDocument(page);

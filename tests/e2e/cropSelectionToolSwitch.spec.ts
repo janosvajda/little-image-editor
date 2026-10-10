@@ -5,7 +5,7 @@ test('a JPEG crop remains movable after choosing Select', async ({ page }) => {
 	const buffer = await page.locator('#source').screenshot({ type: 'jpeg' });
 	await page.goto('/');
 	await page.locator('#fileInput').setInputFiles({ name: 'source.jpg', mimeType: 'image/jpeg', buffer });
-	await page.locator('[data-tool="crop"]').click();
+	await page.locator('[data-panel="tools"] [data-tool="crop"]').click();
 	await page.locator('[data-panel="tools"] .panel-close').click();
 	const bounds = (await page.locator('#overlay').boundingBox())!;
 	const drag = async (from: [number, number], to: [number, number]) => {

@@ -328,12 +328,9 @@ function isCurrentCapabilityManifest(
 	value: unknown,
 ): value is ProjectCapabilityManifest {
 	if (!isRecord(value)) return false;
-	return (
-		arraysEqual(value.drawingTools, PROJECT_CAPABILITY_MANIFEST.drawingTools) &&
-		arraysEqual(
-			value.annotationTools,
-			PROJECT_CAPABILITY_MANIFEST.annotationTools,
-		)
+	return arraysEqual(
+		value.drawingTools,
+		PROJECT_CAPABILITY_MANIFEST.drawingTools,
 	);
 }
 

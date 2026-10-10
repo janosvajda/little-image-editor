@@ -27,7 +27,7 @@ test('cached interactive rendering is pixel-identical to a fresh project render'
 
 	await closeAndOpen(page, populateObjects(blankProject));
 	await showAnnotationToolbar(page);
-	await page.locator('[data-annotation-tool="select"]').click();
+	await page.locator('[data-panel="annotations"] [data-tool="select"]').click();
 	await dragCanvas(
 		page,
 		{ x: Fixture.TargetX, y: Fixture.TargetY },

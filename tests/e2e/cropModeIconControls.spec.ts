@@ -6,7 +6,7 @@ test('crop selection modes use direct icon buttons with a visible active state',
 	await page.goto('/');
 	await page.locator('#quickNewButton').click();
 	await page.locator('#createImageButton').click();
-	await page.locator('[data-tool="crop"]').click();
+	await page.locator('[data-panel="tools"] [data-tool="crop"]').click();
 
 	const rectangle = page.getByRole('button', {
 		name: 'Rectangle crop selection',

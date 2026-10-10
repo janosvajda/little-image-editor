@@ -16,6 +16,7 @@ export class LayersPanel {
 	readonly newPaintLayerButton = document.createElement('button');
 	readonly duplicateLayerButton = document.createElement('button');
 	readonly mergeDownButton = document.createElement('button');
+	readonly flattenButton = document.createElement('button');
 	readonly properties = document.createElement('fieldset');
 	readonly nameInput = document.createElement('input');
 	readonly blendModeSelect = document.createElement('select');
@@ -89,10 +90,15 @@ export class LayersPanel {
 		this.mergeDownButton.className = 'icon-text-button layer-merge-down';
 		this.mergeDownButton.textContent = 'Merge down';
 		this.mergeDownButton.title = 'Merge the active layer into the layer beneath it';
+		this.flattenButton.type = 'button';
+		this.flattenButton.className = 'icon-text-button layer-flatten';
+		this.flattenButton.textContent = 'Flatten';
+		this.flattenButton.title = 'Bake all visible layers into the image';
 		actions.append(
 			this.newPaintLayerButton,
 			this.duplicateLayerButton,
 			this.mergeDownButton,
+			this.flattenButton,
 		);
 		return actions;
 	}

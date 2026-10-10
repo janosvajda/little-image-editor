@@ -12,7 +12,7 @@ test('drawing after a crop remains visible in the previously cut paint area', as
 	if (!bounds) throw new Error('Canvas overlay is not visible.');
 
 	await drag(page, bounds.x + 320, bounds.y + 300, bounds.x + 620, bounds.y + 300);
-	await page.locator('[data-tool="crop"]').click();
+	await page.locator('[data-panel="tools"] [data-tool="crop"]').click();
 	await drag(page, bounds.x + 380, bounds.y + 260, bounds.x + 430, bounds.y + 340);
 	await drag(page, bounds.x + 400, bounds.y + 300, bounds.x + 400, bounds.y + 450);
 	await drag(page, bounds.x + 500, bounds.y + 260, bounds.x + 550, bounds.y + 340);

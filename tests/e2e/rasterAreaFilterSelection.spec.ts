@@ -9,7 +9,7 @@ test('filters a selected raster area without creating or changing editable layer
 	await page.locator('#createImageButton').click();
 
 	const layerRowsBefore = await page.locator('.layer-row').count();
-	await page.locator('[data-tool="select"]').click();
+	await page.locator('[data-panel="tools"] [data-tool="select"]').click();
 	const overlay = page.locator('#overlay');
 	const bounds = await overlay.boundingBox();
 	expect(bounds).not.toBeNull();

@@ -2,10 +2,7 @@ import type { DocumentSessionSnapshot } from '../../core/document/appTypes';
 import type { CanvasDocument } from '../../core/document/imageDocument';
 import type { AnnotationDocument } from '../annotations/annotationDocument';
 import type { AnnotationSessionState } from '../annotations/annotationTypes';
-import {
-	ANNOTATION_TOOL_PROJECT_COMPATIBILITY,
-	DRAWING_TOOL_PROJECT_COMPATIBILITY,
-} from './projectCompatibility';
+import { DRAWING_TOOL_PROJECT_COMPATIBILITY } from './projectCompatibility';
 
 export interface EditorProjectState {
 	readonly document: DocumentSessionSnapshot;
@@ -19,7 +16,6 @@ export interface ProjectPersistencePort {
 
 export const EDITOR_PROJECT_COMPATIBILITY_CONTRACT = {
 	drawing: DRAWING_TOOL_PROJECT_COMPATIBILITY,
-	annotation: ANNOTATION_TOOL_PROJECT_COMPATIBILITY,
 } as const;
 
 /** The only application boundary used by project save/open operations. */

@@ -12,10 +12,10 @@ import { AnnotationObjectTypeId } from '../annotations/annotationTypes';
 import type { RasterSelection } from '../selection/rasterSelection';
 import type { CanvasViewportController } from '../workspace/canvasViewportController';
 import { CanvasSelectionGesture } from './canvasSelectionGesture';
-import { CUT_MOVE_CROP_REQUEST_EVENT } from './cropEvents';
 import { canvasPoint } from './drawingHelpers';
 import {
 	drawingToolBehavior,
+	isMarkupTool,
 	isPaintTool,
 	isShapeTool,
 	selectionPresentationFor,
@@ -38,9 +38,7 @@ export class DrawingController {
 	readonly #controls: DrawingToolControls;
 	readonly #router: DrawingToolRouter;
 	readonly #selectionGesture?: CanvasSelectionGesture;
-	readonly #interactionListeners = new Set<() => void>();
 	#session: GestureSession | null = null;
-	#interactionsActive = true;
 	#activeTool: Tool | null = null;
 
 	constructor(
@@ -63,15 +61,8 @@ export class DrawingController {
 			rasterSelection,
 			this.#controls,
 		);
-		this.#controls.onSelection((tool) => {
-			this.#interactionsActive = true;
-			this.#interactionListeners.forEach((listener) => listener());
-			this.activateTool(tool);
-		});
+		this.#controls.onSelection((tool) => this.activateTool(tool));
 		this.bindEvents();
-		document.addEventListener(CUT_MOVE_CROP_REQUEST_EVENT, () =>
-			this.select(UtilityToolId.Crop),
-		);
 		this.activateTool(this.#controls.tool, false);
 	}
 
@@ -127,15 +118,6 @@ export class DrawingController {
 
 	onToolChange(listener: (tool: Tool) => void): void {
 		this.#controls.onSelection(listener);
-	}
-
-	onInteractionRequested(listener: () => void): void {
-		this.#interactionListeners.add(listener);
-	}
-
-	suspendInteractions(): void {
-		this.#interactionsActive = false;
-		this.cancelGesture();
 	}
 
 	private activateTool(tool: Tool, clearSelection = true): void {
@@ -197,12 +179,14 @@ export class DrawingController {
 		);
 		overlay.addEventListener('dblclick', (event) => {
 			event.preventDefault();
-			if (!this.#interactionsActive) return;
 			const targetId = this.#selectionGesture?.selectionTarget(
 				this.point(event),
 				event,
 			);
-			if (targetId) this.editObject(targetId);
+			const target = targetId ? this.shapes?.object(targetId) : null;
+			if (target?.type === AnnotationObjectTypeId.Text)
+				this.#router.editText(target, event);
+			else if (targetId) this.editObject(targetId);
 		});
 		overlay.addEventListener('pointerleave', () => {
 			if (!this.#session) this.restoreDrawingCursor();
@@ -217,7 +201,6 @@ export class DrawingController {
 	private onPointerDown(event: PointerEvent): void {
 		if (
 			event.button !== 0 ||
-			!this.#interactionsActive ||
 			!this.documentModel.hasImage ||
 			!this.canInteract()
 		)
@@ -362,7 +345,11 @@ function isEditableTarget(target: EventTarget | null): boolean {
 	);
 }
 
-/** Tools that draw new items: brushes and shapes. */
+/** Tools that draw new items: brushes, shapes and markup; the eraser only edits. */
 function createsItems(tool: Tool): boolean {
-	return isPaintTool(tool) || isShapeTool(tool);
+	return (
+		(isPaintTool(tool) && tool !== PaintToolId.Eraser) ||
+		isShapeTool(tool) ||
+		isMarkupTool(tool)
+	);
 }

@@ -1690,7 +1690,7 @@ body.focus-mode .canvas-ruler-layer {
 
 .layer-actions {
 	display: grid;
-	grid-template-columns: minmax(0, 1fr) auto auto;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
 	gap: 6px;
 	margin: 0 0 8px;
 }
