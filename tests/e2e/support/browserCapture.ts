@@ -1,4 +1,6 @@
 import type { Page } from '@playwright/test';
+import { ColorPalette } from '../../../src/app/core/document/colorPalette';
+import type { CaptureSourceMetadata } from '../../../src/app/core/document/browserCapture';
 
 const CAPTURE_DATABASE = 'little-image-editor-browser-captures';
 const CAPTURE_STORE = 'captures';
@@ -8,15 +10,16 @@ const CAPTURE_CANVAS_SIZE = 80;
 export async function seedBrowserCapture(
 	page: Page,
 	id: string,
+	source?: CaptureSourceMetadata,
 ): Promise<void> {
 	await page.evaluate(
-		async ({ captureId, databaseName, storeName, version, canvasSize }) => {
+		async ({ captureId, databaseName, storeName, version, canvasSize, color, captureSource }) => {
 			const canvas = document.createElement('canvas');
 			canvas.width = canvasSize;
 			canvas.height = canvasSize;
 			const context = canvas.getContext('2d');
 			if (!context) throw new Error('Canvas context is unavailable.');
-			context.fillStyle = '#336699';
+			context.fillStyle = color;
 			context.fillRect(0, 0, canvas.width, canvas.height);
 			const blob = await new Promise<Blob>((resolve, reject) =>
 				canvas.toBlob(
@@ -40,7 +43,7 @@ export async function seedBrowserCapture(
 				const transaction = database.transaction(storeName, 'readwrite');
 				transaction
 					.objectStore(storeName)
-					.put({ blob, name: 'context-menu-capture.png' }, captureId);
+					.put({ blob, name: 'context-menu-capture.png', source: captureSource }, captureId);
 				transaction.oncomplete = () => resolve();
 				transaction.onerror = () => reject(transaction.error);
 			});
@@ -52,6 +55,8 @@ export async function seedBrowserCapture(
 			storeName: CAPTURE_STORE,
 			version: CAPTURE_DATABASE_VERSION,
 			canvasSize: CAPTURE_CANVAS_SIZE,
+			color: ColorPalette.DenimBlue,
+			captureSource: source,
 		},
 	);
 }

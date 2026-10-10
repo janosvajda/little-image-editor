@@ -12,6 +12,7 @@ test("annotation is a fully managed toolbar with visibility, collapse, layout, a
   await toggle.check();
   await expect(panel).toBeVisible();
   await expect(toggle).toBeChecked();
+  await page.keyboard.press("Escape");
 
   const collapse = panel.locator(".collapse");
   await collapse.click();

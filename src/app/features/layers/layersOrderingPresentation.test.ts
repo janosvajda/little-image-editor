@@ -6,9 +6,10 @@ import { AnnotationObjectTypeId } from '../annotations/annotationTypes';
 import { LayersController } from './layersController';
 
 describe('LayersController stacking presentation', () => {
-	it('shows frontmost objects first and exposes ordering actions', () => {
+	it('shows frontmost layers first and exposes ordering actions', () => {
 		const objects = new AnnotationDocument();
-		for (const id of ['back', 'front'])
+		for (const id of ['back', 'front']) {
+			objects.createLayer();
 			objects.add({
 				id,
 				type: AnnotationObjectTypeId.Shape,
@@ -19,6 +20,8 @@ describe('LayersController stacking presentation', () => {
 				opacity: 1,
 				fill: false,
 			});
+		}
+		const layerOf = (itemId: string) => objects.layerOf(itemId)!.id;
 		const controller = new LayersController(
 			new CanvasDocument(
 				document.querySelector<HTMLCanvasElement>('#canvas')!,
@@ -30,8 +33,8 @@ describe('LayersController stacking presentation', () => {
 			'.layer-object-row',
 		);
 
-		expect(rows[0]?.dataset.objectId).toBe('front');
-		expect(rows[1]?.dataset.objectId).toBe('back');
+		expect(rows[0]?.dataset.contentLayerId).toBe(layerOf('front'));
+		expect(rows[1]?.dataset.contentLayerId).toBe(layerOf('back'));
 		expect(rows[0]?.querySelector<HTMLButtonElement>('.layer-forward')?.disabled)
 			.toBe(true);
 		rows[1]?.querySelector<HTMLButtonElement>('.layer-forward')?.click();

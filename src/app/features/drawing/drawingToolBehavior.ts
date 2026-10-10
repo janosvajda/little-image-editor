@@ -44,6 +44,17 @@ export const ToolSizeLabel = {
 } as const;
 export type ToolSizeLabel = (typeof ToolSizeLabel)[keyof typeof ToolSizeLabel];
 
+/** Whether a tool's colour follows the colour shared by drawing tools or is its own. */
+export const ToolColorScope = {
+	Shared: 'shared',
+	Own: 'own',
+} as const;
+export type ToolColorScope =
+	(typeof ToolColorScope)[keyof typeof ToolColorScope];
+
+/** The tool whose profile keeps the shared drawing colour. */
+const SHARED_COLOR_OWNER: Tool = PaintToolId.Brush;
+
 export interface DrawingToolOptions {
 	readonly color: boolean;
 	readonly size: boolean;
@@ -64,6 +75,8 @@ export interface DrawingToolBehavior {
 	readonly options: DrawingToolOptions;
 	readonly optionSource: ToolOptionSource;
 	readonly sizeLabel?: ToolSizeLabel;
+	/** Defaults to the shared colour, so a picked colour stays picked across tools. */
+	readonly colorScope?: ToolColorScope;
 }
 
 const NO_OPTIONS: DrawingToolOptions = {
@@ -111,16 +124,19 @@ const shape = (): DrawingToolBehavior => ({
 	sizeLabel: ToolSizeLabel.ShapeStrokeWidth,
 });
 
+type MarkupBehaviorDetails = Partial<
+	Pick<DrawingToolBehavior, 'cursor' | 'sizeLabel' | 'colorScope'>
+>;
+
 const markup = (
 	options: Partial<DrawingToolOptions>,
-	sizeLabel?: ToolSizeLabel,
-	cursor = 'crosshair',
+	{ cursor = 'crosshair', ...details }: MarkupBehaviorDetails = {},
 ): DrawingToolBehavior => ({
 	kind: DrawingToolKind.Markup,
 	cursor,
 	options: { ...NO_OPTIONS, ...options },
 	optionSource: ToolOptionSource.Contextual,
-	...(sizeLabel ? { sizeLabel } : {}),
+	...details,
 });
 
 export const DRAWING_TOOL_BEHAVIORS: Readonly<
@@ -147,15 +163,17 @@ export const DRAWING_TOOL_BEHAVIORS: Readonly<
 	[ShapeToolId.Star]: shape(),
 	[MarkupToolId.Number]: markup(
 		{ color: true, size: true, marker: true },
-		ToolSizeLabel.MarkerSize,
+		{ sizeLabel: ToolSizeLabel.MarkerSize, colorScope: ToolColorScope.Own },
 	),
 	[MarkupToolId.Highlight]: markup({ color: true, opacity: true }),
 	[MarkupToolId.Text]: markup(
 		{ color: true, size: true },
-		ToolSizeLabel.TextSize,
-		'text',
+		{ sizeLabel: ToolSizeLabel.TextSize, cursor: 'text' },
 	),
-	[MarkupToolId.Blur]: markup({ size: true }, ToolSizeLabel.BlurStrength),
+	[MarkupToolId.Blur]: markup(
+		{ size: true },
+		{ sizeLabel: ToolSizeLabel.BlurStrength },
+	),
 	[MarkupToolId.Redact]: markup({}),
 	[UtilityToolId.Select]: {
 		kind: DrawingToolKind.Select,
@@ -195,6 +213,19 @@ export function drawingToolBehavior(tool: Tool): DrawingToolBehavior {
 
 export function isToolKind(tool: Tool, kind: DrawingToolKind): boolean {
 	return drawingToolBehavior(tool).kind === kind;
+}
+
+/** The tool whose profile remembers this tool's colour. */
+export function colorProfileOwner(tool: Tool): Tool {
+	return drawingToolBehavior(tool).colorScope === ToolColorScope.Own
+		? tool
+		: SHARED_COLOR_OWNER;
+}
+
+/** The tool whose colour an item's colour edit updates; markup tool ids are their item types. */
+export function colorProfileOwnerOfItem(type: AnnotationObject['type']): Tool {
+	const markupTool = Object.values(MarkupToolId).find((tool) => tool === type);
+	return markupTool ? colorProfileOwner(markupTool) : SHARED_COLOR_OWNER;
 }
 
 export function isPaintTool(tool: Tool): tool is PaintTool {

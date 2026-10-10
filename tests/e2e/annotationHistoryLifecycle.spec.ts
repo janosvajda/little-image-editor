@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { toggleQaReporting } from "./support/qaReporting";
 
 async function openAnnotationImage(page: import("@playwright/test").Page): Promise<void> {
   await page.goto("/");
@@ -8,6 +9,7 @@ async function openAnnotationImage(page: import("@playwright/test").Page): Promi
   await page.waitForTimeout(500);
   await page.goto("/?mode=annotate");
   await page.getByRole("button", { name: "Number", exact: true }).click();
+  await toggleQaReporting(page);
 }
 
 async function placeMarker(page: import("@playwright/test").Page, fraction: number): Promise<void> {
@@ -19,21 +21,21 @@ test("annotation undo and redo history survives an accidental reload", async ({ 
   await openAnnotationImage(page);
   await placeMarker(page, .65);
   await placeMarker(page, .75);
-  await expect(page.locator(".annotation-next-step")).toHaveText("Next marker: 3");
+  await expect(page.getByLabel("Next marker number")).toHaveValue("3");
   await page.waitForTimeout(700);
   await page.reload();
 
   await expect(page.locator("#undoButton")).toBeEnabled();
   await page.locator("#undoButton").click();
-  await expect(page.locator(".annotation-next-step")).toHaveText("Next marker: 2");
+  await expect(page.getByLabel("Next marker number")).toHaveValue("2");
   await page.locator("#redoButton").click();
-  await expect(page.locator(".annotation-next-step")).toHaveText("Next marker: 3");
+  await expect(page.getByLabel("Next marker number")).toHaveValue("3");
 });
 
 test("main history follows the most recent image or annotation operation", async ({ page }) => {
   await openAnnotationImage(page);
   await placeMarker(page, .7);
-  await expect(page.locator(".annotation-next-step")).toHaveText("Next marker: 2");
+  await expect(page.getByLabel("Next marker number")).toHaveValue("2");
 
   await page.locator("#toolbarPickerButton").click();
   await page.locator('[data-panel-toggle="adjust"]').check();
@@ -48,11 +50,11 @@ test("main history follows the most recent image or annotation operation", async
   expect(adjusted).not.toBe(before);
 
   await page.locator("#undoButton").click();
-  await expect(page.locator(".annotation-next-step")).toHaveText("Next marker: 2");
+  await expect(page.getByLabel("Next marker number")).toHaveValue("2");
   expect(await page.locator("#canvas").evaluate(canvas => (canvas as HTMLCanvasElement).getContext("2d")!.getImageData(0, 0, 1, 1).data[0])).toBe(before);
 
   await placeMarker(page, .8);
-  await expect(page.locator(".annotation-next-step")).toHaveText("Next marker: 3");
+  await expect(page.getByLabel("Next marker number")).toHaveValue("3");
   await page.locator("#undoButton").click();
-  await expect(page.locator(".annotation-next-step")).toHaveText("Next marker: 2");
+  await expect(page.getByLabel("Next marker number")).toHaveValue("2");
 });

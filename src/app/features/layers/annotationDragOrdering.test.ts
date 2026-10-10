@@ -11,7 +11,7 @@ describe('annotation drag ordering', () => {
 		const document = new AnnotationDocument();
 		for (const id of ['back', 'middle', 'front']) document.add(shape(id));
 
-		document.moveToObject('front', 'back');
+		document.moveItemTo('front', 'back');
 
 		expect(document.state.objects.map(({ id }) => id)).toEqual([
 			'front',

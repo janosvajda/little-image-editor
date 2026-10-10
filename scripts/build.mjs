@@ -8,6 +8,10 @@ const sourceDirectory = "src";
 const outputDirectory = "dist";
 const manifestPath = "manifest.json";
 const entryPoints = ["src/editor.ts", "src/background.ts"];
+const paletteModulePath = "src/app/shared/style/colorPaletteAssets.ts";
+const paletteSourcePaths = ["src/app/core/document/colorPalette.ts", paletteModulePath];
+const paletteAssetExtensions = new Set([".css", ".html", ".svg"]);
+let paletteAssets;
 const serveMode = process.argv.includes("--serve");
 const watchMode = serveMode || process.argv.includes("--watch");
 const host = "127.0.0.1";
@@ -29,7 +33,23 @@ async function prepareOutput() {
   await rm(outputDirectory, { recursive: true, force: true });
   await mkdir(outputDirectory, { recursive: true });
   await cp(manifestPath, join(outputDirectory, manifestPath));
+  await prepareColorPalette();
   await copyStaticDirectory(sourceDirectory);
+}
+
+async function prepareColorPalette() {
+  const result = await build({ entryPoints: [paletteModulePath], bundle: true, write: false, format: "esm", platform: "node", logLevel: "silent" });
+  const moduleSource = result.outputFiles[0].contents;
+  paletteAssets = await import(`data:text/javascript;base64,${Buffer.from(moduleSource).toString("base64")}`);
+  await writeFile(join(outputDirectory, "colorPalette.css"), paletteAssets.colorPaletteStylesheet());
+}
+
+async function copyStaticFile(sourcePath, destinationPath) {
+  await mkdir(dirname(destinationPath), { recursive: true });
+  if (paletteAssetExtensions.has(extname(sourcePath))) {
+    const source = await readFile(sourcePath, "utf8");
+    await writeFile(destinationPath, paletteAssets.resolveColorPaletteReferences(source));
+  } else await cp(sourcePath, destinationPath);
 }
 
 async function copyStaticDirectory(directory) {
@@ -39,8 +59,7 @@ async function copyStaticDirectory(directory) {
     if (entry.isDirectory()) return copyStaticDirectory(sourcePath);
     if (!entry.isFile() || extname(entry.name) === ".ts") return;
     const destinationPath = join(outputDirectory, relative(sourceDirectory, sourcePath));
-    await mkdir(dirname(destinationPath), { recursive: true });
-    await cp(sourcePath, destinationPath);
+    await copyStaticFile(sourcePath, destinationPath);
   }));
 }
 
@@ -64,21 +83,28 @@ function pollStaticAssets() {
   let syncing = false;
   let knownFilesPromise = staticFileSnapshot(sourceDirectory);
   let knownManifestPromise = fileSignature(manifestPath);
+  let knownPalettePromise = paletteSignature();
   const timer = setInterval(async () => {
     if (syncing) return;
     syncing = true;
     try {
       const knownFiles = await knownFilesPromise;
       const currentFiles = await staticFileSnapshot(sourceDirectory);
+      const currentPalette = await paletteSignature();
+      const paletteChanged = currentPalette !== await knownPalettePromise;
+      if (paletteChanged) {
+        await prepareColorPalette();
+        console.log("[build] regenerated ColorPalette assets");
+      }
       for (const [filename, signature] of currentFiles) {
-        if (knownFiles.get(filename) === signature) continue;
+        if (knownFiles.get(filename) === signature && !(paletteChanged && paletteAssetExtensions.has(extname(filename)))) continue;
         const destinationPath = join(outputDirectory, filename);
-        await mkdir(dirname(destinationPath), { recursive: true });
-        await cp(join(sourceDirectory, filename), destinationPath);
+        await copyStaticFile(join(sourceDirectory, filename), destinationPath);
         console.log(`[build] copied ${filename}`);
       }
       for (const filename of knownFiles.keys()) if (!currentFiles.has(filename)) await rm(join(outputDirectory, filename), { force: true });
       knownFilesPromise = Promise.resolve(currentFiles);
+      knownPalettePromise = Promise.resolve(currentPalette);
       const knownManifest = await knownManifestPromise;
       const currentManifest = await fileSignature(manifestPath);
       if (currentManifest !== knownManifest) {
@@ -91,6 +117,10 @@ function pollStaticAssets() {
     } finally { syncing = false; }
   }, 300);
   return () => clearInterval(timer);
+}
+
+async function paletteSignature() {
+  return (await Promise.all(paletteSourcePaths.map(fileSignature))).join(":");
 }
 
 async function staticFileSnapshot(directory, snapshot = new Map()) {

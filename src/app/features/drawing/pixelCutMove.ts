@@ -1,4 +1,5 @@
 import type { Point } from '../../core/document/appTypes';
+import { polygonRowIntersections } from '../../core/geometry/geometryHelpers';
 
 const CHANNELS_PER_PIXEL = 4;
 const ALPHA_CHANNEL_OFFSET = 3;
@@ -23,7 +24,7 @@ export function extractPixelFragment(
 ): ExtractedPixelFragment | null {
 	if (selection.length < MINIMUM_POLYGON_POINTS) return null;
 	const bounds = polygonIntegerBounds(selection, width, height);
-	if (bounds.width === 0 || bounds.height === 0) return null;
+	if (bounds.width <= 0 || bounds.height <= 0) return null;
 	const image = context.getImageData(
 		bounds.left,
 		bounds.top,
@@ -82,8 +83,7 @@ function extractSelectedPixels(
 					bounds.width,
 				);
 				if (source[sourceIndex + ALPHA_CHANNEL_OFFSET] === 0) continue;
-				const fragmentIndex =
-					maskIndex(x, y, bounds) * CHANNELS_PER_PIXEL;
+				const fragmentIndex = maskIndex(x, y, bounds) * CHANNELS_PER_PIXEL;
 				fragment.set(
 					source.subarray(sourceIndex, sourceIndex + CHANNELS_PER_PIXEL),
 					fragmentIndex,
@@ -96,36 +96,35 @@ function extractSelectedPixels(
 	return changed;
 }
 
-function polygonRowIntersections(
-	polygon: readonly Point[],
-	y: number,
-): number[] {
-	const intersections: number[] = [];
-	for (
-		let current = 0, previous = polygon.length - 1;
-		current < polygon.length;
-		previous = current, current += 1
-	) {
-		const from = polygon[previous]!;
-		const to = polygon[current]!;
-		if (from.y > y === to.y > y) continue;
-		intersections.push(
-			from.x + ((y - from.y) * (to.x - from.x)) / (to.y - from.y),
-		);
-	}
-	return intersections.sort((left, right) => left - right);
-}
-
 function polygonIntegerBounds(
 	polygon: readonly Point[],
 	width: number,
 	height: number,
 ): Readonly<PixelBounds> {
-	const left = Math.max(0, Math.floor(Math.min(...polygon.map((point) => point.x))));
-	const top = Math.max(0, Math.floor(Math.min(...polygon.map((point) => point.y))));
-	const right = Math.min(width, Math.ceil(Math.max(...polygon.map((point) => point.x))));
-	const bottom = Math.min(height, Math.ceil(Math.max(...polygon.map((point) => point.y))));
-	return { left, top, right, bottom, width: right - left, height: bottom - top };
+	const left = Math.max(
+		0,
+		Math.floor(Math.min(...polygon.map((point) => point.x))),
+	);
+	const top = Math.max(
+		0,
+		Math.floor(Math.min(...polygon.map((point) => point.y))),
+	);
+	const right = Math.min(
+		width,
+		Math.ceil(Math.max(...polygon.map((point) => point.x))),
+	);
+	const bottom = Math.min(
+		height,
+		Math.ceil(Math.max(...polygon.map((point) => point.y))),
+	);
+	return {
+		left,
+		top,
+		right,
+		bottom,
+		width: right - left,
+		height: bottom - top,
+	};
 }
 
 function pixelIndex(x: number, y: number, width: number): number {
@@ -149,7 +148,9 @@ export function opaquePixelFragment(
 	let bottom = -1;
 	for (let y = 0; y < height; y += 1)
 		for (let x = 0; x < width; x += 1) {
-			if (data[(y * width + x) * CHANNELS_PER_PIXEL + ALPHA_CHANNEL_OFFSET] === 0)
+			if (
+				data[(y * width + x) * CHANNELS_PER_PIXEL + ALPHA_CHANNEL_OFFSET] === 0
+			)
 				continue;
 			left = Math.min(left, x);
 			right = Math.max(right, x);

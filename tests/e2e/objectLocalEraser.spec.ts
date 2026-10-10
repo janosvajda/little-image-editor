@@ -10,7 +10,8 @@ const EraserGesture = {
 	from: { x: 370, y: 280 },
 	to: { x: 420, y: 325 },
 } as const;
-const EXPECTED_OBJECT_COUNT = 1;
+/** The erased stroke and the stroke painted over it, in the same layer. */
+const EXPECTED_OBJECT_COUNT = 2;
 const ALPHA_CHANNEL_OFFSET = 3;
 const ERASER_SIZE = '80';
 
@@ -61,6 +62,7 @@ test('eraser masks the selected object without creating a layer and survives pro
 					points?: unknown[];
 					erasures?: Array<{ strokePointLimit?: number }>;
 				}>;
+				layers: Array<{ itemIds: string[] }>;
 			};
 		};
 	};
@@ -72,11 +74,12 @@ test('eraser masks the selected object without creating a layer and survives pro
 		size: initialStrokeSize,
 	});
 	expect(project.editableObjects.state.objects[0]?.erasures).toHaveLength(1);
-	expect(project.editableObjects.state.objects[0]?.pathStarts).toHaveLength(1);
-	const savedStroke = project.editableObjects.state.objects[0]!;
-	expect(savedStroke.erasures?.[0]?.strokePointLimit).toBeLessThan(
-		savedStroke.points?.length ?? 0,
-	);
+	const [erased, repainted] = project.editableObjects.state.objects;
+	expect(erased?.erasures?.[0]?.strokePointLimit).toBe(erased?.points?.length);
+	expect(repainted).toMatchObject({ type: 'stroke' });
+	expect(repainted?.erasures).toBeUndefined();
+	expect(project.editableObjects.state.layers).toHaveLength(1);
+	expect(project.editableObjects.state.layers[0]?.itemIds).toHaveLength(EXPECTED_OBJECT_COUNT);
 });
 
 async function chooseBrush(page: Page): Promise<void> {

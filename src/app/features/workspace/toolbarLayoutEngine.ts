@@ -60,15 +60,29 @@ export class ToolbarLayoutEngine {
 
 		for (let column = 0; column < maximumColumns; column += 1) {
 			let y = this.options.margin;
+			let nextColumnX = x;
 			while (y + size.height <= maximumBottom) {
 				const candidate = { x, y, ...size };
 				const collision = obstacles.find((obstacle) =>
 					this.overlaps(candidate, obstacle),
 				);
 				if (!collision) return this.clamp(candidate, size, bounds);
+				nextColumnX =
+					dock === ToolbarDock.Left
+						? Math.max(
+								nextColumnX,
+								collision.x + collision.width + this.options.gap,
+							)
+						: Math.min(
+								nextColumnX,
+								collision.x - size.width - this.options.gap,
+							);
 				y = collision.y + collision.height + this.options.gap;
 			}
-			x += direction * (size.width + this.options.gap);
+			x =
+				nextColumnX === x
+					? x + direction * (size.width + this.options.gap)
+					: nextColumnX;
 		}
 
 		return this.clamp({ x, y: this.options.margin }, size, bounds);

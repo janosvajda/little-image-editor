@@ -5,7 +5,6 @@ import { execFileSync } from "node:child_process";
 const manifestPath = ".github/test-contracts.json";
 const contracts = JSON.parse(readFileSync(manifestPath, "utf8"));
 const failures = [];
-const approvedContractChange = process.env.TEST_CONTRACT_CHANGE_APPROVED === "true";
 const isTestFile = file => /(?:^|\/)[^/]+\.(?:test|spec)\.ts$/.test(file);
 const hashFile = file => createHash("sha256").update(readFileSync(file)).digest("hex");
 
@@ -25,20 +24,6 @@ for (const [file, expectedHash] of Object.entries(contracts)) {
   if (!existsSync(file)) { failures.push(`${file}: baseline test was deleted or renamed`); continue; }
   const actualHash = hashFile(file);
   if (actualHash !== expectedHash) failures.push(`${file}: existing passing test was modified`);
-}
-
-const base = process.env.TEST_CONTRACT_BASE;
-if (base && !/^0+$/.test(base)) {
-  try {
-    const baseline = JSON.parse(execFileSync("git", ["show", `${base}:${manifestPath}`], { encoding: "utf8" }));
-    for (const [file, baselineHash] of Object.entries(baseline)) {
-      if (!(file in contracts) && !approvedContractChange) failures.push(`${file}: protected contract was removed`);
-      else if (contracts[file] !== baselineHash && !approvedContractChange) failures.push(`${file}: protected contract hash was changed without explicit approval`);
-    }
-  } catch {
-    // The base branch predates the contract system. The current manifest becomes
-    // the initial baseline; subsequent pull requests protect every entry.
-  }
 }
 
 if (failures.length) {

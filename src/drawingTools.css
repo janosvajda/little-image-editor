@@ -177,7 +177,7 @@
   width: 100%;
   padding: 2px 24px 2px 0;
   border: 0;
-  background-color: transparent;
+  background-color: var(--color-transparent);
   font-weight: 650;
 }
 
@@ -199,7 +199,7 @@
   gap: 6px;
   padding: 6px;
   border-color: var(--border);
-  background: transparent;
+  background: var(--color-transparent);
   font-size: 11px;
 }
 
@@ -277,9 +277,9 @@
   justify-content: center;
   gap: 2px;
   padding: 5px 22px 5px 3px;
-  border: 1px solid transparent;
+  border: 1px solid var(--color-transparent);
   border-radius: 7px;
-  background: transparent;
+  background: var(--color-transparent);
   color: var(--muted);
   font-size: 0;
 }
@@ -332,7 +332,7 @@
   padding: 0;
   border: 0;
   border-radius: 5px;
-  background: transparent;
+  background: var(--color-transparent);
   color: var(--muted);
 }
 
@@ -350,7 +350,7 @@
   margin: 8px auto 0;
   border-style: solid;
   border-width: 0 0 6px 6px;
-  border-color: transparent transparent currentColor transparent;
+  border-color: var(--color-transparent) var(--color-transparent) currentColor var(--color-transparent);
 }
 
 .tool-flyout {
@@ -378,8 +378,8 @@
   gap: 5px;
   min-width: 0;
   padding: 5px;
-  border-color: transparent;
-  background: transparent;
+  border-color: var(--color-transparent);
+  background: var(--color-transparent);
   text-align: left;
 }
 
@@ -473,7 +473,7 @@
   height: 22px;
   border: 1px solid var(--border);
   border-radius: 4px;
-  background: #000;
+  background: var(--color-black);
 }
 
 .sampled-color code {
@@ -543,7 +543,7 @@
   overflow: hidden;
   text-indent: -9999px;
   border-radius: 22px;
-  background: transparent url("assets/images/extensionIcon.png") center / 88px 88px no-repeat;
+  background: var(--color-transparent) url("assets/images/extensionIcon.png") center / 88px 88px no-repeat;
 }
 
 @media (max-width: 900px) {

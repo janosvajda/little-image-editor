@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { BROWSER_CAPTURE_MENU_IDS, BrowserCaptureController } from "./browserCaptureController";
 import type { BrowserCapturePlatform, BrowserContextMenu, BrowserMenuClick, BrowserTab } from "./browserCapturePlatform";
-import { locateRenderedImage, readPageViewport, selectPageRegion } from "./browserPageCapture";
+import { locateRenderedImage, readCaptureSource, readPageViewport, selectPageRegion } from "./browserPageCapture";
 import { ChromeCapturePlatform } from "./chromeCapturePlatform";
 
 class TestCapturePlatform implements BrowserCapturePlatform {
@@ -63,16 +63,20 @@ describe("browser capture background controller", () => {
 
   it("routes image context clicks and the region shortcut through their page functions", async () => {
     const geometry = { crop: { x: 10, y: 20, width: 30, height: 40 }, viewport: { width: 100, height: 100 } };
-    platform.executeInTab.mockResolvedValueOnce(geometry).mockResolvedValueOnce(geometry);
+    const source = { url: "https://example.test/page", capturedAt: "2026-08-23T12:00:00Z", userAgent: "Browser OS", viewport: geometry.viewport };
+    platform.executeInTab
+      .mockResolvedValueOnce(geometry).mockResolvedValueOnce(source)
+      .mockResolvedValueOnce(geometry).mockResolvedValueOnce(source);
     platform.menuListener!({ menuItemId: BROWSER_CAPTURE_MENU_IDS.editImage, srcUrl: "https://example.test/image.png" }, { id: 2, windowId: 3 });
     await vi.waitFor(() => expect(put).toHaveBeenCalledTimes(1));
     expect(platform.executeInTab.mock.calls[0]?.[1]).toBe(locateRenderedImage);
     expect(platform.executeInTab.mock.calls[0]?.[2]).toEqual(["https://example.test/image.png"]);
+    expect(platform.executeInTab.mock.calls[1]?.[1]).toBe(readCaptureSource);
 
     platform.commandListener!("capture-selected-region", { id: 2, windowId: 3 });
     await vi.waitFor(() => expect(put).toHaveBeenCalledTimes(2));
-    expect(platform.executeInTab.mock.calls[1]?.[1]).toBe(selectPageRegion);
-    expect(put.mock.calls[1]?.[1]).toEqual(expect.objectContaining({ name: expect.stringMatching(/^region-capture-/), ...geometry }));
+    expect(platform.executeInTab.mock.calls[2]?.[1]).toBe(selectPageRegion);
+    expect(put.mock.calls[1]?.[1]).toEqual(expect.objectContaining({ name: expect.stringMatching(/^region-capture-/), ...geometry, source }));
   });
 
   it("does nothing for incomplete, cancelled, or unrelated capture events", async () => {

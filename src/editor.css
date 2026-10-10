@@ -1,46 +1,48 @@
 :root {
     color-scheme: dark;
-    --bg: #111318;
-    --surface: #191c22;
-    --surface2: #232730;
-    --canvas: #20232a;
-    --grid: #292d35;
-    --border: #343946;
-    --muted: #9299a8;
-    --text: #f2f3f5;
-    --accent: #ff4d67;
-    --accent2: #ff765c;
-    --shadow: #0009
+    --bg: var(--color-midnight);
+    --surface: var(--color-charcoal);
+    --surface2: var(--color-graphite);
+    --canvas: var(--color-deep-slate);
+    --grid: var(--color-slate);
+    --border: var(--color-steel);
+    --muted: var(--color-cool-gray);
+    --text: var(--color-ghost-white);
+    --accent: var(--color-rose);
+    --accent2: var(--color-coral);
+    --selection-contrast: var(--color-white);
+    --canvas-selection-stack: 3;
+    --shadow: var(--color-black-shadow)
 }
 
 html[data-theme=light] {
     color-scheme: light;
-    --bg: #eef0f4;
-    --surface: #fff;
-    --surface2: #f4f5f8;
-    --canvas: #d9dce3;
-    --grid: #ced2da;
-    --border: #c8ccd5;
-    --muted: #626977;
-    --text: #17191e;
-    --accent: #d92f50;
-    --accent2: #e85d42;
-    --shadow: #30384630
+    --bg: var(--color-cloud);
+    --surface: var(--color-white);
+    --surface2: var(--color-porcelain);
+    --canvas: var(--color-silver);
+    --grid: var(--color-ash);
+    --border: var(--color-mist);
+    --muted: var(--color-storm-gray);
+    --text: var(--color-ink);
+    --accent: var(--color-crimson);
+    --accent2: var(--color-vermilion);
+    --shadow: var(--color-slate-shadow)
 }
 
 html[data-theme=contrast] {
     color-scheme: dark;
-    --bg: #000;
-    --surface: #000;
-    --surface2: #000;
-    --canvas: #000;
-    --grid: #242424;
-    --border: #fff;
-    --muted: #fff;
-    --text: #fff;
-    --accent: #ff0;
-    --accent2: #ff0;
-    --shadow: #000
+    --bg: var(--color-black);
+    --surface: var(--color-black);
+    --surface2: var(--color-black);
+    --canvas: var(--color-black);
+    --grid: var(--color-dark-gray);
+    --border: var(--color-white);
+    --muted: var(--color-white);
+    --text: var(--color-white);
+    --accent: var(--color-yellow);
+    --accent2: var(--color-yellow);
+    --shadow: var(--color-black)
 }
 
 * {
@@ -98,9 +100,9 @@ button:disabled {
 }
 
 .primary {
-    border-color: transparent;
+    border-color: var(--color-transparent);
     background: linear-gradient(135deg, var(--accent), var(--accent2));
-    color: #fff;
+    color: var(--color-white);
     font-weight: 650
 }
 
@@ -144,8 +146,8 @@ button:disabled {
     width: 30px;
     height: 30px;
     border-radius: 8px;
-    background: linear-gradient(145deg, var(--accent), #925cff);
-    color: #fff;
+    background: linear-gradient(145deg, var(--accent), var(--color-violet));
+    color: var(--color-white);
     font-size: 17px;
     font-weight: 800
 }
@@ -165,7 +167,7 @@ button:disabled {
     height: calc(100% - 58px);
     overflow: hidden;
     background-color: var(--canvas);
-    background-image: linear-gradient(45deg, var(--grid) 25%, transparent 25%), linear-gradient(-45deg, var(--grid) 25%, transparent 25%), linear-gradient(45deg, transparent 75%, var(--grid) 75%), linear-gradient(-45deg, transparent 75%, var(--grid) 75%);
+    background-image: linear-gradient(45deg, var(--grid) 25%, var(--color-transparent) 25%), linear-gradient(-45deg, var(--grid) 25%, var(--color-transparent) 25%), linear-gradient(45deg, var(--color-transparent) 75%, var(--grid) 75%), linear-gradient(-45deg, var(--color-transparent) 75%, var(--grid) 75%);
     background-size: 24px 24px;
     background-position: 0 0, 0 12px, 12px -12px, -12px 0
 }
@@ -179,7 +181,7 @@ button:disabled {
     align-items: center;
     justify-content: center;
     text-align: center;
-    background: color-mix(in srgb, var(--bg) 94%, transparent)
+    background: color-mix(in srgb, var(--bg) 94%, var(--color-transparent))
 }
 
 .empty-state h1 {
@@ -247,7 +249,7 @@ button:disabled {
 .panel {
     position: absolute;
     z-index: 20;
-    width: 220px;
+    width: var(--toolbar-panel-width, 220px);
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 10px;
@@ -260,7 +262,8 @@ button:disabled {
     --toolbar-panel-header-height: 35px;
     --toolbar-panel-viewport-gap: 12px;
     box-sizing: border-box;
-    max-height: calc(100% - var(--toolbar-panel-top, 0px) - var(--toolbar-panel-viewport-gap));
+    /* The default dock margin also applies before the first position is measured. */
+    max-height: calc(100% - var(--toolbar-panel-top, var(--toolbar-workspace-margin, 0px)) - var(--toolbar-workspace-bottom-inset, 0px) - var(--toolbar-workspace-margin, var(--toolbar-panel-viewport-gap)));
     overflow-x: hidden;
     overflow-y: scroll;
     overscroll-behavior: contain;
@@ -338,7 +341,7 @@ button:disabled {
     height: 24px;
     padding: 0;
     border: 0;
-    background: transparent
+    background: var(--color-transparent)
 }
 
 .panel-header .collapse {
@@ -403,8 +406,8 @@ button:disabled {
     flex-direction: column;
     align-items: center;
     padding: 6px 2px;
-    border-color: transparent;
-    background: transparent;
+    border-color: var(--color-transparent);
+    background: var(--color-transparent);
     color: var(--muted);
     font-size: 10px
 }
@@ -514,7 +517,7 @@ body.focus-mode .exit-focus {
     }
 
     .panel {
-        width: 205px !important
+        width: var(--toolbar-panel-width, 205px) !important
     }
 }
 
@@ -585,7 +588,7 @@ dialog {
 }
 
 dialog::backdrop {
-    background: #090b10aa;
+    background: var(--color-midnight-shade);
     backdrop-filter: blur(3px)
 }
 
@@ -618,8 +621,8 @@ dialog::backdrop {
     font-size: 22px;
     line-height: 24px;
     padding: 1px 8px;
-    background: transparent;
-    border-color: transparent
+    background: var(--color-transparent);
+    border-color: var(--color-transparent)
 }
 
 .function-card {
@@ -772,7 +775,7 @@ dialog::backdrop {
     width: 100%;
     padding: 7px 8px;
     border: 0;
-    background: transparent;
+    background: var(--color-transparent);
     text-align: left
 }
 
@@ -819,8 +822,8 @@ dialog::backdrop {
     width: 30px;
     height: 30px;
     padding: 5px;
-    border-color: transparent;
-    background: transparent
+    border-color: var(--color-transparent);
+    background: var(--color-transparent)
 }
 
 .icon-button svg {
@@ -917,12 +920,12 @@ dialog::backdrop {
 }
 
 .dialog-action.danger {
-    border-color: #b42318;
-    color: #b42318
+    border-color: var(--color-brick-red);
+    color: var(--color-brick-red)
 }
 
 .dialog-action.danger:hover {
-    background: color-mix(in srgb, #b42318 10%, transparent)
+    background: color-mix(in srgb, var(--color-brick-red) 10%, var(--color-transparent))
 }
 
 .icon-button:hover:not(:disabled) {
@@ -958,7 +961,7 @@ dialog::backdrop {
 }
 
 .clipboard-status.error {
-    color: #c62828
+    color: var(--color-firebrick)
 }
 
 .toolbar .separator {
@@ -1040,7 +1043,7 @@ body.focus-mode .workspace {
     width: 30px;
     height: 28px;
     padding: 4px;
-    border: 1px solid transparent;
+    border: 1px solid var(--color-transparent);
     border-radius: 5px;
     color: var(--text)
 }
@@ -1059,7 +1062,7 @@ body.focus-mode .workspace {
 .accent-icon {
     margin-left: 2px;
     color: var(--accent);
-    background: color-mix(in srgb, var(--accent) 9%, transparent)
+    background: color-mix(in srgb, var(--accent) 9%, var(--color-transparent))
 }
 
 .workspace {
@@ -1085,22 +1088,22 @@ body.focus-mode .workspace {
 }
 
 :root {
-    --accent: #3b82f6;
-    --accent2: #2563eb;
+    --accent: var(--color-azure);
+    --accent2: var(--color-royal-blue);
     /* Whole-layer selection; single items keep the accent colour. */
-    --layer-selection: #4ade80
+    --layer-selection: var(--color-mint-green)
 }
 
 html[data-theme=light] {
-    --accent: #2563eb;
-    --accent2: #1d4ed8;
-    --layer-selection: #22c55e
+    --accent: var(--color-royal-blue);
+    --accent2: var(--color-cobalt-blue);
+    --layer-selection: var(--color-emerald-green)
 }
 
 html[data-theme=contrast] {
-    --accent: #ff0;
-    --accent2: #ff0;
-    --layer-selection: #0f0
+    --accent: var(--color-yellow);
+    --accent2: var(--color-yellow);
+    --layer-selection: var(--color-lime)
 }
 
 .new-image-fields {
@@ -1177,9 +1180,9 @@ html[data-theme=contrast] {
 .transparency-warning {
     margin: 0 0 0 132px;
     padding: 10px 12px;
-    border: 1px solid #b7791f;
+    border: 1px solid var(--color-ochre);
     border-radius: 7px;
-    background: #b7791f18;
+    background: var(--color-ochre-wash);
     color: var(--text);
     font-size: 11px
 }
@@ -1188,18 +1191,18 @@ html[data-theme=contrast] {
 	margin: -6px 0 0 132px;
 	padding: 8px 10px;
 	border-left: 3px solid var(--accent);
-	background: color-mix(in srgb, var(--accent) 8%, transparent);
+	background: color-mix(in srgb, var(--accent) 8%, var(--color-transparent));
 	color: var(--muted);
 	font-size: 11px;
 }
 
 .transparency-warning strong {
     display: block;
-    color: #b7791f
+    color: var(--color-ochre)
 }
 
 html[data-theme=dark] .transparency-warning strong {
-    color: #fbbf24
+    color: var(--color-amber)
 }
 
 @media(max-width:520px) {
@@ -1243,7 +1246,7 @@ html[data-theme=dark] .transparency-warning strong {
     display: flex;
     align-items: center;
     justify-content: center;
-    background: color-mix(in srgb, var(--bg) 88%, #000);
+    background: color-mix(in srgb, var(--bg) 88%, var(--color-black));
     opacity: 1;
     transition: opacity .2s ease
 }
@@ -1301,8 +1304,8 @@ html[data-theme=dark] .transparency-warning strong {
 .app-mark .logo {
     overflow: hidden;
     text-indent: -999px;
-    background: transparent url("assets/images/extensionIcon.png") center/contain no-repeat;
-    color: transparent
+    background: var(--color-transparent) url("assets/images/extensionIcon.png") center/contain no-repeat;
+    color: var(--color-transparent)
 }
 
 .canvas-viewport {
@@ -1328,23 +1331,16 @@ html[data-theme=dark] .transparency-warning strong {
     image-rendering: pixelated
 }
 
-.selection-overlay {
-    overflow: visible;
-    pointer-events: none
-}
-
-.raster-selection-overlay {
-    overflow: visible;
-    pointer-events: none
-}
-
+.selection-overlay,
+.raster-selection-overlay,
 .crop-selection-overlay {
     overflow: visible;
-    pointer-events: none
+    pointer-events: none;
+    z-index: var(--canvas-selection-stack)
 }
 
 .crop-selection-shade {
-    fill: rgb(0 0 0 / 48%)
+    fill: var(--color-black48-percent)
 }
 
 .crop-selection-contrast,
@@ -1354,12 +1350,12 @@ html[data-theme=dark] .transparency-warning strong {
 }
 
 .crop-selection-contrast {
-    stroke: #000;
+    stroke: var(--color-black);
     stroke-width: 3
 }
 
 .crop-selection-frame {
-    stroke: #fff;
+    stroke: var(--color-white);
     stroke-width: 1;
     stroke-dasharray: 6 4
 }
@@ -1370,8 +1366,9 @@ html[data-theme=dark] .transparency-warning strong {
     vector-effect: non-scaling-stroke
 }
 
-.raster-selection-contrast {
-    stroke: var(--surface);
+.raster-selection-contrast,
+.selection-frame-contrast {
+    stroke: var(--selection-contrast);
     stroke-width: 3
 }
 
@@ -1387,11 +1384,6 @@ html[data-theme=dark] .transparency-warning strong {
     vector-effect: non-scaling-stroke
 }
 
-.selection-frame-contrast {
-    stroke: var(--surface);
-    stroke-width: 3
-}
-
 .selection-frame {
     stroke: var(--accent);
     stroke-width: 1;
@@ -1403,14 +1395,22 @@ html[data-theme=dark] .transparency-warning strong {
     stroke: var(--layer-selection)
 }
 
-.selection-handle.layer-selection-handle {
+.selection-overlay .selection-handle,
+.selection-overlay .selection-endpoint {
+    fill: var(--accent);
+    stroke: var(--selection-contrast);
+    stroke-width: 2;
+    vector-effect: non-scaling-stroke
+}
+
+.selection-overlay .layer-selection-handle {
     fill: var(--layer-selection)
 }
 
 /* The layer of the selected item, quieter than the item's own frame. */
 .selection-layer-outline {
-    fill: color-mix(in srgb, var(--layer-selection) 6%, transparent);
-    stroke: color-mix(in srgb, var(--layer-selection) 70%, transparent);
+    fill: color-mix(in srgb, var(--layer-selection) 6%, var(--color-transparent));
+    stroke: color-mix(in srgb, var(--layer-selection) 70%, var(--color-transparent));
     stroke-width: 1;
     stroke-dasharray: 2 4;
     vector-effect: non-scaling-stroke
@@ -1461,7 +1461,7 @@ html[data-theme=dark] .transparency-warning strong {
 
 .ruler-tick {
     position: absolute;
-    background: color-mix(in srgb, var(--surface2) 88%, transparent);
+    background: color-mix(in srgb, var(--surface2) 88%, var(--color-transparent));
     text-shadow: 0 1px var(--surface)
 }
 
@@ -1511,7 +1511,7 @@ html[data-theme=dark] .transparency-warning strong {
 
 .viewport-controls .active {
     color: var(--accent);
-    background: color-mix(in srgb, var(--accent) 9%, transparent)
+    background: color-mix(in srgb, var(--accent) 9%, var(--color-transparent))
 }
 
 @media(max-width:760px) {
@@ -1743,7 +1743,7 @@ body.focus-mode .canvas-ruler-layer {
 }
 
 .layer-row .layer-expand:hover {
-	background: color-mix(in srgb, var(--accent) 14%, transparent);
+	background: color-mix(in srgb, var(--accent) 14%, var(--color-transparent));
 }
 
 .layer-expand[aria-expanded=true] {
@@ -1835,7 +1835,7 @@ body.focus-mode .canvas-ruler-layer {
 .layer-row button {
 	min-height: 34px;
 	border: 0;
-	background: transparent;
+	background: var(--color-transparent);
 }
 
 .layer-name {
@@ -1877,6 +1877,8 @@ body.focus-mode .canvas-ruler-layer {
 	grid-column: 1 / -1;
 }
 
-.tool-options.editing-selected-object > :not(.selected-object-options) {
+/* Selected-object properties replace the tool settings, except those that stay with the tool. */
+.tool-options.editing-selected-object
+	> :not(.selected-object-options):not(.tool-option-persistent) {
 	display: none;
 }

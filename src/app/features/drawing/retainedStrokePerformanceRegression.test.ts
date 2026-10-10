@@ -2,9 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { CanvasDocument } from '../../core/document/imageDocument';
 import { PaintToolId } from '../../core/document/appTypes';
 import { CoreLayerId } from '../../core/layers/layerTypes';
-import { AnnotationController } from '../annotations/annotationController';
 import { AnnotationDocument } from '../annotations/annotationDocument';
 import { AnnotationObjectTypeId } from '../annotations/annotationTypes';
+import { ContentLayerCanvas } from '../annotations/contentLayerCanvas';
 import { DrawingController } from './drawingController';
 
 const CanvasSize = {
@@ -51,17 +51,15 @@ describe('retained stroke interaction performance contract', () => {
 			}) satisfies DOMRect;
 		const objects = new AnnotationDocument();
 		const drawing = new DrawingController(model, undefined, objects);
-		const annotations = new AnnotationController(
+		new ContentLayerCanvas(
 			model,
 			{
 				addCanvasLayer: (layer: HTMLCanvasElement) =>
 					model.overlay.before(layer),
-			} as never,
-			undefined,
-			undefined,
+			},
 			objects,
+			vi.fn(),
 		);
-		annotations.suspendInteractions();
 		const persist = vi.spyOn(model, 'setToolbarState');
 		persist.mockClear();
 		drawing.select(PaintToolId.Brush);

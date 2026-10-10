@@ -38,6 +38,10 @@ export class SelectedObjectPropertiesController {
 	constructor(
 		private readonly objects: AnnotationDocument,
 		private readonly parent: HTMLElement,
+		private readonly onColorChange?: (
+			object: Readonly<AnnotationObject>,
+			color: string,
+		) => void,
 	) {
 		this.#root.className = 'selected-object-options hidden';
 		this.#root.setAttribute('aria-label', 'Selected object properties');
@@ -88,7 +92,8 @@ export class SelectedObjectPropertiesController {
 	private showsPropertiesOf(item: AnnotationObject): boolean {
 		if (
 			this.#tool !== null &&
-			drawingToolBehavior(this.#tool).optionSource !== ToolOptionSource.Contextual
+			drawingToolBehavior(this.#tool).optionSource !==
+				ToolOptionSource.Contextual
 		)
 			return false;
 		return (
@@ -192,18 +197,23 @@ export class SelectedObjectPropertiesController {
 			false,
 		);
 		this.updateOutput(property, value);
+		const selected = this.objects.selected;
+		if (
+			property === EditableObjectPropertyId.Color &&
+			selected &&
+			'color' in selected
+		)
+			this.onColorChange?.(selected, selected.color);
 	}
 
 	private sync(): void {
 		this.#synchronizing = true;
 		const selected = this.objects.selected;
 		this.#dirtyProperties.clear();
-		const propertiesVisible = selected !== null && this.showsPropertiesOf(selected);
+		const propertiesVisible =
+			selected !== null && this.showsPropertiesOf(selected);
 		this.#root.classList.toggle('hidden', !propertiesVisible);
-		this.parent.classList.toggle(
-			'editing-selected-object',
-			propertiesVisible,
-		);
+		this.parent.classList.toggle('editing-selected-object', propertiesVisible);
 		if (selected && propertiesVisible) {
 			const values = editableObjectProperties(selected);
 			for (const [property, control] of Object.entries(this.#controls) as Array<

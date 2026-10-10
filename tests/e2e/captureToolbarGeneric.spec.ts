@@ -7,9 +7,9 @@ const TOOLS = '[data-panel="tools"]';
 const LAYERS = '[data-panel="layers"]';
 const AUTO_OPEN_URL = '/?mode=annotate';
 const WIDE_VIEWPORT = { width: 1_600, height: 950 } as const;
-/** Inside the canvas area that the docked toolbars leave visible. */
-const Highlight = { from: { x: 640, y: 120 }, to: { x: 760, y: 170 } } as const;
-const MarkerAt = { x: 700, y: 260 } as const;
+/** Inside the right edge of the canvas, which the docked toolbars leave visible. */
+const Highlight = { from: { x: 730, y: 120 }, to: { x: 790, y: 170 } } as const;
+const MarkerAt = { x: 765, y: 300 } as const;
 const MoveBy = { x: -30, y: 40 } as const;
 
 test.use({ viewport: WIDE_VIEWPORT });

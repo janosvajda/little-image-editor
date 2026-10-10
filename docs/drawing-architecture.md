@@ -10,8 +10,9 @@ samples when requested, and preserves viewport scroll during drawing.
 | `DrawingToolSettings` | Typed boundary between toolbar settings and tool actions |
 | `DrawingToolRouter` | Chooses an action or gesture; does not implement painting, extraction or transforms |
 | `ObjectInteractionTool` | Hit testing, selection precedence and cursors using `genericShape` and `AnnotationDocument` |
-| `CropTool` | Crop draft, overlay and layer-aware selection dispatch |
-| `BaseImageCropSelection` | Transient selection and pixel movement within the existing image layer, with document undo/redo |
+| `CropTool` | Cut-and-move draft, overlay and extraction from one captured source |
+| `drawingLayerTargetAt` | Shared Crop/eraser targeting, with visibility and lock checks |
+| `BaseImageCropSelection` | Bitmap selection compatibility for integrations using only `CanvasDocument` |
 | `DrawingImageActions` | Immediate fill and color sampling |
 | `gestures/` | Paint, erasure, shape creation, object transforms and raster selection; each owns its draft state |
 | `CanvasSelectionGesture` | Restores incidental paint clicks when the browser recognizes double-click selection |
@@ -27,9 +28,27 @@ settings. They never receive the controller, query toolbar DOM, or keep parallel
 copies of selected-layer state. Retained paint reuses `createPaintLayer`, raster
 painting reuses `RasterPaintGesture`, and transforms use `genericShape`.
 
-The layer and `.limg` models are unchanged. Base-image selections create no retained objects; moving their pixels commits
-the existing image history, which already persists in `.limg`. Cropping retained
-objects uses annotation history and serialization.
+Shape frames keep a normalized rectangle and optional `flipX`/`flipY` drawing
+direction. The shared `rectOrientation` and `rectEndpoints` helpers preserve the
+drag's start and end through rendering, moves and transforms. Direction stays
+independent of item and layer rotation, so adding a shape to a rotated layer
+matches its preview. These optional fields persist in `.limg` version 1; shapes
+saved without them retain their existing orientation.
+
+Cut-outs reuse the existing `RasterFragmentAnnotation` item and `.limg` version 1.
+An object cut stays in its source layer. A photo cut removes the selected image
+pixels and creates a layer immediately above the image containing the cut-out;
+both changes form one linked undo step. Moving a cut-out uses the shared object
+or layer transforms and their history. The source hole is transparent, including
+when the imported photo was JPEG. Image export follows the chosen format's
+transparency support.
+
+Crop captures its source at the initial press. An explicitly selected item is
+preferred when that press reaches it; otherwise the topmost visible item is used,
+or the image where no item is hit. Locks are checked both when the selection
+starts and before extraction. Overlapping items do not change the captured source.
+Dragging anywhere inside a selected cut-out's frame moves it. After deselecting
+it, transparent pixels and cut holes allow a new cut on the content underneath.
 
 ## Layer model
 
@@ -76,8 +95,11 @@ image) and at most one selection: one item (`selected`) or one whole layer
 - `select(null)` and `clearSelection()` only deselect; the active layer stays.
   `activate(null)` makes the image active, as does a Select-tool click where
   there is no item, since the image is what is there.
-- The eraser erases every item of the active layer that it reaches; with the
-  image active it erases image pixels.
+- The eraser targets the visible item beneath the initial press and erases
+  every editable item of that item's layer that it reaches. A press on the
+  background targets image pixels. That target stays fixed until release;
+  crossing another layer during a drag does not erase it. A locked visible
+  target blocks erasing through it, and hidden content is ignored.
 - The Fill tool keeps the selection and is limited by it: with an item or a
   whole layer selected, the fill stays inside that frame, only that item's or
   layer's lines stop it, and the fill is placed beneath them. Without a
@@ -110,12 +132,33 @@ Picker, Zoom). `DrawingToolControls` holds the one active tool and its options,
 once in `drawingToolCatalog` (labels, icons, shortcuts) and registered once in
 `DRAWING_TOOL_DOCUMENT_CONTRACT` for layers and `.limg`.
 
-Toolbars only present tools. The Tools panel groups them; Capture & annotate
-(`AnnotationPanel`) shows a subset of the same tools with the same buttons
-(`createToolButton`) and picks them through `DrawingController.select`. Its
-only own behaviour is opening by itself after a browser capture, through the
-generic toolbar auto-open mode, and the bug report that goes with a capture
-(`BugReportController`).
+Paint and shape tools share the last explicitly chosen colour. Numbered markers
+have a separate colour profile, initially red. An explicit colour edit on a
+selected item also updates the matching creation colour; selecting an item alone
+does not. These profiles use `GenericToolbar` and persist with the document.
+
+Fixed colours live in `ColorPalette`, using names such as `RoyalBlue`, `MintGreen`
+and `White`. CSS uses generated `--color-*` variables; HTML defaults and standalone
+SVG assets use `{{ColorPalette.Name}}` references. The shared palette asset helper
+generates the stylesheet and resolves those references during both builds and
+development updates. Unknown names fail validation. User-selected colours remain
+ordinary colour values in objects and `.limg` projects.
+
+Toolbars only present tools. The Tools panel and QA Reporting (`AnnotationPanel`)
+use the same `ToolButtonGroup`. The central drawing catalogue declares which
+additional toolbar views offer each tool; `toolsForToolbar` derives the QA
+buttons, labels and icons. Both views dispatch to `DrawingController.select`.
+QA Reporting opens through the generic toolbar auto-open mode.
+
+Its issue title, ticket URL, reproduction steps, expected/actual behaviour and
+editable Markdown use `PersistentDocumentToolbar`, preserving the existing
+`annotationToolbar` key and `.limg` version 1. Restoring partial older records
+resets newly added fields to their defaults. `BugReportController` listens for
+capture metadata edits through the generic `CanvasDocument.onToolbarStateChange`
+event; session restoration remains on `onDocumentChange`, so report regeneration
+cannot overwrite incoming saved fields. Every browser capture records the source
+page and available capture details. These are included automatically in generated
+Markdown. Report and annotated-image copying use `ClipboardController`.
 
 `ContentLayerCanvas` draws the layers and the selection for every tool, adds
 them to exports, keeps them aligned through crops and saves them with the

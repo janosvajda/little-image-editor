@@ -1,4 +1,6 @@
 import { captureFileName } from './browserCaptureHelpers';
+import { ColorPalette } from '../../core/document/colorPalette';
+import { QA_REPORTING_TITLE } from '../annotations/bugReportMetadata';
 import type { PendingBrowserCapture } from '../../core/document/browserCapture';
 import type { BrowserCaptureStore } from './browserCaptureStore';
 import {
@@ -41,7 +43,7 @@ const CORE_CONTEXT_MENUS: BrowserContextMenu[] = [
 ];
 const BUG_REPORT_MENU: BrowserContextMenu = {
 	id: BROWSER_CAPTURE_MENU_IDS.bugReport,
-	title: 'Capture & annotate',
+	title: QA_REPORTING_TITLE,
 	contexts: ['page', 'image'],
 };
 
@@ -122,7 +124,7 @@ export class BrowserCaptureController {
 	}
 
 	private async captureRegion(tab?: BrowserTab): Promise<void> {
-		const geometry = await this.execute(tab, selectPageRegion);
+		const geometry = await this.execute(tab, selectPageRegion, ColorPalette);
 		if (geometry)
 			await this.persistScreenshot(tab, {
 				name: captureFileName('region'),
@@ -136,9 +138,10 @@ export class BrowserCaptureController {
 		mode?: string,
 	): Promise<void> {
 		if (tab?.windowId === undefined) return;
+		const source = metadata.source ?? await this.execute(tab, readCaptureSource);
 		const blob = await this.platform.captureVisibleTab(tab.windowId);
 		const id = this.platform.createId();
-		await this.store.put(id, { blob, ...metadata });
+		await this.store.put(id, { blob, ...metadata, ...(source ? { source } : {}) });
 		await this.openEditor(id, mode);
 	}
 

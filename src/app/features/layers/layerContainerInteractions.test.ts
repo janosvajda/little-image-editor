@@ -176,7 +176,7 @@ describe('drawing into content layers', () => {
 		objects.add(shape('touched', 20, 20));
 		objects.add(shape('untouched', 140, 120));
 		drawing.select(PaintToolId.Eraser);
-		drag({ x: 10, y: 30 }, { x: 60, y: 30 });
+		drag({ x: 25, y: 30 }, { x: 60, y: 30 });
 		expect(objects.object('touched')?.erasures).toHaveLength(1);
 		expect(objects.object('untouched')?.erasures).toBeUndefined();
 		expect(objects.canUndo).toBe(true);

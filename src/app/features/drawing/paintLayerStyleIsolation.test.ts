@@ -8,7 +8,7 @@ import { DrawingController } from './drawingController';
 const CanvasSize = 120;
 
 describe('paint layer style isolation', () => {
-	it('applies changed brush settings only to the next path', () => {
+	it('applies changed brush settings only to the next stroke item', () => {
 		const model = new CanvasDocument(
 			document.querySelector<HTMLCanvasElement>('#canvas')!,
 			document.querySelector<HTMLCanvasElement>('#overlay')!,
@@ -35,15 +35,16 @@ describe('paint layer style isolation', () => {
 		size.dispatchEvent(new Event('input', { bubbles: true }));
 		draw(model.overlay, 60, 60, 90, 90);
 
-		const layer = objects.state.objects[0];
-		expect(layer?.type).toBe(AnnotationObjectTypeId.Stroke);
-		if (layer?.type !== AnnotationObjectTypeId.Stroke) return;
-		expect(layer.pathStyles).toHaveLength(2);
-		expect(layer.pathStyles?.[0]).toMatchObject({
+		const [first, second] = objects.state.objects;
+		expect(objects.state.objects).toHaveLength(2);
+		expect(objects.layerOf(first!.id)?.id).toBe(objects.layerOf(second!.id)?.id);
+		expect(first).toMatchObject({
+			type: AnnotationObjectTypeId.Stroke,
 			color: '#ffffff',
 			size: 12,
 		});
-		expect(layer.pathStyles?.[1]).toMatchObject({
+		expect(second).toMatchObject({
+			type: AnnotationObjectTypeId.Stroke,
 			color: '#12ab34',
 			size: 42,
 		});

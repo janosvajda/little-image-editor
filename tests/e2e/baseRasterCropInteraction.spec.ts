@@ -1,6 +1,6 @@
 import { expect, type Page, test } from '@playwright/test';
 
-test('selects and moves pixels within an opened raster image layer', async ({
+test('cuts pixels of an opened raster image into a layer that moves', async ({
 	page,
 }) => {
 	await page.setContent(
@@ -26,20 +26,25 @@ test('selects and moves pixels within an opened raster image layer', async ({
 	await page.mouse.move(bounds.x + 100, bounds.y + 100, { steps: 5 });
 	await page.mouse.up();
 
-	await expect(page.locator('.layer-object-row')).toHaveCount(0);
-	const selectedColor = await basePixel(page, 50, 50);
+	const selectedColor = await basePixel(page, 50, 50, LAYER_CANVAS);
+	expect((await basePixel(page, 50, 50))[ALPHA]).toBe(0);
+	await expect(page.locator('.layer-item-row')).toHaveCount(1);
 	await page.mouse.move(bounds.x + 50, bounds.y + 50);
 	await page.mouse.down();
 	await page.mouse.move(bounds.x + 150, bounds.y + 100, { steps: 5 });
 	await page.mouse.up();
 
-	await expect(page.locator('.layer-object-row')).toHaveCount(0);
-	expect(await basePixel(page, 50, 50)).toEqual([255, 255, 255, 255]);
-	expect(await basePixel(page, 150, 100)).toEqual(selectedColor);
+	await expect(page.locator('.layer-item-row')).toHaveCount(1);
+	expect((await basePixel(page, 50, 50))[ALPHA]).toBe(0);
+	expect(await basePixel(page, 150, 100, LAYER_CANVAS)).toEqual(selectedColor);
 });
 
-async function basePixel(page: Page, x: number, y: number): Promise<number[]> {
-	return page.locator('#canvas').evaluate(
+/** Cut pieces are layer items, drawn on the layer canvas above the image. */
+const LAYER_CANVAS = '.annotation-canvas';
+const ALPHA = 3;
+
+async function basePixel(page: Page, x: number, y: number, canvas = '#canvas'): Promise<number[]> {
+	return page.locator(canvas).evaluate(
 		(canvas, position) => [
 			...(canvas as HTMLCanvasElement)
 				.getContext('2d')!

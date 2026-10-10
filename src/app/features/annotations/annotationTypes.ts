@@ -5,6 +5,7 @@ import type {
 	ShapeTool,
 } from '../../core/document/appTypes';
 import type { BlendMode, CoreLayerId } from '../../core/layers/layerTypes';
+import type { RectOrientation } from '../../core/geometry/geometryHelpers';
 import type { FloodFillRun } from '../drawing/floodFillHelpers';
 
 /** The kinds of item a content layer holds. */
@@ -130,7 +131,7 @@ export interface RectAnnotation extends AnnotationBase {
 	rotation?: number;
 }
 
-export interface ShapeAnnotation extends AnnotationBase {
+export interface ShapeAnnotation extends AnnotationBase, RectOrientation {
 	type: typeof AnnotationObjectTypeId.Shape;
 	shape: ShapeTool;
 	rect: CropRect;
@@ -212,4 +213,3 @@ export interface AnnotationSessionState {
 	historyIndex: number;
 	historyLinks?: Array<LinkedHistoryDomain | null>;
 }
-

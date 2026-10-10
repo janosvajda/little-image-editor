@@ -36,7 +36,11 @@ describe("non-destructive annotation document", () => {
     const document = new AnnotationDocument();
     document.restore(state);
     state.objects[0]!.to.x = 99;
-    expect(document.state).toEqual({ objects: [{ ...state.objects[0], to: { x: 3, y: 4 } }], nextStep: 7 });
+    expect(document.state).toEqual({
+      objects: [{ ...state.objects[0], to: { x: 3, y: 4 } }],
+      layers: [{ id: expect.any(String), name: expect.any(String), itemIds: ["a"] }],
+      nextStep: 7,
+    });
     expect(normalizedRect({ x: 8, y: 9 }, { x: 2, y: 3 })).toEqual({ x: 2, y: 3, width: 6, height: 6 });
   });
 

@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { QA_REPORTING_TITLE } from "../../src/app/features/annotations/bugReportMetadata";
 
 test("annotation uses the standard toolbar header and Toolbars visibility persists after reload", async ({ page }) => {
   await page.goto("/");
@@ -10,7 +11,7 @@ test("annotation uses the standard toolbar header and Toolbars visibility persis
   await expect(panel).toBeVisible();
   await expect(panel.locator(".panel-header button")).toHaveCount(2);
   await expect(panel.locator(".panel-header .collapse")).toBeVisible();
-  await expect(panel.getByRole("button", { name: "Close Capture & annotate" })).toBeVisible();
+  await expect(panel.getByRole("button", { name: `Close ${QA_REPORTING_TITLE}` })).toBeVisible();
 
   await toggle.uncheck();
   await expect(panel).toBeHidden();

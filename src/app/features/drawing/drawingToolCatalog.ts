@@ -9,6 +9,7 @@ import {
 	type Tool,
 	type UtilityTool,
 } from '../../core/document/appTypes';
+import { ToolbarId } from '../workspace/toolbarTypes';
 
 export interface ToolDefinition<TTool extends string = string> {
 	id: TTool;
@@ -16,6 +17,8 @@ export interface ToolDefinition<TTool extends string = string> {
 	icon: string;
 	title: string;
 	shortcut?: string;
+	/** Other toolbar views that present this shared tool. The Tools toolbar contains all tools. */
+	readonly additionalToolbars?: readonly ToolbarId[];
 }
 
 export const PAINT_TOOL_DEFINITIONS = [
@@ -85,8 +88,15 @@ export const SHAPE_TOOL_DEFINITIONS = [
 		title: 'Line (L)',
 		shortcut: 'l',
 	},
-	{ id: ShapeToolId.Arrow, label: 'Arrow', icon: '↗', title: 'Arrow' },
 	{
+		additionalToolbars: [ToolbarId.Annotations],
+		id: ShapeToolId.Arrow,
+		label: 'Arrow',
+		icon: '↗',
+		title: 'Arrow',
+	},
+	{
+		additionalToolbars: [ToolbarId.Annotations],
 		id: ShapeToolId.Rectangle,
 		label: 'Rectangle',
 		icon: '□',
@@ -113,6 +123,7 @@ export const SHAPE_TOOL_DEFINITIONS = [
 
 export const MARKUP_TOOL_DEFINITIONS = [
 	{
+		additionalToolbars: [ToolbarId.Annotations],
 		id: MarkupToolId.Number,
 		label: 'Number',
 		icon: '①',
@@ -120,15 +131,31 @@ export const MARKUP_TOOL_DEFINITIONS = [
 		shortcut: 'n',
 	},
 	{
+		additionalToolbars: [ToolbarId.Annotations],
 		id: MarkupToolId.Highlight,
 		label: 'Highlight',
 		icon: '▰',
 		title: 'Highlight area (G)',
 		shortcut: 'g',
 	},
-	{ id: MarkupToolId.Text, label: 'Text', icon: 'T', title: 'Text (T)', shortcut: 't' },
-	{ id: MarkupToolId.Blur, label: 'Blur', icon: '▦', title: 'Blur area (U)', shortcut: 'u' },
 	{
+		additionalToolbars: [ToolbarId.Annotations],
+		id: MarkupToolId.Text,
+		label: 'Text',
+		icon: 'T',
+		title: 'Text (T)',
+		shortcut: 't',
+	},
+	{
+		additionalToolbars: [ToolbarId.Annotations],
+		id: MarkupToolId.Blur,
+		label: 'Blur',
+		icon: '▦',
+		title: 'Blur area (U)',
+		shortcut: 'u',
+	},
+	{
+		additionalToolbars: [ToolbarId.Annotations],
 		id: MarkupToolId.Redact,
 		label: 'Redact',
 		icon: '■',
@@ -139,6 +166,7 @@ export const MARKUP_TOOL_DEFINITIONS = [
 
 export const UTILITY_TOOL_DEFINITIONS = [
 	{
+		additionalToolbars: [ToolbarId.Annotations],
 		id: UtilityToolId.Select,
 		label: 'Select',
 		icon: '↖',
@@ -153,6 +181,7 @@ export const UTILITY_TOOL_DEFINITIONS = [
 		shortcut: 'i',
 	},
 	{
+		additionalToolbars: [ToolbarId.Annotations],
 		id: UtilityToolId.Crop,
 		label: 'Crop',
 		icon: '⌗',
@@ -181,6 +210,15 @@ export const DRAWING_TOOL_DEFINITIONS: readonly ToolDefinition<Tool>[] = [
 	...MARKUP_TOOL_DEFINITIONS,
 	...UTILITY_TOOL_DEFINITIONS,
 ];
+
+export function toolsForToolbar(
+	toolbar: ToolbarId,
+): readonly ToolDefinition<Tool>[] {
+	return DRAWING_TOOL_DEFINITIONS.filter(
+		(tool) =>
+			toolbar === ToolbarId.Tools || tool.additionalToolbars?.includes(toolbar),
+	);
+}
 
 export const PAINT_TOOLS = new Set<Tool>(
 	PAINT_TOOL_DEFINITIONS.map((tool) => tool.id),

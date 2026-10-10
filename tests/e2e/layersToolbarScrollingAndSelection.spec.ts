@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 const ObjectCount = 30;
 
-test('Layers uses generic toolbar scrolling and visibly selects clicked objects', async ({
+test('only the layer list scrolls, and it visibly selects clicked layers', async ({
 	page,
 }) => {
 	await page.goto('/');
@@ -12,7 +12,7 @@ test('Layers uses generic toolbar scrolling and visibly selects clicked objects'
 	await page.locator('#createImageButton').click();
 	await selectBrush(page);
 	await page.locator('#toolbarPickerButton').click();
-	await page.getByLabel('Layers', { exact: true }).check();
+	await page.locator('[data-panel-toggle="layers"]').check();
 	await page.keyboard.press('Escape');
 	const panel = page.locator('[data-panel="layers"]');
 	for (let index = 0; index < ObjectCount; index += 1) {
@@ -21,7 +21,8 @@ test('Layers uses generic toolbar scrolling and visibly selects clicked objects'
 		await panel.locator('.layer-new-paint').click();
 		await drawStroke(page, x, y);
 	}
-	const body = panel;
+	// The list scrolls on its own, keeping the layer properties and actions in view.
+	const body = panel.locator('.layer-list');
 	await expect(panel).toBeVisible();
 	await expect(panel.locator('.layer-object-row')).toHaveCount(ObjectCount);
 
@@ -31,7 +32,8 @@ test('Layers uses generic toolbar scrolling and visibly selects clicked objects'
 		overflowY: getComputedStyle(element).overflowY,
 	}));
 	expect(scrolling.scrollHeight).toBeGreaterThan(scrolling.clientHeight);
-	expect(scrolling.overflowY).toBe('scroll');
+	expect(scrolling.overflowY).toBe('auto');
+	await expect(panel.locator('.layer-new-paint')).toBeInViewport();
 	const panelBounds = await panel.boundingBox();
 	expect(panelBounds!.y + panelBounds!.height).toBeLessThanOrEqual(
 		await page.evaluate(() => window.innerHeight),
@@ -47,11 +49,11 @@ test('Layers uses generic toolbar scrolling and visibly selects clicked objects'
 		'aria-selected',
 		'false',
 	);
-	const promotedObjectId = await row.getAttribute('data-object-id');
+	const promotedLayerId = await row.getAttribute('data-content-layer-id');
 	await row.getByRole('button', { name: /Move .* forward/ }).click();
 	await expect(panel.locator('.layer-object-row').first()).toHaveAttribute(
-		'data-object-id',
-		promotedObjectId!,
+		'data-content-layer-id',
+		promotedLayerId!,
 	);
 	await body.hover();
 	await page.mouse.wheel(0, scrolling.scrollHeight);

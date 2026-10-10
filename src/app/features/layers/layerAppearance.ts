@@ -35,12 +35,20 @@ export function applyLayerAppearance(
 	if (change.blendMode !== undefined) layer.blendMode = change.blendMode;
 }
 
-/** Hands out "Layer <n>" names above the highest number already in use. */
+/**
+ * Hands out "Layer <n>" names above the highest number seen, so a number
+ * freed by a deleted layer is never handed out again.
+ */
 export class LayerNumbering {
 	#highest = 0;
 
 	constructor(existingNames: Iterable<string>) {
-		for (const name of existingNames) {
+		this.observe(existingNames);
+	}
+
+	/** Accounts for names given elsewhere, such as by renaming or restoring. */
+	observe(names: Iterable<string>): void {
+		for (const name of names) {
 			const separator = name.lastIndexOf(LAYER_NAME_SEPARATOR);
 			const number = Number(name.slice(separator + 1));
 			if (

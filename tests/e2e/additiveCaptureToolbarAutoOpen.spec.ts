@@ -1,5 +1,6 @@
 import { expect, type Locator, test } from '@playwright/test';
 import { seedBrowserCapture } from './support/browserCapture';
+import { QA_REPORTING_TITLE } from '../../src/app/features/annotations/bugReportMetadata';
 
 const LAYOUT_STORAGE_KEY = 'little-editor.panel-layout.v2';
 const POSITION_TOLERANCE = 2;
@@ -66,7 +67,7 @@ test('Capture & annotate additively opens with collision-safe preferred position
 	);
 
 	await annotations
-		.getByRole('button', { name: 'Close Capture & annotate' })
+		.getByRole('button', { name: `Close ${QA_REPORTING_TITLE}` })
 		.click();
 	await tools.getByRole('button', { name: 'Close Tools' }).click();
 	await seedBrowserCapture(page, 'preferred-position-capture');

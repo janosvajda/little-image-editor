@@ -18,12 +18,14 @@ describe("generic drawing-shape editing", () => {
     expect(shapes.selected).toEqual(expect.objectContaining({ type: "shape", shape: "rectangle", rect: { x: 10, y: 20, width: 40, height: 30 } }));
     drawing.select("select");
 
+    const shape = () => shapes.state.objects[0] as { rotation?: number };
+    expect(shapes.selectedLayer?.itemIds).toEqual([shapes.state.objects[0]!.id]);
     pointer(overlay, "pointerdown", 50, 50); pointer(overlay, "pointermove", 70, 80); pointer(overlay, "pointerup", 70, 80);
-    expect(shapes.selected).toEqual(expect.objectContaining({ rect: { x: 10, y: 20, width: 60, height: 60 } }));
+    expect(shape()).toEqual(expect.objectContaining({ rect: { x: 10, y: 20, width: 60, height: 60 } }));
 
     pointer(overlay, "pointerdown", 40, -4); pointer(overlay, "pointermove", 70, 50); pointer(overlay, "pointerup", 70, 50);
-    expect((shapes.selected as { rotation?: number }).rotation).toBe(90);
-    shapes.undo(); expect((shapes.selected as { rotation?: number } | null)?.rotation).not.toBe(90);
+    expect(shape().rotation).toBe(90);
+    shapes.undo(); expect(shape().rotation).not.toBe(90);
     shapes.redo(); expect(shapes.state.objects[0]).toEqual(expect.objectContaining({ rotation: 90 }));
   });
 });

@@ -5,6 +5,7 @@ import { BlendMode, CoreLayerId } from '../../core/layers/layerTypes';
 import { AnnotationDocument } from '../annotations/annotationDocument';
 import {
 	AnnotationObjectTypeId,
+	type ContentLayer,
 	type ShapeAnnotation,
 } from '../annotations/annotationTypes';
 import { compositeLayer, compositeOperation, requiresImageBackdrop } from './layerCompositing';
@@ -29,11 +30,28 @@ function shape(id: string, extra: Partial<ShapeAnnotation> = {}): ShapeAnnotatio
 	};
 }
 
+function layer(id: string, extra: Partial<ContentLayer> = {}): ContentLayer {
+	return { id, name: id, itemIds: [id], ...extra };
+}
+
+/** Puts an item in a new layer of its own and returns that layer's id. */
+function addLayer(
+	objects: AnnotationDocument,
+	item: ShapeAnnotation,
+	appearance: Parameters<AnnotationDocument['setLayerAppearance']>[1] = {},
+): string {
+	objects.createLayer();
+	objects.add(item);
+	const layerId = objects.layerOf(item.id)!.id;
+	objects.setLayerAppearance(layerId, appearance);
+	return layerId;
+}
+
 describe('layer compositing', () => {
 	it('draws default layers directly and isolates blended ones', () => {
 		const target = document.createElement('canvas').getContext('2d')!;
 		const draw = vi.fn();
-		compositeLayer(target, shape('plain'), draw);
+		compositeLayer(target, layer('plain'), draw);
 		expect(draw).toHaveBeenLastCalledWith(target);
 
 		const composited: Array<readonly [number, string]> = [];
@@ -43,7 +61,7 @@ describe('layer compositing', () => {
 		target.globalAlpha = 1;
 		compositeLayer(
 			target,
-			shape('blended', { layerOpacity: HALF_OPACITY, blendMode: BlendMode.Multiply }),
+			layer('blended', { opacity: HALF_OPACITY, blendMode: BlendMode.Multiply }),
 			draw,
 		);
 		expect(draw.mock.lastCall?.[0]).not.toBe(target);
@@ -53,14 +71,17 @@ describe('layer compositing', () => {
 	});
 
 	it('needs the image as a backdrop only for visible blended layers', () => {
-		expect(requiresImageBackdrop([shape('plain')])).toBe(false);
-		expect(requiresImageBackdrop([shape('faded', { layerOpacity: HALF_OPACITY })])).toBe(false);
+		expect(requiresImageBackdrop([layer('plain')])).toBe(false);
+		expect(requiresImageBackdrop([layer('faded', { opacity: HALF_OPACITY })])).toBe(false);
 		expect(
 			requiresImageBackdrop([
-				shape('hidden', { blendMode: BlendMode.Screen, visible: false }),
+				layer('hidden', { blendMode: BlendMode.Screen, visible: false }),
 			]),
 		).toBe(false);
-		expect(requiresImageBackdrop([shape('screen', { blendMode: BlendMode.Screen })])).toBe(true);
+		expect(
+			requiresImageBackdrop([layer('empty', { blendMode: BlendMode.Screen, itemIds: [] })]),
+		).toBe(false);
+		expect(requiresImageBackdrop([layer('screen', { blendMode: BlendMode.Screen })])).toBe(true);
 		expect(compositeOperation(BlendMode.Normal)).toBe('source-over');
 		expect(compositeOperation(BlendMode.Overlay)).toBe('overlay');
 	});
@@ -88,30 +109,43 @@ describe('merge down', () => {
 	});
 
 	it('bakes a layer into the layer beneath it, keeping the lower layer identity', () => {
-		objects.add(shape('lower', { blendMode: BlendMode.Screen, layerOpacity: HALF_OPACITY }));
-		objects.add(shape('upper', { blendMode: BlendMode.Multiply }));
-		expect(merger.mergeDown('upper')).toBe(true);
-		expect(objects.state.objects).toHaveLength(1);
-		expect(objects.state.objects[0]).toMatchObject({
-			type: AnnotationObjectTypeId.RasterFragment,
-			name: 'Shape 1',
+		const lower = addLayer(objects, shape('lower'), {
 			blendMode: BlendMode.Screen,
-			layerOpacity: HALF_OPACITY,
+			opacity: HALF_OPACITY,
 		});
-		expect(objects.activeLayer?.id).toBe(objects.state.objects[0]?.id);
+		const upper = addLayer(objects, shape('upper'), { blendMode: BlendMode.Multiply });
+		expect(merger.mergeDown(upper)).toBe(true);
+		expect(objects.state.layers.map(({ id }) => id)).toEqual([lower]);
+		expect(objects.layer(lower)).toMatchObject({
+			name: 'Layer 1',
+			blendMode: BlendMode.Screen,
+			opacity: HALF_OPACITY,
+		});
+		expect(objects.layerItems(lower).map(({ type }) => type)).toEqual([
+			AnnotationObjectTypeId.RasterFragment,
+		]);
+		expect(objects.activeLayer?.id).toBe(lower);
 		objects.undo();
 		expect(objects.state.objects.map(({ id }) => id)).toEqual(['lower', 'upper']);
 	});
 
+	it('moves items of default layers down unchanged', () => {
+		const lower = addLayer(objects, shape('lower'));
+		const upper = addLayer(objects, shape('upper'));
+		expect(merger.mergeDown(upper)).toBe(true);
+		expect(objects.layerItems(lower).map(({ id }) => id)).toEqual(['lower', 'upper']);
+	});
+
 	it('writes the bottom layer into the image as one linked step', () => {
-		objects.add(shape('only'));
+		const only = addLayer(objects, shape('only'));
 		const linked = vi.fn();
 		objects.onLinkedHistoryAction(linked);
 		const imageHistory = vi.fn();
 		model.onHistoryChange(imageHistory);
 		imageHistory.mockClear();
-		expect(merger.mergeDown('only')).toBe(true);
+		expect(merger.mergeDown(only)).toBe(true);
 		expect(objects.state.objects).toHaveLength(0);
+		expect(objects.state.layers).toHaveLength(0);
 		expect(imageHistory).toHaveBeenCalledWith(true, false);
 		objects.undo();
 		expect(linked).toHaveBeenCalled();
@@ -119,13 +153,15 @@ describe('merge down', () => {
 	});
 
 	it('refuses to merge locked, hidden or missing layers', () => {
-		objects.add(shape('lower', { locked: true }));
-		objects.add(shape('upper'));
-		expect(merger.canMergeDown('upper')).toBe(false);
-		expect(merger.mergeDown('upper')).toBe(false);
+		const lower = addLayer(objects, shape('lower'));
+		const upper = addLayer(objects, shape('upper'));
+		objects.setLayerLocked(lower, true);
+		expect(merger.canMergeDown(upper)).toBe(false);
+		expect(merger.mergeDown(upper)).toBe(false);
 		expect(merger.canMergeDown('missing')).toBe(false);
+		objects.setLayerLocked(lower, false);
 		model.layers.setVisible(CoreLayerId.Image, false);
-		expect(merger.canMergeDown('lower')).toBe(false);
+		expect(merger.canMergeDown(lower)).toBe(false);
 	});
 });
 
@@ -147,8 +183,9 @@ describe('layers panel', () => {
 		expect(mergeDownButton.disabled).toBe(true);
 
 		objects.add(shape('a'));
+		const id = objects.layerOf('a')!.id;
 		expect(properties.disabled).toBe(false);
-		expect(controller.panel.nameInput.value).toBe('Shape 1');
+		expect(controller.panel.nameInput.value).toBe('Layer 1');
 		expect(mergeDownButton.disabled).toBe(false);
 
 		change(controller.panel.nameInput, 'Sky');
@@ -157,47 +194,53 @@ describe('layers panel', () => {
 		controller.panel.opacityInput.dispatchEvent(new Event('input'));
 		expect(controller.panel.opacityOutput.value).toBe('50%');
 		controller.panel.opacityInput.dispatchEvent(new Event('change'));
-		expect(objects.object('a')).toMatchObject({
+		expect(objects.layer(id)).toMatchObject({
 			name: 'Sky',
 			blendMode: BlendMode.Overlay,
-			layerOpacity: HALF_OPACITY,
+			opacity: HALF_OPACITY,
 		});
-		expect(rowText('a')).toContain('50% · Overlay');
+		expect(rowText(id)).toContain('50% · Overlay');
 	});
 
 	it('ignores unknown blend modes and restores the name on Escape', () => {
 		objects.add(shape('a'));
-		const before = structuredClone(objects.object('a'));
+		const id = objects.layerOf('a')!.id;
+		const before = structuredClone(objects.layer(id));
 		const option = new Option('Invalid', 'not-a-blend-mode');
 		controller.panel.blendModeSelect.append(option);
 		change(controller.panel.blendModeSelect, 'not-a-blend-mode');
 		controller.panel.nameInput.value = 'Unsaved';
 		controller.panel.nameInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
-		expect(controller.panel.nameInput.value).toBe('Shape 1');
-		expect(objects.object('a')).toEqual(before);
+		expect(controller.panel.nameInput.value).toBe('Layer 1');
+		expect(objects.layer(id)).toEqual(before);
 	});
 
 	it('duplicates and merges the active layer from the panel actions', () => {
 		objects.add(shape('a'));
 		controller.panel.duplicateLayerButton.click();
+		expect(objects.state.layers).toHaveLength(2);
 		expect(objects.state.objects).toHaveLength(2);
 		controller.panel.mergeDownButton.click();
-		expect(objects.state.objects).toHaveLength(1);
+		expect(objects.state.layers).toHaveLength(1);
+		expect(objects.state.objects).toHaveLength(2);
 	});
 
-	it('activates a row without requesting the edit tool, including hidden layers', () => {
+	it('activates a hidden layer row without requesting the edit tool', () => {
 		const edit = vi.fn();
 		controller.onEditRequested(edit);
-		objects.add(shape('hidden', { visible: false }));
-		objects.add(shape('top'));
-		row('hidden').querySelector<HTMLButtonElement>('.layer-name')!.click();
-		expect(objects.activeLayer?.id).toBe('hidden');
-		expect(row('hidden').classList).toContain('active');
+		const hidden = addLayer(objects, shape('hidden'));
+		objects.setLayerVisible(hidden, false);
+		addLayer(objects, shape('top'));
+		row(hidden).querySelector<HTMLButtonElement>('.layer-name')!.click();
+		expect(objects.activeLayer?.id).toBe(hidden);
+		expect(row(hidden).classList).toContain('active');
 		expect(edit).not.toHaveBeenCalled();
 	});
 
 	function row(id: string): HTMLElement {
-		return controller.panel.list.querySelector<HTMLElement>(`[data-object-id="${id}"]`)!;
+		return controller.panel.list.querySelector<HTMLElement>(
+			`[data-content-layer-id="${id}"]`,
+		)!;
 	}
 
 	function rowText(id: string): string {

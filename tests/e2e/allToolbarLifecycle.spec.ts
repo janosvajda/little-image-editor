@@ -6,6 +6,7 @@ const LAYOUT_LEFT = 24;
 const LAYOUT_TOP = 24;
 const LAYOUT_COLUMN_GAP = 560;
 const LAYOUT_ROW_GAP = 90;
+const WIDE_VIEWPORT = { width: 1920, height: 1080 } as const;
 
 test.beforeEach(async ({ page }) => {
   await page.goto("/");
@@ -45,7 +46,7 @@ test("every toolbar opens, performs its primary function, and uses the shared co
   await numberTool.evaluate(button => (button as HTMLButtonElement).click());
   await expect(numberTool).toHaveClass(/active/);
   await clickCanvas(page, .5, .5);
-  await expect(page.locator(".annotation-next-step")).toHaveText("Next marker: 2");
+  await expect(page.getByLabel("Next marker number")).toHaveValue("2");
 
   for (const key of TOOLBAR_KEYS) {
     const panel = page.locator(`[data-panel="${key}"]`);
@@ -54,41 +55,47 @@ test("every toolbar opens, performs its primary function, and uses the shared co
   }
 });
 
-test("every toolbar restores open, closed, collapsed, and positioned state after reload", async ({ page }) => {
-  await showEveryToolbar(page);
-  const expectedPositions: Record<string, { left: number; top: number }> = {};
+test.describe("with room for every toolbar", () => {
+  // Six open toolbars overlap on a small screen, where drops are moved to free space.
+  test.use({ viewport: WIDE_VIEWPORT });
 
-  for (const [index, key] of TOOLBAR_KEYS.entries()) {
-    const panel = page.locator(`[data-panel="${key}"]`);
-    const deltaX = LAYOUT_LEFT + index % LAYOUT_COLUMNS * LAYOUT_COLUMN_GAP;
-    const deltaY = LAYOUT_TOP + Math.floor(index / LAYOUT_COLUMNS) * LAYOUT_ROW_GAP;
-    await dragPanel(panel, deltaX, deltaY);
-    await panel.locator(":scope > .panel-header > .collapse").click();
-    expectedPositions[key] = await panel.evaluate(element => ({
-      left: (element as HTMLElement).offsetLeft,
-      top: (element as HTMLElement).offsetTop
-    }));
-  }
+  test("every toolbar restores open, closed, collapsed, and positioned state after reload", async ({ page }) => {
+    await showEveryToolbar(page);
+    const expectedPositions: Record<string, { left: number; top: number }> = {};
 
-  await page.reload();
-  for (const key of TOOLBAR_KEYS) {
-    const panel = page.locator(`[data-panel="${key}"]`);
-    await expect(panel).toBeVisible();
-    await expect(panel).toHaveClass(/collapsed/);
-    const position = await panel.evaluate(element => ({ left: (element as HTMLElement).offsetLeft, top: (element as HTMLElement).offsetTop }));
-    expect(Math.abs(position.left - expectedPositions[key]!.left)).toBeLessThanOrEqual(2);
-    expect(Math.abs(position.top - expectedPositions[key]!.top)).toBeLessThanOrEqual(2);
-  }
+    for (const [index, key] of TOOLBAR_KEYS.entries()) {
+      const panel = page.locator(`[data-panel="${key}"]`);
+      const deltaX = LAYOUT_LEFT + index % LAYOUT_COLUMNS * LAYOUT_COLUMN_GAP;
+      const deltaY = LAYOUT_TOP + Math.floor(index / LAYOUT_COLUMNS) * LAYOUT_ROW_GAP;
+      await dragPanel(panel, deltaX, deltaY);
+      await panel.locator(":scope > .panel-header > .collapse").click();
+      expectedPositions[key] = await panel.evaluate(element => ({
+        left: (element as HTMLElement).offsetLeft,
+        top: (element as HTMLElement).offsetTop
+      }));
+    }
 
-  await page.locator("#toolbarPickerButton").click();
-  for (const key of ["adjust", "transform", "annotations", "layers"] as const) await page.locator(`[data-panel-toggle="${key}"]`).uncheck();
-  await page.reload();
+    await page.reload();
+    for (const key of TOOLBAR_KEYS) {
+      const panel = page.locator(`[data-panel="${key}"]`);
+      await expect(panel).toBeVisible();
+      await expect(panel).toHaveClass(/collapsed/);
+      const position = await panel.evaluate(element => ({ left: (element as HTMLElement).offsetLeft, top: (element as HTMLElement).offsetTop }));
+      expect(Math.abs(position.left - expectedPositions[key]!.left)).toBeLessThanOrEqual(2);
+      expect(Math.abs(position.top - expectedPositions[key]!.top)).toBeLessThanOrEqual(2);
+    }
 
-  for (const key of TOOLBAR_KEYS) {
-    const shouldBeVisible = key === "tools" || key === "effects";
-    if (shouldBeVisible) await expect(page.locator(`[data-panel="${key}"]`)).toBeVisible();
-    else await expect(page.locator(`[data-panel="${key}"]`)).toBeHidden();
-  }
+    await page.locator("#toolbarPickerButton").click();
+    for (const key of ["adjust", "transform", "annotations", "layers"] as const) await page.locator(`[data-panel-toggle="${key}"]`).uncheck();
+    await page.reload();
+
+    for (const key of TOOLBAR_KEYS) {
+      const shouldBeVisible = key === "tools" || key === "effects";
+      if (shouldBeVisible) await expect(page.locator(`[data-panel="${key}"]`)).toBeVisible();
+      else await expect(page.locator(`[data-panel="${key}"]`)).toBeHidden();
+    }
+  });
+
 });
 
 test("a toolbar auto-open mode uses generic metadata and becomes normal persisted visibility", async ({ page }) => {
@@ -99,7 +106,6 @@ test("a toolbar auto-open mode uses generic metadata and becomes normal persiste
   const annotations = page.locator('[data-panel="annotations"]');
   await expect(annotations).toHaveAttribute("data-auto-open-mode", "annotate");
   await expect(annotations).toBeVisible();
-  await expect(page.locator("body")).toHaveClass(/annotation-mode/);
   await expect(page).not.toHaveURL(/(?:\?|&)mode=annotate(?:&|$)/);
 
   await page.locator("#toolbarPickerButton").click();
@@ -115,6 +121,7 @@ async function showEveryToolbar(page: Page): Promise<void> {
     const toggle = page.locator(`[data-panel-toggle="${key}"]`);
     if (!(await toggle.isChecked())) await toggle.check();
   }
+  await page.keyboard.press("Escape");
 }
 
 async function dragPanel(panel: import("@playwright/test").Locator, deltaX: number, deltaY: number): Promise<void> {

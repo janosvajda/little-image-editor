@@ -13,7 +13,9 @@ describe("active drawing-shape movement", () => {
     drag(overlay, { x: 30, y: 30 }, { x: 70, y: 60 });
     drawing.select("select");
     drag(overlay, { x: 50, y: 45 }, { x: 80, y: 65 });
-    expect(shapes.selected).toEqual(expect.objectContaining({ rect: { x: 60, y: 50, width: 40, height: 30 } }));
+    const [shape] = shapes.state.objects;
+    expect(shapes.selectedLayer?.id).toBe(shapes.layerOf(shape!.id)?.id);
+    expect(shape).toEqual(expect.objectContaining({ rect: { x: 60, y: 50, width: 40, height: 30 } }));
   });
 });
 function drag(target: HTMLElement, from: { x: number; y: number }, to: { x: number; y: number }): void { for (const [type, point] of [["pointerdown", from], ["pointermove", to], ["pointerup", to]] as const) target.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, button: 0, clientX: point.x, clientY: point.y })); }

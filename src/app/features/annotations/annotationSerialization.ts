@@ -88,7 +88,10 @@ function isAnnotationObject(value: unknown): value is AnnotationObject {
 		!isOptionalObjectErasures(value.erasures) ||
 		!isOptionalPixelMasks(value.pixelCutouts) ||
 		!isOptionalPixelMasks(value.pixelClips) ||
-		!(value.erasureRevision === undefined || isFiniteNumber(value.erasureRevision))
+		!(
+			value.erasureRevision === undefined ||
+			isFiniteNumber(value.erasureRevision)
+		)
 	)
 		return false;
 	switch (value.type) {
@@ -133,6 +136,8 @@ function isAnnotationObject(value: unknown): value is AnnotationObject {
 			return (
 				Object.values(ShapeToolId).some((shape) => shape === value.shape) &&
 				isRect(value.rect) &&
+				isOptionalBoolean(value.flipX) &&
+				isOptionalBoolean(value.flipY) &&
 				isColor(value.color) &&
 				isFiniteNumber(value.width) &&
 				isFiniteNumber(value.opacity) &&
@@ -188,7 +193,10 @@ function isExactRasterPixelData(
 	}
 }
 
-function isOptionalHistoryLinks(value: unknown, historyLength: number): boolean {
+function isOptionalHistoryLinks(
+	value: unknown,
+	historyLength: number,
+): boolean {
 	return (
 		value === undefined ||
 		(Array.isArray(value) &&
@@ -217,7 +225,8 @@ function isOptionalPixelMasks(value: unknown): boolean {
 					(mask.strokePointLimit === undefined ||
 						(Number.isInteger(mask.strokePointLimit) &&
 							Number(mask.strokePointLimit) >= 2)) &&
-					(mask.strokeSourceRect === undefined || isRect(mask.strokeSourceRect)),
+					(mask.strokeSourceRect === undefined ||
+						isRect(mask.strokeSourceRect)),
 			))
 	);
 }
@@ -285,8 +294,7 @@ function isOptionalObjectErasures(value: unknown): boolean {
 					(path.strokePointLimit === undefined ||
 						(Number.isInteger(path.strokePointLimit) &&
 							Number(path.strokePointLimit) >= 2)),
-			)
-		)
+			))
 	);
 }
 
@@ -305,9 +313,7 @@ function isFillRun(value: unknown): boolean {
 }
 
 function isPoint(value: unknown): boolean {
-	return (
-		isRecord(value) && isFiniteNumber(value.x) && isFiniteNumber(value.y)
-	);
+	return isRecord(value) && isFiniteNumber(value.x) && isFiniteNumber(value.y);
 }
 
 function isRect(value: unknown): boolean {

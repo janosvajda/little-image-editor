@@ -16,6 +16,8 @@ const PanelHeight = 300;
 const PanelWidth = 200;
 const EdgeOffset = 2;
 
+const LAYER_IDS = ['bottom', 'middle', 'top'] as const;
+
 function shape(id: string): ShapeAnnotation {
 	return {
 		id,
@@ -50,7 +52,15 @@ describe('layers panel interactions', () => {
 		objects = new AnnotationDocument();
 		controller = new LayersController(model, objects);
 		document.body.append(controller.panel.element);
-		for (const id of ['bottom', 'middle', 'top']) objects.add(shape(id));
+		objects.restore({
+			objects: LAYER_IDS.map((id) => shape(itemOf(id))),
+			layers: LAYER_IDS.map((id, index) => ({
+				id,
+				name: `Layer ${index + 1}`,
+				itemIds: [itemOf(id)],
+			})),
+			nextStep: 1,
+		});
 	});
 
 	afterEach(() => {
@@ -63,7 +73,7 @@ describe('layers panel interactions', () => {
 		pointer(handle, 'pointerdown', 0, 0);
 		expect(row('top').classList).toContain('dragging-source');
 		expect(document.querySelector('.layer-drag-preview')?.textContent).toBe(
-			'Moving Shape 3',
+			'Moving Layer 3',
 		);
 		pointer(handle, 'pointermove', 0, RowHeight * 2 + 1, OtherPointerId);
 		expect(document.querySelector('.drag-target')).toBeNull();
@@ -71,7 +81,7 @@ describe('layers panel interactions', () => {
 		expect(row('bottom').classList).toContain('drag-target');
 		pointer(handle, 'pointerup', 0, RowHeight * 2 + 1);
 
-		expect(objects.state.objects.map(({ id }) => id)).toEqual([
+		expect(layerOrder()).toEqual([
 			'top',
 			'bottom',
 			'middle',
@@ -91,13 +101,13 @@ describe('layers panel interactions', () => {
 		pointer(handle, 'pointermove', 0, EdgeOffset);
 		handle.dispatchEvent(new PointerEvent('pointercancel', { pointerId: DragPointerId }));
 		expect(document.querySelector('.layer-drag-preview')).toBeNull();
-		expect(objects.state.objects.map(({ id }) => id)).toEqual([
+		expect(layerOrder()).toEqual([
 			'bottom',
 			'middle',
 			'top',
 		]);
 		pointer(handle, 'pointerup', 0, 0);
-		expect(objects.state.objects.map(({ id }) => id)).toEqual([
+		expect(layerOrder()).toEqual([
 			'bottom',
 			'middle',
 			'top',
@@ -109,7 +119,7 @@ describe('layers panel interactions', () => {
 		const handle = row('top').querySelector<HTMLButtonElement>('.layer-drag-handle')!;
 		pointer(handle, 'pointerdown', 0, 0);
 		pointer(handle, 'pointerup', 0, RowHeight + 1);
-		expect(objects.state.objects.map(({ id }) => id)).toEqual([
+		expect(layerOrder()).toEqual([
 			'bottom',
 			'top',
 			'middle',
@@ -120,10 +130,10 @@ describe('layers panel interactions', () => {
 		const edit = vi.fn();
 		controller.onEditRequested(edit);
 		row('middle').querySelector<HTMLButtonElement>('.layer-visibility')!.click();
-		expect(objects.object('middle')?.visible).toBe(false);
+		expect(objects.layer('middle')?.visible).toBe(false);
 		row('middle').querySelector<HTMLButtonElement>('.layer-visibility')!.click();
 		row('middle').querySelector<HTMLButtonElement>('.layer-backward')!.click();
-		expect(objects.state.objects.map(({ id }) => id)).toEqual([
+		expect(layerOrder()).toEqual([
 			'middle',
 			'bottom',
 			'top',
@@ -132,7 +142,8 @@ describe('layers panel interactions', () => {
 		row('middle').querySelector<HTMLButtonElement>('.layer-edit')!.click();
 		expect(edit).toHaveBeenCalledWith('middle');
 		row('middle').querySelector<HTMLButtonElement>('.layer-delete')!.click();
-		expect(objects.object('middle')).toBeNull();
+		expect(objects.layer('middle')).toBeNull();
+		expect(objects.object(itemOf('middle'))).toBeNull();
 	});
 
 	it('selects rows with the keyboard and the image row through its own actions', () => {
@@ -166,13 +177,20 @@ describe('layers panel interactions', () => {
 		nameInput.dispatchEvent(new Event('change'));
 		nameInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
 		expect(objects.layerName('top')).toBe('Front');
+		expect(row('top').querySelector('.layer-name')?.textContent).toContain('Front');
 		const steps = objects.snapshotSession().history.length;
 		opacityInput.dispatchEvent(new Event('change'));
 		expect(objects.snapshotSession().history.length).toBe(steps);
 	});
 
 	function row(id: string): HTMLElement {
-		return controller.panel.list.querySelector<HTMLElement>(`[data-object-id="${id}"]`)!;
+		return controller.panel.list.querySelector<HTMLElement>(
+			`[data-content-layer-id="${id}"]`,
+		)!;
+	}
+
+	function layerOrder(): string[] {
+		return objects.state.layers.map(({ id }) => id);
 	}
 
 	function imageRow(): HTMLElement {
@@ -194,6 +212,10 @@ describe('layers panel interactions', () => {
 			hitTesting ? (rows[Math.floor(y / RowHeight)] ?? null) : null;
 	}
 });
+
+function itemOf(layerId: string): string {
+	return `${layerId}-item`;
+}
 
 function pointer(
 	target: HTMLElement,

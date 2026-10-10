@@ -115,15 +115,16 @@ export function strokeContainsPoint(
 	stroke: StrokeAnnotation,
 	point: Point,
 	tolerance: number,
+	startIndex = 0,
 ): boolean {
-	if (stroke.points.length < 2) return false;
+	if (stroke.points.length - startIndex < 2) return false;
 	const transform = new StrokeCoordinateTransform(stroke);
 	const toleranceSquared = tolerance * tolerance;
-	const first = stroke.points[0]!;
+	const first = stroke.points[startIndex]!;
 	let previousX = transform.x(first);
 	let previousY = transform.y(first);
 	const pathStarts = new Set(stroke.pathStarts);
-	for (let index = 1; index < stroke.points.length; index += 1) {
+	for (let index = startIndex + 1; index < stroke.points.length; index += 1) {
 		if (pathStarts.has(index)) {
 			const current = stroke.points[index]!;
 			previousX = transform.x(current);

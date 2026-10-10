@@ -39,29 +39,23 @@ describe('paint layer gesture ownership', () => {
 		drawPath(10, 10, 30, 30);
 		drawPath(50, 50, 70, 70);
 
-		expect(objects.state.objects).toHaveLength(1);
-		const firstLayer = objects.state.objects[0];
-		expect(firstLayer?.type).toBe(AnnotationObjectTypeId.Stroke);
-		if (firstLayer?.type !== AnnotationObjectTypeId.Stroke) return;
-		expect(firstLayer.pathStarts).toHaveLength(1);
-		expect(firstLayer.pathStarts?.[0]).toBeGreaterThan(0);
+		const strokes = objects.state.objects;
+		expect(strokes).toHaveLength(2);
+		expect(strokes.every((item) => item.type === AnnotationObjectTypeId.Stroke)).toBe(true);
+		expect(objects.state.layers).toHaveLength(1);
+		expect(objects.state.layers[0]?.itemIds).toEqual(strokes.map(({ id }) => id));
 		expect(layers.panel.list.querySelectorAll('.layer-object-row')).toHaveLength(1);
-		const pointCount = firstLayer.points.length;
+		const [first, second] = strokes;
 		objects.undo();
-		const undone = objects.state.objects[0];
-		expect(undone?.type).toBe(AnnotationObjectTypeId.Stroke);
-		if (undone?.type === AnnotationObjectTypeId.Stroke)
-			expect(undone.points.length).toBeLessThan(pointCount);
+		expect(objects.state.objects.map(({ id }) => id)).toEqual([first!.id]);
 		objects.redo();
-		expect(objects.state.objects[0]).toMatchObject({ points: firstLayer.points });
+		expect(objects.state.objects[1]).toMatchObject({ id: second!.id, points: (second as { points: unknown }).points });
 
 		layers.panel.newPaintLayerButton.click();
 		drawPath(90, 90, 110, 110);
 
-		expect(objects.state.objects).toHaveLength(2);
-		expect(objects.state.objects.every(
-			(object) => object.type === AnnotationObjectTypeId.Stroke,
-		)).toBe(true);
+		expect(objects.state.objects).toHaveLength(3);
+		expect(objects.state.layers.map((layer) => layer.itemIds.length)).toEqual([2, 1]);
 		expect(layers.panel.list.querySelectorAll('.layer-object-row')).toHaveLength(2);
 	});
 

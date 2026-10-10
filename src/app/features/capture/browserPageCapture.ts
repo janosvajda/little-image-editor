@@ -3,6 +3,7 @@ import type {
 	CaptureSourceMetadata,
 	CaptureViewport,
 } from '../../core/document/browserCapture';
+import { ColorPalette } from '../../core/document/colorPalette';
 
 export interface BrowserCaptureGeometry {
 	crop: CaptureRect;
@@ -54,15 +55,17 @@ export function locateRenderedImage(
 }
 
 /** Runs inside the captured webpage and resolves after its temporary UI is removed. */
-export function selectPageRegion(): Promise<BrowserCaptureGeometry | null> {
+export function selectPageRegion(
+	palette: typeof ColorPalette = ColorPalette,
+): Promise<BrowserCaptureGeometry | null> {
 	return new Promise((resolve) => {
 		const captureStyle = {
-			overlayShade: 'rgba(0,0,0,.28)',
-			selectionBorder: '#fff',
-			selectionAccent: '#2563eb',
-			instructionSurface: '#161a22',
-			instructionText: '#fff',
-			instructionShadow: 'rgba(0,0,0,.35)',
+			overlayShade: palette.Black28Percent,
+			selectionBorder: palette.White,
+			selectionAccent: palette.RoyalBlue,
+			instructionSurface: palette.NavyCharcoal,
+			instructionText: palette.White,
+			instructionShadow: palette.Black35Percent,
 		} as const;
 		const overlay = document.createElement('div');
 		const selection = document.createElement('div');
@@ -79,7 +82,7 @@ export function selectPageRegion(): Promise<BrowserCaptureGeometry | null> {
 			display: 'none',
 			border: `2px solid ${captureStyle.selectionBorder}`,
 			boxShadow: `0 0 0 1px ${captureStyle.selectionAccent},0 0 0 99999px ${captureStyle.overlayShade}`,
-			background: 'transparent',
+			background: palette.Transparent,
 		});
 		Object.assign(instruction.style, {
 			position: 'fixed',

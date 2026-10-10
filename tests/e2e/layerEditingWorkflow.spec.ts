@@ -20,20 +20,22 @@ const Stroke = {
 } as const satisfies Record<string, readonly [CanvasPoint, CanvasPoint]>;
 const LayerRow = '[data-panel="layers"] .layer-object-row';
 
-test('a layer row activates its layer without changing the tool', async ({ page }) => {
+test('a layer row selects its layer on the canvas, and painting then continues in it', async ({ page }) => {
 	await createProject(page, Color.Red);
 	await chooseBrush(page);
 	await paint(page, Stroke.First);
 	await newPaintLayer(page);
 	await paint(page, Stroke.Second);
-	await expect(page.locator(LayerRow)).toHaveText([/Paint layer 2/, /Paint layer 1/]);
+	await expect(page.locator(LayerRow)).toHaveText([/Layer 2/, /Layer 1/]);
 
-	await page.locator(LayerRow, { hasText: 'Paint layer 1' }).locator('.layer-name').click();
-	await expect(page.locator('[data-tool="select"]')).not.toHaveClass(/active/);
+	await page.locator(LayerRow, { hasText: 'Layer 1' }).locator('.layer-name').click();
+	await expect(page.locator('[data-panel="tools"] [data-tool="select"]')).toHaveClass(/active/);
+	await chooseBrush(page);
 	await paint(page, Stroke.Third);
 
 	await expect(page.locator(LayerRow)).toHaveCount(2);
-	await expect(page.locator(`${LayerRow}.active`)).toContainText('Paint layer 1');
+	await expect(page.locator(`${LayerRow}.active`)).toContainText('Layer 1');
+	await expect(page.locator(`${LayerRow}.active .layer-appearance`)).toHaveText('2 items');
 });
 
 test('layer names stay with their layers when the stack is reordered', async ({ page }) => {
@@ -43,10 +45,10 @@ test('layer names stay with their layers when the stack is reordered', async ({ 
 	await newPaintLayer(page);
 	await paint(page, Stroke.Second);
 	await page
-		.locator(LayerRow, { hasText: 'Paint layer 1' })
+		.locator(LayerRow, { hasText: 'Layer 1' })
 		.getByRole('button', { name: /Move .* forward/ })
 		.click();
-	await expect(page.locator(LayerRow)).toHaveText([/Paint layer 1/, /Paint layer 2/]);
+	await expect(page.locator(LayerRow)).toHaveText([/Layer 1/, /Layer 2/]);
 });
 
 test('a new paint layer is created directly above the active layer', async ({ page }) => {
@@ -55,12 +57,12 @@ test('a new paint layer is created directly above the active layer', async ({ pa
 	await paint(page, Stroke.First);
 	await newPaintLayer(page);
 	await paint(page, Stroke.Second);
-	await page.locator(LayerRow, { hasText: 'Paint layer 1' }).locator('.layer-name').click();
+	await page.locator(LayerRow, { hasText: 'Layer 1' }).locator('.layer-name').click();
 	await newPaintLayer(page);
 	await expect(page.locator(LayerRow)).toHaveText([
-		/Paint layer 2/,
-		/Paint layer 3/,
-		/Paint layer 1/,
+		/Layer 2/,
+		/Layer 3/,
+		/Layer 1/,
 	]);
 });
 
@@ -71,7 +73,7 @@ test('rename, opacity and blend mode survive a reload and a .limg round trip', a
 	await setActiveLayerAppearance(page, 'Sky', '50', 'multiply');
 	await expect(page.locator(`${LayerRow}.active`)).toContainText('Sky');
 	await expect(page.locator(`${LayerRow}.active .layer-appearance`)).toHaveText(
-		'50% · Multiply',
+		'1 item · 50% · Multiply',
 	);
 
 	await page.waitForTimeout(RECOVERY_SETTLE_MS);
@@ -86,18 +88,18 @@ test('rename, opacity and blend mode survive a reload and a .limg round trip', a
 		version: number;
 		editableObjects: {
 			state: {
-				objects: ReadonlyArray<{
-					name?: string;
-					layerOpacity?: number;
+				layers: ReadonlyArray<{
+					name: string;
+					opacity?: number;
 					blendMode?: string;
 				}>;
 			};
 		};
 	};
 	expect(project.version).toBe(PROJECT_FORMAT_VERSION);
-	expect(project.editableObjects.state.objects[0]).toMatchObject({
+	expect(project.editableObjects.state.layers[0]).toMatchObject({
 		name: 'Sky',
-		layerOpacity: 0.5,
+		opacity: 0.5,
 		blendMode: 'multiply',
 	});
 
@@ -134,11 +136,11 @@ test('duplicate and merge down are single undoable steps', async ({ page }) => {
 	await chooseBrush(page);
 	await paint(page, Stroke.First);
 	await page.locator('[data-panel="layers"] .layer-duplicate').click();
-	await expect(page.locator(LayerRow)).toHaveText([/Paint layer 1 copy/, /Paint layer 1/]);
+	await expect(page.locator(LayerRow)).toHaveText([/Layer 1 copy/, /Layer 1/]);
 
 	await page.locator('[data-panel="layers"] .layer-merge-down').click();
 	await expect(page.locator(LayerRow)).toHaveCount(1);
-	await expect(page.locator(`${LayerRow}.active`)).toContainText('Paint layer 1');
+	await expect(page.locator(`${LayerRow}.active`)).toContainText('Layer 1');
 
 	await page.locator('#undoButton').click();
 	await expect(page.locator(LayerRow)).toHaveCount(2);

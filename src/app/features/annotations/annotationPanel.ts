@@ -1,55 +1,73 @@
-import {
-	MarkupToolId,
-	ShapeToolId,
-	type Tool,
-	UtilityToolId,
-} from '../../core/document/appTypes';
-import {
-	DRAWING_TOOL_DEFINITIONS,
-	type ToolDefinition,
-} from '../drawing/drawingToolCatalog';
-import { createToolButton } from '../workspace/genericToolbar';
+import type { Tool } from '../../core/document/appTypes';
+import { toolsForToolbar } from '../drawing/drawingToolCatalog';
+import { ToolButtonGroup } from '../workspace/genericToolbar';
 import { createManagedPanel } from '../workspace/managedPanel';
 import { ToolbarDock } from '../workspace/managedToolbarPanel';
 import { ToolbarAutoOpenMode, ToolbarId } from '../workspace/toolbarTypes';
+import { QA_REPORTING_TITLE } from './bugReportMetadata';
 
-const BUG_REPORT_VISIBLE_ROWS = 7;
+const ReportRows = { Steps: 4, Behaviour: 3, Markdown: 14 } as const;
+const ReportControlId = {
+	Title: 'annotationIssueTitle',
+	TicketUrl: 'annotationTicketUrl',
+	Steps: 'annotationSteps',
+	Expected: 'annotationExpected',
+	Actual: 'annotationActual',
+	Markdown: 'annotationReportText',
+} as const;
+const TextInputType = { Text: 'text', Url: 'url' } as const;
 
 /** Toolbar preferences key; distinct from the layers' document state. */
 export const ANNOTATION_TOOLBAR_KEY = 'annotationToolbar';
 
-/** The shared tools this toolbar offers for marking up a screenshot. */
-export const CAPTURE_TOOLS: readonly Tool[] = [
-	UtilityToolId.Select,
-	ShapeToolId.Arrow,
-	MarkupToolId.Number,
-	ShapeToolId.Rectangle,
-	MarkupToolId.Highlight,
-	MarkupToolId.Text,
-	MarkupToolId.Blur,
-	MarkupToolId.Redact,
-	UtilityToolId.Crop,
-];
+/** Derived from the shared catalogue; this panel owns no drawing-tool definitions. */
+export const CAPTURE_TOOLS: readonly Tool[] = toolsForToolbar(
+	ToolbarId.Annotations,
+).map((tool) => tool.id);
 
-/**
- * Capture & annotate: opens on its own after a browser capture. Its buttons
- * pick the same shared tools as the Tools panel, and it holds the bug report
- * that goes with the capture.
- */
+/** A view of the shared drawing tools with a document-persisted QA report form. */
 export class AnnotationPanel {
 	readonly element: HTMLElement;
 	readonly tools = document.createElement('div');
-	readonly reportPreview = document.createElement('textarea');
-	readonly expected = input('text', '', { placeholder: 'Expected result' });
-	readonly actual = input('text', '', { placeholder: 'Actual result' });
-	readonly includeUrl = checkbox(true);
-	readonly includeEnvironment = checkbox(true);
-	readonly copyReport = action('⧉', 'Copy report details');
+	readonly issueTitle = input(
+		ReportControlId.Title,
+		TextInputType.Text,
+		'Briefly describe the issue',
+	);
+	readonly ticketUrl = input(
+		ReportControlId.TicketUrl,
+		TextInputType.Url,
+		'https://your-tracker.example/browse/QA-123',
+	);
+	readonly steps = textarea(
+		ReportControlId.Steps,
+		ReportRows.Steps,
+		'1. Open the page\n2. Perform the action\n3. Observe the result',
+	);
+	readonly expected = textarea(
+		ReportControlId.Expected,
+		ReportRows.Behaviour,
+		'What should happen?',
+	);
+	readonly actual = textarea(
+		ReportControlId.Actual,
+		ReportRows.Behaviour,
+		'What happened instead?',
+	);
+	readonly reportPreview = textarea(
+		ReportControlId.Markdown,
+		ReportRows.Markdown,
+	);
+	readonly sourcePage = document.createElement('output');
+	readonly copyReport = action('Copy report');
+	readonly copyImage = action('Copy annotated screenshot');
+	readonly feedback = document.createElement('p');
+	readonly #toolButtons: ToolButtonGroup<Tool>;
 
 	constructor(selectTool: (tool: Tool) => void) {
 		const panel = createManagedPanel(
 			ToolbarId.Annotations,
-			'Capture & annotate',
+			QA_REPORTING_TITLE,
 			{
 				className: 'annotation-panel',
 				autoOpenMode: ToolbarAutoOpenMode.Annotate,
@@ -58,89 +76,111 @@ export class AnnotationPanel {
 		);
 		this.element = panel.element;
 		this.element.dataset.toolbarKey = ANNOTATION_TOOLBAR_KEY;
-		this.expected.id = 'annotationExpected';
-		this.actual.id = 'annotationActual';
-		this.includeUrl.id = 'annotationIncludeUrl';
-		this.includeEnvironment.id = 'annotationIncludeEnvironment';
-		this.reportPreview.id = 'annotationReportText';
+		const content = document.createElement('div');
+		content.className = 'annotation-content';
+		const introduction = document.createElement('p');
+		introduction.className = 'annotation-introduction';
+		introduction.textContent =
+			'Annotate a screenshot and prepare an issue report.';
 		this.tools.className = 'annotation-tool-grid';
-		this.tools.setAttribute('aria-label', 'Capture tools');
-		this.tools.append(...captureToolDefinitions().map(createToolButton));
-		this.tools.addEventListener('click', (event) => {
-			const tool = (event.target as HTMLElement).closest<HTMLElement>(
-				'[data-tool]',
-			)?.dataset.tool;
-			const chosen = CAPTURE_TOOLS.find((candidate) => candidate === tool);
-			if (chosen) selectTool(chosen);
-		});
-		const report = section(
-			'Bug report',
-			field('Expected', this.expected),
-			field('Actual', this.actual),
-			checkField('Include page URL', this.includeUrl),
-			checkField('Include environment', this.includeEnvironment),
+		this.tools.setAttribute('role', 'group');
+		this.tools.setAttribute('aria-label', 'Screenshot annotations');
+		this.#toolButtons = new ToolButtonGroup(
+			this.tools,
+			toolsForToolbar(ToolbarId.Annotations),
+			selectTool,
 		);
-		this.reportPreview.rows = BUG_REPORT_VISIBLE_ROWS;
-		this.reportPreview.setAttribute('aria-label', 'Editable bug report');
-		report.append(this.reportPreview, this.copyReport);
-		panel.body.append(this.tools, report);
+		this.sourcePage.className = 'annotation-source-page';
+		this.sourcePage.setAttribute('aria-label', 'Source page');
+		const issue = section(
+			'Issue details',
+			field('Issue title', this.issueTitle),
+			field('Issue ticket URL', this.ticketUrl),
+			field('Steps to reproduce', this.steps),
+			field('Expected behaviour', this.expected),
+			field('Actual behaviour', this.actual),
+		);
+		this.reportPreview.className = 'annotation-markdown';
+		this.reportPreview.setAttribute('aria-label', 'Editable Markdown report');
+		this.reportPreview.spellcheck = false;
+		const report = document.createElement('details');
+		report.className = 'annotation-report';
+		report.open = true;
+		const summary = document.createElement('summary');
+		summary.textContent = 'Markdown report';
+		const hint = document.createElement('p');
+		hint.className = 'annotation-report-hint';
+		hint.textContent =
+			'You can edit the Markdown before copying. Changing issue details regenerates the report.';
+		report.append(summary, hint, this.reportPreview);
+		content.append(
+			introduction,
+			section('Screenshot annotations', this.tools),
+			issue,
+			section('Source page', this.sourcePage),
+			report,
+		);
+		const footer = document.createElement('div');
+		footer.className = 'annotation-footer';
+		const actions = document.createElement('div');
+		actions.className = 'annotation-actions';
+		this.copyReport.classList.add('primary');
+		this.feedback.className = 'annotation-feedback';
+		this.feedback.setAttribute('role', 'status');
+		this.feedback.setAttribute('aria-live', 'polite');
+		actions.append(this.copyReport, this.copyImage);
+		footer.append(actions, this.feedback);
+		panel.body.append(content, footer);
 	}
 
-	/** Marks the shared tool in use, wherever it was chosen. */
 	showActiveTool(tool: Tool): void {
-		for (const button of this.tools.querySelectorAll<HTMLElement>('[data-tool]'))
-			button.classList.toggle('active', button.dataset.tool === tool);
+		this.#toolButtons.showActiveTool(tool);
 	}
-}
-
-function captureToolDefinitions(): ToolDefinition<Tool>[] {
-	return CAPTURE_TOOLS.flatMap((tool) => {
-		const definition = DRAWING_TOOL_DEFINITIONS.find(
-			(candidate) => candidate.id === tool,
-		);
-		return definition ? [definition] : [];
-	});
+	showFeedback(message: string, error = false): void {
+		this.feedback.textContent = message;
+		this.feedback.classList.toggle('error', error);
+	}
 }
 
 function input(
-	type: string,
-	value: string,
-	attributes: Record<string, string> = {},
+	id: string,
+	type: (typeof TextInputType)[keyof typeof TextInputType],
+	placeholder: string,
 ): HTMLInputElement {
-	const result = document.createElement('input');
-	result.type = type;
-	result.value = value;
-	Object.entries(attributes).forEach(([name, content]) =>
-		result.setAttribute(name, content),
-	);
-	return result;
+	const control = document.createElement('input');
+	control.id = id;
+	control.type = type;
+	control.placeholder = placeholder;
+	if (type === TextInputType.Url) {
+		control.autocomplete = 'off';
+		control.spellcheck = false;
+	}
+	return control;
 }
 
-function checkbox(checked: boolean): HTMLInputElement {
-	const result = input('checkbox', '');
-	result.checked = checked;
-	return result;
+function textarea(
+	id: string,
+	rows: number,
+	placeholder = '',
+): HTMLTextAreaElement {
+	const control = document.createElement('textarea');
+	control.id = id;
+	control.rows = rows;
+	control.placeholder = placeholder;
+	return control;
 }
 
-function action(icon: string, label: string): HTMLButtonElement {
+function action(label: string): HTMLButtonElement {
 	const button = document.createElement('button');
 	button.type = 'button';
 	button.className = 'annotation-action';
-	button.textContent = icon;
-	button.title = label;
-	button.setAttribute('aria-label', label);
+	button.textContent = label;
 	return button;
 }
 
 function field(label: string, control: HTMLElement): HTMLLabelElement {
 	const result = document.createElement('label');
 	result.append(document.createTextNode(label), control);
-	return result;
-}
-
-function checkField(label: string, control: HTMLInputElement): HTMLLabelElement {
-	const result = field(label, control);
-	result.className = 'annotation-check';
 	return result;
 }
 

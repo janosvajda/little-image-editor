@@ -19,7 +19,7 @@ function pointer(target: HTMLElement, type: string, x: number, y: number): void 
 }
 
 describe('retained stroke continuation', () => {
-	it('appends each brush gesture to the active paint layer', () => {
+	it('adds each brush gesture as a stroke item of the active layer', () => {
 		const model = new CanvasDocument(
 			document.querySelector<HTMLCanvasElement>('#canvas')!,
 			document.querySelector<HTMLCanvasElement>('#overlay')!,
@@ -70,19 +70,22 @@ describe('retained stroke continuation', () => {
 		pointer(model.overlay, 'pointermove', 70, 30);
 		pointer(model.overlay, 'pointerup', 70, 30);
 
-		const stroke = objects.object(id);
-		expect(objects.state.objects).toHaveLength(1);
-		expect(stroke?.type).toBe(AnnotationObjectTypeId.Stroke);
-		if (stroke?.type === AnnotationObjectTypeId.Stroke)
-			expect(stroke.points.at(-1)).toMatchObject({ x: 70, y: 30 });
+		const layerId = objects.layerOf(id)!.id;
+		const original = structuredClone(objects.object(id));
+		expect(objects.state.objects).toHaveLength(2);
+		const continued = objects.state.objects[1];
+		expect(continued).toMatchObject({ type: AnnotationObjectTypeId.Stroke, tool: PaintToolId.Brush });
+		if (continued?.type === AnnotationObjectTypeId.Stroke)
+			expect(continued.points.at(-1)).toMatchObject({ x: 70, y: 30 });
 
 		pointer(model.overlay, 'pointerdown', 10, 50);
 		pointer(model.overlay, 'pointermove', 5, 10);
 		pointer(model.overlay, 'pointerup', 5, 10);
-		const continuedFromStart = objects.object(id);
-		if (continuedFromStart?.type === AnnotationObjectTypeId.Stroke) {
-			expect(continuedFromStart.points.at(-1)).toMatchObject({ x: 5, y: 10 });
-			expect(continuedFromStart.pathStarts).toHaveLength(2);
-		}
+		const latest = objects.state.objects.at(-1);
+		if (latest?.type === AnnotationObjectTypeId.Stroke)
+			expect(latest.points.at(-1)).toMatchObject({ x: 5, y: 10 });
+		expect(objects.state.layers).toHaveLength(1);
+		expect(objects.layerItems(layerId)).toHaveLength(3);
+		expect(objects.object(id)).toEqual(original);
 	});
 });

@@ -17,7 +17,8 @@ test('a moved crop fragment does not block cropping another retained layer', asy
 	await expect(page.locator('.layer-item-row')).toHaveCount(2);
 
 	await page.locator('[data-panel="tools"] [data-tool="crop"]').click();
-	await drag(overlay, bounds.x + 90, bounds.y + 90, bounds.x + 210, bounds.y + 210, 3);
+	// A cut takes what is under its starting point, here the first rectangle.
+	await drag(overlay, bounds.x + 110, bounds.y + 110, bounds.x + 210, bounds.y + 210, 3);
 	await expect(page.locator('.layer-item-row')).toHaveCount(3);
 	await expect(page.locator('[data-panel="tools"] [data-tool="crop"]')).toHaveClass(/active/);
 
@@ -32,7 +33,7 @@ test('a moved crop fragment does not block cropping another retained layer', asy
 	});
 	expect(pixels.sourceAlpha).toBe(0);
 	expect(pixels.destinationAlpha).toBeGreaterThan(0);
-	await drag(overlay, bounds.x + 290, bounds.y + 90, bounds.x + 410, bounds.y + 210, 5);
+	await drag(overlay, bounds.x + 310, bounds.y + 110, bounds.x + 410, bounds.y + 210, 5);
 
 	await expect(page.locator('.layer-item-row')).toHaveCount(4);
 	await expect(page.locator('.layer-item-row.active')).toContainText('Pixels');

@@ -5,7 +5,7 @@ import { AnnotationObjectTypeId } from '../annotations/annotationTypes';
 import { LayersController } from './layersController';
 
 describe('layer object edit ownership', () => {
-	it('requests canvas edit ownership for the exact selected object', () => {
+	it('requests canvas edit ownership for the exact layer or item chosen', () => {
 		const model = new CanvasDocument(
 			document.querySelector<HTMLCanvasElement>('#canvas')!,
 			document.querySelector<HTMLCanvasElement>('#overlay')!,
@@ -21,16 +21,26 @@ describe('layer object edit ownership', () => {
 			opacity: 1,
 			blur: 0,
 		});
+		const layerId = objects.layerOf(objectId)!.id;
 		const controller = new LayersController(model, objects);
 		const editRequested = vi.fn();
+		const itemChosen = vi.fn();
 		controller.onEditRequested(editRequested);
+		controller.onItemChosen(itemChosen);
+
+		controller.panel.list
+			.querySelector<HTMLElement>(`[data-content-layer-id='${layerId}']`)!
+			.querySelector<HTMLButtonElement>('.layer-edit')!
+			.click();
+		expect(editRequested).toHaveBeenCalledWith(layerId);
+		expect(objects.selectedLayer?.id).toBe(layerId);
+		expect(objects.selectedId).toBeNull();
 
 		controller.panel.list
 			.querySelector<HTMLElement>(`[data-object-id='${objectId}']`)!
-			.querySelector<HTMLButtonElement>('.layer-edit')!
+			.querySelector<HTMLButtonElement>('.layer-name')!
 			.click();
-
-		expect(editRequested).toHaveBeenCalledWith(objectId);
+		expect(itemChosen).toHaveBeenCalledWith(objectId);
 		expect(objects.selectedId).toBe(objectId);
 	});
 });

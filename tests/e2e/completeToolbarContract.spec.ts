@@ -113,22 +113,22 @@ test("all drawing, adjustment, effect, transform, and annotation controls remain
   await page.locator("#resizeButton").click();
   await expect(page.locator("#dimensions")).toHaveText("150 × 90 px");
 
-  const annotationTools = ["Select", "Arrow", "Number", "Box", "Highlight", "Text", "Blur", "Redact", "Crop"];
+  const annotationTools = ["Select", "Arrow", "Number", "Rectangle", "Highlight", "Text", "Blur", "Redact", "Crop"];
   for (const name of annotationTools) {
     const button = toolbar(page, "annotations").getByRole("button", { name, exact: true });
     await button.click();
     await expect(button).toHaveClass(/active/);
   }
   await toolbar(page, "annotations").getByRole("button", { name: "Number", exact: true }).click();
-  await page.locator("#annotationMarkerValue").fill("7");
-  await page.locator("#annotationMarkerValue").press("Enter");
-  await expect(page.locator(".annotation-next-step")).toHaveText("Next marker: 7");
-  await page.getByRole("button", { name: "Restart numbering at 1" }).click();
-  await expect(page.locator(".annotation-next-step")).toHaveText("Next marker: 1");
+  await page.getByLabel("Next marker number").fill("7");
+  await page.getByLabel("Next marker number").press("Enter");
+  await expect(page.getByLabel("Next marker number")).toHaveValue("7");
+  await page.getByRole("button", { name: /Reset to 1/ }).click();
+  await expect(page.getByLabel("Next marker number")).toHaveValue("1");
   await page.locator("#annotationExpected").fill("Expected behavior");
   await page.locator("#annotationActual").fill("Actual behavior");
-  await expect(page.locator("#annotationReportText")).toHaveValue(/Expected: Expected behavior/);
-  await expect(page.locator("#annotationReportText")).toHaveValue(/Actual: Actual behavior/);
+  await expect(page.locator("#annotationReportText")).toHaveValue(/## Expected behaviour\n\nExpected behavior/);
+  await expect(page.locator("#annotationReportText")).toHaveValue(/## Actual behaviour\n\nActual behavior/);
   await page.locator("#annotationReportText").fill("Manually edited report");
   await expect(page.locator("#annotationReportText")).toHaveValue("Manually edited report");
 });

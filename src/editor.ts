@@ -98,7 +98,7 @@ if (!bugReportPreferences)
 	throw new Error(
 		'The annotations panel was not registered by ToolbarManager.',
 	);
-new BugReportController(documentModel, annotationPanel, bugReportPreferences);
+new BugReportController(documentModel, annotationPanel, bugReportPreferences, clipboard);
 const layerMerger = new LayerMerger(documentModel, vectorShapes);
 const layerCanvas = new ContentLayerCanvas(
 	documentModel,

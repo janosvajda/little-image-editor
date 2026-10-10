@@ -23,7 +23,10 @@ import { EditorLimit } from '../../core/document/editorLimits';
 import { ObjectSpatialIndex } from './objectSpatialIndex';
 import { strokeContainsPoint } from './strokeGeometry';
 import { RasterFragmentSurface } from './rasterFragmentSurface';
-import { createObjectPixelMask } from './objectErasures';
+import {
+	createObjectPixelMask,
+	objectPixelMasksAllowPoint,
+} from './objectErasures';
 import type {
 	HistoryCommit,
 	HistoryParticipant,
@@ -73,6 +76,14 @@ export const AnnotationChangeKind = {
 export type AnnotationChangeKind =
 	(typeof AnnotationChangeKind)[keyof typeof AnnotationChangeKind];
 
+/** Editing skips locked items; pointer targeting can inspect them without editing through them. */
+export const AnnotationHitTestScope = {
+	Editable: 'editable',
+	Visible: 'visible',
+} as const;
+export type AnnotationHitTestScope =
+	(typeof AnnotationHitTestScope)[keyof typeof AnnotationHitTestScope];
+
 export const AnnotationStackDirection = {
 	Forward: 'forward',
 	Backward: 'backward',
@@ -96,6 +107,8 @@ export class AnnotationDocument implements HistoryParticipant {
 	#history: AnnotationState[] = [cloneState(this.#state)];
 	#historyLinks: Array<LinkedHistoryDomain | null> = [null];
 	#historyIndex = 0;
+	/** Lives across edits and undo, so a deleted layer's number is not handed out again. */
+	#layerNumbering = new LayerNumbering([]);
 	#listeners = new Set<
 		(state: Readonly<AnnotationState>, change: AnnotationChangeKind) => void
 	>();
@@ -254,6 +267,7 @@ export class AnnotationDocument implements HistoryParticipant {
 		this.#history = [cloneState(this.#state)];
 		this.#historyLinks = [null];
 		this.#historyIndex = 0;
+		this.#layerNumbering = new LayerNumbering(layerNames(this.#state));
 		this.selectedId = null;
 		this.#selectedLayerId = null;
 		this.#activeLayerId = this.#state.layers.at(-1)?.id ?? null;
@@ -279,6 +293,9 @@ export class AnnotationDocument implements HistoryParticipant {
 		this.#historyLinks = normalizeHistoryLinks(
 			session.historyLinks,
 			this.#history.length,
+		);
+		this.#layerNumbering = new LayerNumbering(
+			this.#history.flatMap(layerNames),
 		);
 		this.selectedId = null;
 		this.#selectedLayerId = null;
@@ -642,10 +659,18 @@ export class AnnotationDocument implements HistoryParticipant {
 		const layer = this.#layerOfItem.get(id);
 		return Boolean(
 			object &&
-				object.visible !== false &&
 				object.locked !== true &&
 				layer &&
-				this.isLayerEditable(layer.id),
+				layer.locked !== true &&
+				this.isVisible(id),
+		);
+	}
+
+	isVisible(id: string): boolean {
+		const object = this.#objectsById.get(id);
+		const layer = this.#layerOfItem.get(id);
+		return Boolean(
+			object && object.visible !== false && layer && layer.visible !== false,
 		);
 	}
 
@@ -708,6 +733,7 @@ export class AnnotationDocument implements HistoryParticipant {
 	hitTest(
 		point: Point,
 		excludedIds: ReadonlySet<string> = EMPTY_OBJECT_IDS,
+		scope: AnnotationHitTestScope = AnnotationHitTestScope.Editable,
 	): AnnotationObject | null {
 		let topmost: AnnotationObject | null = null;
 		let topmostOrder = -1;
@@ -718,8 +744,9 @@ export class AnnotationDocument implements HistoryParticipant {
 				order <= topmostOrder ||
 				!object ||
 				excludedIds.has(id) ||
-				!this.isEditable(id) ||
-				!this.containsPoint(object, point)
+				!this.isVisible(id) ||
+				(scope === AnnotationHitTestScope.Editable && !this.isEditable(id)) ||
+				!this.containsPoint(object, point, scope)
 			)
 				continue;
 			topmost = object;
@@ -728,9 +755,19 @@ export class AnnotationDocument implements HistoryParticipant {
 		return topmost;
 	}
 
-	containsObjectPoint(id: string, point: Point): boolean {
+	containsObjectPoint(
+		id: string,
+		point: Point,
+		scope: AnnotationHitTestScope = AnnotationHitTestScope.Editable,
+	): boolean {
 		const object = this.object(id);
-		return object !== null && this.isEditable(id) && this.containsPoint(object, point);
+		const accessible =
+			scope === AnnotationHitTestScope.Visible
+				? this.isVisible(id)
+				: this.isEditable(id);
+		return (
+			object !== null && accessible && this.containsPoint(object, point, scope)
+		);
 	}
 
 	discardUncommitted(ids: ReadonlySet<string>): void {
@@ -854,6 +891,7 @@ export class AnnotationDocument implements HistoryParticipant {
 			mask.strokeSourceRect = { ...(source.sourceRect ?? source.rect) };
 		}
 		source.pixelCutouts.push(mask);
+		this.indexObject(source, sourceIndex);
 		this.insertAbove(fragment, id);
 		return fragment.id;
 	}
@@ -930,11 +968,10 @@ export class AnnotationDocument implements HistoryParticipant {
 
 	/** Creates an empty layer directly above the active layer, or above the image. */
 	private insertNewLayer(): ContentLayer {
+		this.#layerNumbering.observe(layerNames(this.#state));
 		const layer: ContentLayer = {
 			id: crypto.randomUUID(),
-			name: new LayerNumbering(
-				this.#state.layers.map((existing) => existing.name),
-			).next(),
+			name: this.#layerNumbering.next(),
 			itemIds: [],
 		};
 		const active = this.activeLayer;
@@ -1033,8 +1070,19 @@ export class AnnotationDocument implements HistoryParticipant {
 			this.#activeLayerId = null;
 	}
 
-	private containsPoint(object: AnnotationObject, point: Point): boolean {
-		if (object.type !== AnnotationObjectTypeId.RasterFragment) return containsPoint(object, point);
+	private containsPoint(
+		object: AnnotationObject,
+		point: Point,
+		scope: AnnotationHitTestScope,
+	): boolean {
+		if (object.type !== AnnotationObjectTypeId.RasterFragment) {
+			if (
+				scope === AnnotationHitTestScope.Visible &&
+				!objectPixelMasksAllowPoint(object, point, strokeHitTolerance(object))
+			)
+				return false;
+			return containsPoint(object, point);
+		}
 		if (!genericShape(object).contains(point)) return false;
 		let surface = this.#rasterHitSurfaces.get(object.id);
 		if (!surface) {
@@ -1085,6 +1133,10 @@ export class AnnotationDocument implements HistoryParticipant {
 	}
 }
 
+function layerNames(state: Readonly<AnnotationState>): string[] {
+	return state.layers.map(({ name }) => name);
+}
+
 export function isEphemeralAnnotationChange(
 	change: AnnotationChangeKind,
 ): boolean {
@@ -1104,17 +1156,19 @@ export function normalizedRect(from: Point, to: Point): CropRect {
 
 function containsPoint(object: AnnotationObject, point: Point): boolean {
 	if (object.type === AnnotationObjectTypeId.Stroke)
-		return strokeContainsPoint(
-			object,
-			point,
-			Math.max(ARROW_HIT_MINIMUM, object.size * ARROW_HIT_WIDTH_FACTOR),
-		);
+		return strokeContainsPoint(object, point, strokeHitTolerance(object));
 	if (object.type === AnnotationObjectTypeId.Arrow && !object.rotation)
 		return (
 			distanceToSegment(point, object.from, object.to) <=
 			Math.max(ARROW_HIT_MINIMUM, object.width * ARROW_HIT_WIDTH_FACTOR)
 		);
 	return genericShape(object).contains(point);
+}
+
+function strokeHitTolerance(object: AnnotationObject): number {
+	return object.type === AnnotationObjectTypeId.Stroke
+		? Math.max(ARROW_HIT_MINIMUM, object.size * ARROW_HIT_WIDTH_FACTOR)
+		: 0;
 }
 
 function interactionPadding(object: AnnotationObject): number {

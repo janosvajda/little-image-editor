@@ -14,7 +14,11 @@ import { GroupedToolPalette } from '../workspace/groupedToolPalette';
 import { ToolbarId, toolbarSelector } from '../workspace/toolbarTypes';
 import { CropSelectionKind } from './cropSelectionTypes';
 import type { StrokeOptions } from './drawingHelpers';
-import { drawingToolBehavior } from './drawingToolBehavior';
+import {
+	colorProfileOwner,
+	colorProfileOwnerOfItem,
+	drawingToolBehavior,
+} from './drawingToolBehavior';
 import {
 	BRUSH_TOOL_DEFINITIONS,
 	DRAWING_TOOL_DEFINITIONS,
@@ -42,9 +46,13 @@ const DrawingControlId = {
 	FillTolerance: 'fillToleranceInput',
 } as const;
 const TOOL_CONTROL_DEFAULTS = {
-	[MarkupToolId.Highlight]: { [DrawingControlId.Opacity]: HIGHLIGHT_OPACITY_PERCENT },
+	[MarkupToolId.Number]: { [DrawingControlId.Color]: ColorPalette.Red },
+	[MarkupToolId.Highlight]: {
+		[DrawingControlId.Opacity]: HIGHLIGHT_OPACITY_PERCENT,
+	},
 } as const;
 const PROFILED_DRAWING_CONTROL_IDS = [
+	DrawingControlId.Color,
 	DrawingControlId.Size,
 	DrawingControlId.Opacity,
 	DrawingControlId.Hardness,
@@ -98,6 +106,12 @@ export class DrawingToolControls implements DrawingToolSettings {
 			this.#selectedObjectProperties = new SelectedObjectPropertiesController(
 				shapes,
 				element('.tool-options', this.#toolsPanel),
+				(object, color) =>
+					this.#toolbar.setProfileControl(
+						colorProfileOwnerOfItem(object.type),
+						DrawingControlId.Color,
+						color,
+					),
 			);
 		this.#toolbar = new GenericToolbar<Tool>({
 			root: this.#toolsPanel,
@@ -131,6 +145,8 @@ export class DrawingToolControls implements DrawingToolSettings {
 			documentModel,
 			stateKey: 'drawing',
 			profiledControlIds: PROFILED_DRAWING_CONTROL_IDS,
+			profileOwner: (tool, controlId) =>
+				controlId === DrawingControlId.Color ? colorProfileOwner(tool) : tool,
 			toolDefaults: TOOL_CONTROL_DEFAULTS,
 		});
 		element('.tool-choosers').classList.add('hidden');
@@ -313,7 +329,7 @@ export class DrawingToolControls implements DrawingToolSettings {
 	private createCropOptions(): HTMLElement {
 		const root = document.createElement('div');
 		root.className = 'crop-tool-options hidden';
-		root.innerHTML = `<p class="tool-hint">Select an area, then drag inside it to move its pixels.</p>
+		root.innerHTML = `<p class="tool-hint">Start on the image or object you want to cut, select an area, then drag the cut-out to move it. Image cuts create a new layer.</p>
 			<div class="crop-selection-modes" role="group" aria-label="Crop selection mode">
 				<button type="button" class="crop-mode-button active" data-crop-selection-kind="${CropSelectionKind.Rectangle}" aria-label="Rectangle crop selection" aria-pressed="true" title="Rectangle selection">
 					<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="1"/></svg><span>Rectangle</span>
@@ -350,7 +366,8 @@ export class DrawingToolControls implements DrawingToolSettings {
 	/** The next number a marker gets; it belongs to the document, so it is not persisted here. */
 	private createMarkerOptions(shapes: AnnotationDocument): HTMLElement {
 		const root = document.createElement('div');
-		root.className = 'marker-tool-options hidden';
+		// The next number stays in view while the marker just placed is selected.
+		root.className = 'marker-tool-options tool-option-persistent hidden';
 		const label = document.createElement('label');
 		label.textContent = 'Next number ';
 		const next = document.createElement('input');
@@ -370,7 +387,9 @@ export class DrawingToolControls implements DrawingToolSettings {
 			const value = Number(next.value);
 			if (Number.isInteger(value)) shapes.restartSteps(value);
 		});
-		reset.addEventListener('click', () => shapes.restartSteps(MarkerNumber.First));
+		reset.addEventListener('click', () =>
+			shapes.restartSteps(MarkerNumber.First),
+		);
 		shapes.onChange((state) => {
 			if (document.activeElement !== next) next.value = String(state.nextStep);
 		});

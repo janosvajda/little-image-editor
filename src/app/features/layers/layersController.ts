@@ -382,8 +382,6 @@ export class LayersController {
 		this.#itemChoiceListeners.forEach((listener) => listener(itemId));
 	}
 
-
-
 	private toggleExpanded(layerId: string): void {
 		if (!this.#collapsedLayerIds.delete(layerId))
 			this.#collapsedLayerIds.add(layerId);

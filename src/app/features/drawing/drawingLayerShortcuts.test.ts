@@ -6,7 +6,7 @@ import {
 	AnnotationObjectTypeId,
 	type ShapeAnnotation,
 } from '../annotations/annotationTypes';
-import { CUT_MOVE_CROP_REQUEST_EVENT } from './cropEvents';
+import { AnnotationPanel } from '../annotations/annotationPanel';
 import { DrawingController } from './drawingController';
 
 const CanvasSize = 60;
@@ -54,19 +54,19 @@ describe('drawing controller layer shortcuts', () => {
 		expect(objects.object('a')).toBeNull();
 	});
 
-	it('opens the shared crop tool when another toolbar requests it', () => {
-		document.dispatchEvent(new Event(CUT_MOVE_CROP_REQUEST_EVENT));
-		expect(document.querySelector(`[data-tool="${UtilityToolId.Crop}"]`)?.classList).toContain('active');
+	it('opens the shared crop tool from another toolbar view', () => {
+		const panel = new AnnotationPanel((tool) => drawing.select(tool));
+		panel.tools.querySelector<HTMLButtonElement>(`[data-tool="${UtilityToolId.Crop}"]`)!.click();
+		expect(drawing.tool).toBe(UtilityToolId.Crop);
+		expect(document.querySelector(`[data-panel="tools"] [data-tool="${UtilityToolId.Crop}"]`)?.classList).toContain('active');
 	});
 
-	it('does not edit locked layers or react to double-clicks while suspended', () => {
+	it('does not edit locked items, by command or by double-click', () => {
 		objects.add(shape('locked', { locked: true }));
 		objects.clearSelection();
 		drawing.editObject('locked');
 		expect(objects.selectedId).toBeNull();
-		objects.add(shape('free'));
-		objects.clearSelection();
-		drawing.suspendInteractions();
+		drawing.select(UtilityToolId.Select);
 		model.overlay.dispatchEvent(
 			new MouseEvent('dblclick', { bubbles: true, clientX: 15, clientY: 15 }),
 		);

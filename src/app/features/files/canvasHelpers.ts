@@ -7,11 +7,28 @@ const PIXEL_CHANNEL_COUNT = 4;
 const ALPHA_CHANNEL_OFFSET = 3;
 const OPAQUE_ALPHA = 255;
 
-export function copyCanvas(source: HTMLCanvasElement): HTMLCanvasElement {
+export const CanvasCopyMode = {
+	Bitmap: 'bitmap',
+	Pixels: 'pixels',
+} as const;
+export type CanvasCopyMode =
+	(typeof CanvasCopyMode)[keyof typeof CanvasCopyMode];
+
+export function copyCanvas(
+	source: HTMLCanvasElement,
+	mode: CanvasCopyMode = CanvasCopyMode.Bitmap,
+): HTMLCanvasElement {
 	const copy = document.createElement('canvas');
 	copy.width = source.width;
 	copy.height = source.height;
-	canvasContext(copy).drawImage(source, 0, 0);
+	const context = canvasContext(copy);
+	if (mode === CanvasCopyMode.Pixels)
+		context.putImageData(
+			canvasContext(source).getImageData(0, 0, source.width, source.height),
+			0,
+			0,
+		);
+	else context.drawImage(source, 0, 0);
 	return copy;
 }
 
