@@ -1,3 +1,4 @@
+import { presentEditorIcons } from './app/shared/style/editorIcons';
 import type { Tool } from './app/core/document/appTypes';
 import {
 	EditorHistory,
@@ -25,10 +26,11 @@ import { EffectsController } from './app/features/effects/effectsController';
 import { ImageOperations } from './app/features/effects/imageOperationsController';
 import { ClipboardController } from './app/features/files/clipboardController';
 import { FileController } from './app/features/files/fileController';
+import { ImageExportController } from './app/features/files/imageExportController';
 import { NewImageController } from './app/features/files/newImageController';
 import { AssistantCommandRunner } from './app/features/assistant/assistantCommandRunner';
+import { DiagramImportController } from './app/features/diagrams/diagramImportController';
 import { imagePicture } from './app/features/files/imagePicture';
-import { isProjectFileName } from './app/features/files/openFileTypes';
 import { SessionPersistence } from './app/features/files/sessionPersistence';
 import { SpriteController } from './app/features/files/spriteController';
 import { LayerMerger } from './app/features/layers/layerMerge';
@@ -79,6 +81,7 @@ const files = new FileController(
 	documentModel,
 	() => vectorShapes.state.objects.length > 0,
 );
+const imageExport = new ImageExportController(documentModel, files);
 const clipboard = new ClipboardController(documentModel);
 const sprites = new SpriteController(documentModel);
 const annotationPanel = new AnnotationPanel((tool) => drawing.select(tool));
@@ -90,7 +93,9 @@ element<HTMLElement>(toolbarSelector(ToolbarId.Transform)).before(
 const workspaceUi = new WorkspaceUi([
 	newImage.dialog,
 	sprites.dialog,
+	element<HTMLDialogElement>('#diagramDialog'),
 	files.closeDialog,
+	imageExport.dialog,
 ]);
 workspaceUi.bindToolbarAvailability(documentModel);
 const docked = workspaceLayoutOf(platform) === WorkspaceLayout.Docked;
@@ -171,10 +176,12 @@ documentModel.onDocumentChange(({ hasImage, width, height }) => {
 	element('#canvasWrap').classList.toggle('hidden', !hasImage);
 });
 
+presentEditorIcons();
+
 void finishStartup();
 
 /** Opens the host's file, saves into it on request and reports edits, but not the opening itself. */
-function connectDocumentHost(host: PlatformDocumentHost): void {
+function connectDocumentHost(host: PlatformDocumentHost, assistant: AssistantCommandRunner): void {
 	host.onOpen(
 		(target) =>
 			void files
@@ -189,13 +196,11 @@ function connectDocumentHost(host: PlatformDocumentHost): void {
 	host.onCreate((fileName, image) =>
 		image ? newImage.createImage(fileName, image) : newImage.open(fileName),
 	);
-	const assistant = new AssistantCommandRunner(documentModel, vectorShapes, editorHistory);
 	host.onCommand((command) => assistant.run(command));
 	newImage.onCreate(() => host.changed());
 	host.onPictureRequested((maxSize) => imagePicture(documentModel, maxSize));
-	host.onSaveRequested((target) =>
-		isProjectFileName(target.name) ? projects.saveInto(target) : files.saveInto(target),
-	);
+	// The host chooses the file; saving it is the editor's own, as in every edition.
+	host.onSaveRequested((target) => files.saveInto(target));
 	// Opening resets the history, so only a step that can be undone is an edit.
 	documentModel.onHistoryChange((canUndo) => {
 		if (canUndo) host.changed();
@@ -261,8 +266,10 @@ const undo = () => editorHistory.undo();
 const redo = () => editorHistory.redo();
 undoButtons.forEach((button) => button.addEventListener('click', undo));
 redoButtons.forEach((button) => button.addEventListener('click', redo));
-// After the history, which the host's commands undo through.
-if (platform.document) connectDocumentHost(platform.document);
+// After the history, which assistant commands and diagram imports undo through.
+const assistantCommands = new AssistantCommandRunner(documentModel, vectorShapes, editorHistory);
+new DiagramImportController(documentModel, newImage, assistantCommands, element<HTMLDialogElement>('#diagramDialog'));
+if (platform.document) connectDocumentHost(platform.document, assistantCommands);
 
 const workspace = element<HTMLElement>('.workspace');
 for (const eventName of ['dragenter', 'dragover']) {
@@ -314,7 +321,7 @@ function handleModifiedShortcut(
 		: {
 				[ShortcutKey.FileMenu]: () => workspaceUi.openFileMenu(),
 				[ShortcutKey.NewImage]: () => newImage.open(),
-				[ShortcutKey.OpenImage]: () => files.open(),
+				[ShortcutKey.OpenImage]: () => void files.open(),
 			};
 	const commands: Readonly<Record<string, () => void>> = {
 		...menuCommands,

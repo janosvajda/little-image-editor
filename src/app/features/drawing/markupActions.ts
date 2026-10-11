@@ -171,9 +171,10 @@ export class MarkupActions {
 	}
 
 	/** Edits a text item in place; typing previews, Escape restores it. */
+	/** Edits a text item in place; the gesture that asked for it does not decide where, the text does. */
 	editText(
 		item: TextAnnotation,
-		client: Readonly<{ clientX: number; clientY: number }>,
+		_gesture: Readonly<{ clientX: number; clientY: number }>,
 	): void {
 		const original = structuredClone(item);
 		const apply = (text: string, commit: boolean) =>
@@ -189,10 +190,12 @@ export class MarkupActions {
 				commit,
 			);
 		this.objects.select(item.id);
+		// Over the drawn text, wherever the double-click landed on it, so the box covers the text exactly.
+		const start = this.screenPoint(item.at);
 		this.#textEditor.open({
 			value: item.text,
-			clientX: client.clientX,
-			clientY: client.clientY,
+			clientX: start.x,
+			clientY: start.y,
 			fontSize: item.size * this.screenScale(),
 			color: item.color,
 			onInput: (text) => apply(text, false),
@@ -204,6 +207,13 @@ export class MarkupActions {
 					false,
 				),
 		});
+	}
+
+	/** Where a document point is on screen, with the canvas's zoom and scroll. */
+	private screenPoint(point: Point): Point {
+		const bounds = this.documentModel.overlay.getBoundingClientRect();
+		const scale = this.screenScale();
+		return { x: bounds.left + point.x * scale, y: bounds.top + point.y * scale };
 	}
 
 	/** Screen pixels per document pixel, so the text box matches the drawn text. */

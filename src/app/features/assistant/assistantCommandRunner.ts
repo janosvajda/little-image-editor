@@ -1,3 +1,4 @@
+import { LineEnd } from '../annotations/lineEnd';
 import { ShapeToolId } from '../../core/document/appTypes';
 import type { CanvasDocument } from '../../core/document/imageDocument';
 import { normalizedRect, rectOrientation } from '../../core/geometry/geometryHelpers';
@@ -7,6 +8,7 @@ import {
 	type AnnotationObject,
 	AnnotationObjectTypeId,
 	type ContentLayer,
+	LineDash,
 } from '../annotations/annotationTypes';
 import {
 	type AssistantCommand,
@@ -14,6 +16,8 @@ import {
 	type AssistantResult,
 	type DescribedItem,
 	type DocumentDescription,
+	type DrawingCommand,
+	SHORT_ID_LENGTH,
 } from './assistantCommandTypes';
 
 const NO_IMAGE_MESSAGE = 'No image is open in the editor; create or open one first.';
@@ -36,9 +40,79 @@ export class AssistantCommandRunner {
 		switch (command.kind) {
 			case AssistantCommandKind.Describe:
 				return { document: this.describe() };
+			case AssistantCommandKind.RemoveItem: {
+				const item = this.findItem(command.item);
+				this.objects.remove(item.id);
+				return { removed: item.id };
+			}
+			case AssistantCommandKind.Undo: {
+				const undone = this.history.canUndo;
+				this.history.undo();
+				return { undone };
+			}
+			case AssistantCommandKind.Batch:
+				return { batch: this.runBatch(command.commands) };
+			default:
+				return this.draw(command);
+		}
+	}
+
+	/** Runs drawing commands as one undo step; when one fails, none of them stays. */
+	private runBatch(commands: readonly DrawingCommand[]): { layers: string[]; items: number } {
+		const layers: string[] = [];
+		let items = 0;
+		this.objects.transact(() => {
+			commands.forEach((command, index) => {
+				try {
+					const result = this.draw(command);
+					if ('itemId' in result) items++;
+					else if ('layerId' in result) layers.push(result.layerName);
+				} catch (error) {
+					throw new Error(`Step ${index + 1}: ${error instanceof Error ? error.message : String(error)}`);
+				}
+			});
+		});
+		return { layers, items };
+	}
+
+	/** A straight, solid line stays a line shape; bends, dashes or named ends make one connector. */
+	private addLine(command: Extract<DrawingCommand, { kind: typeof AssistantCommandKind.AddLine }>): AssistantResult {
+		if (command.via?.length || command.dashed || command.head || command.tail)
+			return this.addItem(command.layer, {
+				id: crypto.randomUUID(),
+				type: AnnotationObjectTypeId.Connector,
+				points: [command.from, ...(command.via ?? []), command.to],
+				color: command.color,
+				width: command.width,
+				opacity: command.opacity,
+				arrow: command.head ? command.head !== LineEnd.None : command.arrow,
+				dash: command.dashed ? LineDash.Dashed : LineDash.Solid,
+				...(command.head ? { head: command.head } : {}),
+				...(command.tail ? { tail: command.tail } : {}),
+			});
+		return this.addItem(command.layer, {
+			id: crypto.randomUUID(),
+			type: AnnotationObjectTypeId.Shape,
+			shape: command.arrow ? ShapeToolId.Arrow : ShapeToolId.Line,
+			rect: normalizedRect(command.from, command.to),
+			...rectOrientation(command.from, command.to),
+			rotation: 0,
+			color: command.color,
+			width: command.width,
+			opacity: command.opacity,
+			fill: false,
+		});
+	}
+
+	private draw(command: DrawingCommand): AssistantResult {
+		switch (command.kind) {
 			case AssistantCommandKind.AddLayer: {
-				const layerId = this.objects.createLayer();
-				if (command.name) this.objects.setLayerAppearance(layerId, { name: command.name });
+				let layerId = '';
+				// Creating and naming the layer is one step, so one undo removes it.
+				this.objects.transact(() => {
+					layerId = this.objects.createLayer();
+					if (command.name) this.objects.setLayerAppearance(layerId, { name: command.name });
+				});
 				return { layerId, layerName: this.objects.layerName(layerId) };
 			}
 			case AssistantCommandKind.AddShape:
@@ -52,20 +126,10 @@ export class AssistantCommandRunner {
 					width: command.strokeWidth,
 					opacity: command.opacity,
 					fill: command.fill,
+					...(command.fill && command.fillColor ? { fillColor: command.fillColor } : {}),
 				});
 			case AssistantCommandKind.AddLine:
-				return this.addItem(command.layer, {
-					id: crypto.randomUUID(),
-					type: AnnotationObjectTypeId.Shape,
-					shape: command.arrow ? ShapeToolId.Arrow : ShapeToolId.Line,
-					rect: normalizedRect(command.from, command.to),
-					...rectOrientation(command.from, command.to),
-					rotation: 0,
-					color: command.color,
-					width: command.width,
-					opacity: command.opacity,
-					fill: false,
-				});
+				return this.addLine(command);
 			case AssistantCommandKind.AddText:
 				return this.addItem(command.layer, {
 					id: crypto.randomUUID(),
@@ -75,18 +139,19 @@ export class AssistantCommandRunner {
 					color: command.color,
 					size: command.size,
 				});
-			case AssistantCommandKind.RemoveItem: {
-				const item = this.objects.object(command.item);
-				if (!item) throw new Error(`No item has the id ${command.item}.`);
-				this.objects.remove(item.id);
-				return { removed: item.id };
-			}
-			case AssistantCommandKind.Undo: {
-				const undone = this.history.canUndo;
-				this.history.undo();
-				return { undone };
-			}
 		}
+	}
+
+	/** An item by its id, or by the start of it as assistants are shown. */
+	private findItem(reference: string): AnnotationObject {
+		const exact = this.objects.object(reference);
+		if (exact) return exact;
+		const matches =
+			reference.length >= SHORT_ID_LENGTH ? this.objects.state.objects.filter(({ id }) => id.startsWith(reference)) : [];
+		if (matches.length === 1) return matches[0]!;
+		throw new Error(
+			matches.length ? `Several items start with ${reference}; give more of the id.` : `No item has the id ${reference}.`,
+		);
 	}
 
 	/** Adds an item on top of a layer, or of the active layer, without leaving it selected. */
@@ -108,9 +173,11 @@ export class AssistantCommandRunner {
 	private findLayer(idOrName: string): ContentLayer {
 		const layers = this.objects.state.layers;
 		const wanted = idOrName.toLowerCase();
+		const startsWith = layers.filter(({ id }) => id.startsWith(idOrName));
 		const layer =
 			layers.find(({ id }) => id === idOrName) ??
-			layers.find(({ name }) => name.toLowerCase() === wanted);
+			layers.find(({ name }) => name.toLowerCase() === wanted) ??
+			(idOrName.length >= SHORT_ID_LENGTH && startsWith.length === 1 ? startsWith[0] : undefined);
 		if (layer) return layer;
 		const names = layers.map(({ name }) => `"${name}"`).join(', ') || 'none yet';
 		throw new Error(`No layer is called "${idOrName}". The layers are: ${names}.`);

@@ -1,4 +1,5 @@
 import type { Tool } from '../../core/document/appTypes';
+import { createEditorIcon, EditorIconId } from '../../shared/style/editorIcons';
 import { toolsForToolbar } from '../drawing/drawingToolCatalog';
 import { ToolButtonGroup } from '../workspace/genericToolbar';
 import { createManagedPanel } from '../workspace/managedPanel';
@@ -59,8 +60,8 @@ export class AnnotationPanel {
 		ReportRows.Markdown,
 	);
 	readonly sourcePage = document.createElement('output');
-	readonly copyReport = action('Copy report');
-	readonly copyImage = action('Copy annotated screenshot');
+	readonly copyReport = action('Copy report', EditorIconId.Report);
+	readonly copyImage = action('Copy annotated screenshot', EditorIconId.Copy);
 	readonly feedback = document.createElement('p');
 	readonly #toolButtons: ToolButtonGroup<Tool>;
 
@@ -170,11 +171,12 @@ function textarea(
 	return control;
 }
 
-function action(label: string): HTMLButtonElement {
+function action(label: string, icon: EditorIconId): HTMLButtonElement {
 	const button = document.createElement('button');
 	button.type = 'button';
 	button.className = 'annotation-action';
 	button.textContent = label;
+	button.prepend(createEditorIcon(icon));
 	return button;
 }
 

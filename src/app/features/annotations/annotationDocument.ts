@@ -176,6 +176,29 @@ export class AnnotationDocument implements HistoryParticipant {
 	}
 
 	/**
+	 * Runs several changes as one undo step. If one of them fails, the
+	 * document, its selection and its history return to how they were.
+	 */
+	transact(changes: () => void): void {
+		const restore = this.createCheckpoint();
+		const start = this.#history[this.#historyIndex];
+		try {
+			changes();
+		} catch (error) {
+			restore();
+			throw error;
+		}
+		// The steps may have pushed the oldest history out, so the start is found again.
+		const first = this.#history.indexOf(start!) + 1;
+		const steps = this.#historyIndex - first + 1;
+		if (steps <= 1) return;
+		this.#history.splice(first, steps, this.#history[this.#historyIndex]!);
+		this.#historyLinks.splice(first, steps, this.#historyLinks[this.#historyIndex] ?? null);
+		this.#historyIndex = first;
+		this.emitHistory();
+	}
+
+	/**
 	 * The layer that receives new items and above which new layers are
 	 * created. `null` means the image layer. It survives tool changes and
 	 * deselection.
@@ -1162,6 +1185,15 @@ function containsPoint(object: AnnotationObject, point: Point): boolean {
 			distanceToSegment(point, object.from, object.to) <=
 			Math.max(ARROW_HIT_MINIMUM, object.width * ARROW_HIT_WIDTH_FACTOR)
 		);
+	// A connector is hit along its pieces, not anywhere in the box around its bends.
+	if (object.type === AnnotationObjectTypeId.Connector && !object.rotation)
+		return object.points
+			.slice(1)
+			.some(
+				(end, index) =>
+					distanceToSegment(point, object.points[index]!, end) <=
+					Math.max(ARROW_HIT_MINIMUM, object.width * ARROW_HIT_WIDTH_FACTOR),
+			);
 	return genericShape(object).contains(point);
 }
 

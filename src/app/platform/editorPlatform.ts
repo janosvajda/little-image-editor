@@ -59,6 +59,23 @@ export async function writeToTarget(
 	await writer.close();
 }
 
+/**
+ * A save target that hands what is written to the user as a download, where
+ * no save location can be chosen; it cannot be written again later.
+ */
+export function downloadTarget(files: Pick<PlatformFiles, 'download'>, name: string): SaveTarget {
+	return {
+		name,
+		createWritable: () => {
+			const parts: Blob[] = [];
+			return Promise.resolve({
+				write: async (contents) => void parts.push(contents),
+				close: async () => files.download(new Blob(parts, { type: parts[0]?.type }), name),
+			});
+		},
+	};
+}
+
 /** A chosen file that can be read now and written back later. */
 export interface OpenTarget extends SaveTarget {
 	getFile(): Promise<File>;

@@ -1,4 +1,5 @@
 import type { KeyValueStorage } from '../../platform/editorPlatform';
+import { createEditorIcon, EditorIconId } from '../../shared/style/editorIcons';
 import { ToolbarId } from './toolbarTypes';
 
 const DockClass = {
@@ -20,27 +21,22 @@ const DockText = {
 	ToolOptions: 'Tool options',
 	Toolbars: 'Toolbars',
 	Close: 'Hide panel',
-	CloseGlyph: '×',
 } as const;
 const OPEN_PANEL_KEY = 'little-editor.docked-panel';
 const PANEL_SELECTOR = '[data-panel]';
 const PANEL_TITLE_SELECTOR = ':scope > .panel-header > span';
-const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
-const ICON_VIEW_BOX = '0 0 24 24';
 /** The most used toolbar leads the rail; the rest follow in page order. */
 const LEADING_PANELS: readonly string[] = [ToolbarId.Layers];
 
 type RailToolbarId = Exclude<ToolbarId, typeof ToolbarId.Tools>;
-/** Outline icons drawn like the quick actions' icons. */
-const RAIL_ICONS: Readonly<Record<RailToolbarId, string>> = {
-	[ToolbarId.Layers]: 'M12 3 3 8l9 5 9-5-9-5ZM3 12.5l9 5 9-5M3 17l9 5 9-5',
-	[ToolbarId.Adjust]: 'M4 7h9m4 0h3M4 17h3m4 0h9M15 5v4M9 15v4',
-	[ToolbarId.Effects]:
-		'M12 3v4m0 10v4M3 12h4m10 0h4M6 6l2.5 2.5m7 7L18 18M6 18l2.5-2.5m7-7L18 6',
-	[ToolbarId.Annotations]: 'M5 21V4h12l-2.5 4L17 12H5',
-	[ToolbarId.Transform]: 'M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5',
+/** The host rail uses the same artwork as the shared toolbar views. */
+const RAIL_ICONS: Readonly<Record<RailToolbarId, EditorIconId>> = {
+	[ToolbarId.Layers]: EditorIconId.Layers,
+	[ToolbarId.Adjust]: EditorIconId.Adjust,
+	[ToolbarId.Effects]: EditorIconId.Effects,
+	[ToolbarId.Annotations]: EditorIconId.Report,
+	[ToolbarId.Transform]: EditorIconId.Transform,
 };
-const FALLBACK_ICON = 'M4 4h16v16H4z';
 
 /** The parts of the editor that the docked layout arranges. */
 export interface DockedWorkspaceParts {
@@ -153,7 +149,7 @@ export class DockedWorkspace {
 		close.className = `${DockClass.IconButton} ${DockClass.PanelClose}`;
 		close.title = DockText.Close;
 		close.setAttribute('aria-label', DockText.Close);
-		close.textContent = DockText.CloseGlyph;
+		close.append(createEditorIcon(EditorIconId.Close));
 		close.addEventListener('click', () => this.show(null));
 		header.append(this.#title, close);
 		this.#pages.className = DockClass.Pages;
@@ -173,7 +169,7 @@ export class DockedWorkspace {
 		button.dataset.dockPanel = key;
 		button.title = title;
 		button.setAttribute('aria-label', title);
-		button.append(icon(isRailToolbar(key) ? RAIL_ICONS[key] : FALLBACK_ICON));
+		button.append(createEditorIcon(isRailToolbar(key) ? RAIL_ICONS[key] : EditorIconId.Toolbars));
 		button.addEventListener('click', () => this.toggle(key));
 		this.#rail.append(button);
 	}
@@ -185,16 +181,6 @@ function titleOf(panel: HTMLElement): string {
 
 function isRailToolbar(key: string): key is RailToolbarId {
 	return key in RAIL_ICONS;
-}
-
-function icon(path: string): SVGSVGElement {
-	const svg = document.createElementNS(SVG_NAMESPACE, 'svg');
-	svg.setAttribute('viewBox', ICON_VIEW_BOX);
-	svg.setAttribute('aria-hidden', 'true');
-	const shape = document.createElementNS(SVG_NAMESPACE, 'path');
-	shape.setAttribute('d', path);
-	svg.append(shape);
-	return svg;
 }
 
 function inRailOrder(panels: readonly HTMLElement[]): HTMLElement[] {

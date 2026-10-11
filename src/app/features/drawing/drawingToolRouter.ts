@@ -22,7 +22,8 @@ import {
 import { CropTool } from './cropTool';
 import { drawingLayerTargetAt } from './drawingLayerTarget';
 import { DrawingImageActions } from './drawingImageActions';
-import { isMarkupTool, isPaintTool, isShapeTool } from './drawingToolBehavior';
+import { isConnectorTool, isMarkupTool, isPaintTool, isShapeTool } from './drawingToolBehavior';
+import { ConnectorDrawingGesture } from './gestures/connectorDrawingGesture';
 import type { DrawingToolSettings } from './drawingToolSettings';
 import { BaseImagePaintGesture } from './gestures/baseImagePaintGesture';
 import type { DrawingGesture } from './gestures/drawingGesture';
@@ -81,6 +82,7 @@ export class DrawingToolRouter {
 		if (tool === PaintToolId.Eraser)
 			return this.beginErasure(point, event.pressure);
 		if (isMarkupTool(tool)) return this.beginMarkup(tool, point, event);
+		if (isConnectorTool(tool)) return this.beginConnector(point);
 		const shape = isShapeTool(tool)
 			? new ShapeDrawingGesture(
 					this.documentModel,
@@ -106,6 +108,18 @@ export class DrawingToolRouter {
 		if (shape) return shape;
 		this.runImmediateTool(tool, point, event);
 		return null;
+	}
+
+	/** Connectors are items, so they are drawn only where the document keeps items. */
+	private beginConnector(point: Point): DrawingGesture | null {
+		if (!this.shapes) return null;
+		return new ConnectorDrawingGesture(
+			this.documentModel,
+			this.shapes,
+			point,
+			() => this.settings.strokeOptions(),
+			() => this.settings.lineEnds(),
+		);
 	}
 
 	/** Highlight, blur and redaction are dragged out; numbers and text are placed by a click. */

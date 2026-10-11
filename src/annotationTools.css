@@ -9,12 +9,14 @@
     position: fixed;
     z-index: 10000;
     min-width: 8ch;
+    /* As wide as the text, growing while typing, so it covers the drawn text instead of scrolling it. */
+    field-sizing: content;
     padding: 2px 4px;
     border: 1px solid var(--accent);
     border-radius: 3px;
     outline: 2px solid color-mix(in srgb, var(--accent) 25%, var(--color-transparent));
     background: var(--surface);
-    font-family: system-ui, sans-serif;
+    /* The box starts at the text's baseline start, one line above it. */
     transform: translateY(-1em)
 }
 

@@ -20,6 +20,7 @@ const ItemTypeLabel: Readonly<Record<AnnotationObject['type'], string>> = {
 	[AnnotationObjectTypeId.Stroke]: 'Stroke',
 	[AnnotationObjectTypeId.Fill]: 'Fill',
 	[AnnotationObjectTypeId.RasterFragment]: 'Pixels',
+	[AnnotationObjectTypeId.Connector]: 'Connector',
 };
 const STROKE_SUFFIX = ' stroke';
 const TEXT_PREVIEW_LENGTH = 24;

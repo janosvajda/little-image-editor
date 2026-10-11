@@ -39,11 +39,11 @@ describe('text positioning from browser events', () => {
 		expect(objects.state.objects).toHaveLength(0);
 	});
 
-	it('opens editing at double-click event coordinates and restores cancelled text', () => {
+	it('opens editing over the text itself and restores cancelled text', () => {
 		const item: TextAnnotation = { id: 'label', type: AnnotationObjectTypeId.Text, at: Position, text: 'Original label', size: 20, color: Style.color, rect: textFrame(Position, 'Original label', 20) };
 		objects.add(item);
 		markup.editText(item, new MouseEvent('dblclick', Click));
-		const input = positionedInput();
+		const input = positionedInput({ clientX: Position.x, clientY: Position.y });
 		input.value = 'Preview';
 		input.dispatchEvent(new Event('input'));
 		expect(objects.object(item.id)).toMatchObject({ text: 'Preview' });
@@ -53,10 +53,10 @@ describe('text positioning from browser events', () => {
 	});
 });
 
-function positionedInput(): HTMLInputElement {
+function positionedInput(at: Readonly<{ clientX: number; clientY: number }> = Click): HTMLInputElement {
 	const input = document.querySelector<HTMLInputElement>(InlineText)!;
 	expect(document.activeElement).toBe(input);
-	expect(input.style.left).toBe(`${Click.clientX}px`);
-	expect(input.style.top).toBe(`${Click.clientY}px`);
+	expect(input.style.left).toBe(`${at.clientX}px`);
+	expect(input.style.top).toBe(`${at.clientY}px`);
 	return input;
 }

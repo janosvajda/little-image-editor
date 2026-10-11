@@ -1,8 +1,10 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
+import { ImageMimeType } from '../../../app/core/document/appTypes';
 import { registerEditingTools } from './editingTools';
-import { canEdit, type OpenImages } from './openImages';
+import { registerExportTools } from './exportTools';
+import { canEdit, canExport, type OpenImages } from './openImages';
+import { textResult } from './toolResults';
 
 export const ImageTool = {
 	List: 'list_images',
@@ -10,15 +12,16 @@ export const ImageTool = {
 } as const;
 
 const PictureSize = {
-	/** About what vision models look at without scaling the picture down again. */
-	Default: 1568,
+	/** Enough to check a drawing; a picture costs tokens by its area, so larger ones are asked for when needed. */
+	Default: 768,
 	Minimum: 64,
 	Maximum: 4096,
 } as const;
-const PNG_MIME_TYPE = 'image/png';
 const BASE64 = 'base64';
 const NO_IMAGES_MESSAGE =
 	'No image is open in Little Image Editor. Open an image or a .limg project in VS Code with Little Image Editor first.';
+const ASSISTANT_INSTRUCTIONS =
+	'Little Image Editor in VS Code: images with editable layers. To draw, send the whole picture in one draw call (one undo step) rather than many add_* calls. For an architecture, flow, state, class or sequence diagram, including one made from code you have read, pass Mermaid as draw\'s diagram; it is laid out automatically into editable shapes. Use describe_image before changing existing work, and view_image only when you need to see the result. Group parts on named layers. For a requested asset file, use export_image with the workspace PNG path.';
 
 /** The server's name and version, as an assistant's client lists them. */
 export interface ImageToolsIdentity {
@@ -27,39 +30,42 @@ export interface ImageToolsIdentity {
 }
 
 /** The tools that let an assistant see the images open in the editor. */
-export function createImageToolServer(images: OpenImages, identity: ImageToolsIdentity): McpServer {
-	const server = new McpServer(identity);
+export function createImageToolServer(
+	images: OpenImages,
+	identity: ImageToolsIdentity,
+): McpServer {
+	const server = new McpServer(identity, {
+		instructions: ASSISTANT_INSTRUCTIONS,
+	});
 	server.registerTool(
 		ImageTool.List,
 		{
-			title: 'List open images',
-			description:
-				'Lists the images and .limg projects open in Little Image Editor in VS Code, with the id to pass to the other tools. The active one is where the user is working.',
+			description: 'Lists the open images and which one is active.',
 			annotations: { readOnlyHint: true },
 		},
 		() => {
 			const open = images.list();
-			return textResult(open.length ? JSON.stringify(open, null, 2) : NO_IMAGES_MESSAGE);
+			return textResult(
+				open.length ? JSON.stringify(open) : NO_IMAGES_MESSAGE,
+			);
 		},
 	);
 	server.registerTool(
 		ImageTool.View,
 		{
-			title: 'View an open image',
-			description:
-				'Returns a picture of an image open in Little Image Editor: every visible layer and object, as the user sees it. Without an image id or name it shows the active image.',
+			description: `Returns a picture of the image as the user sees it, ${PictureSize.Default}px by default; larger pictures cost more tokens.`,
 			inputSchema: {
 				image: z
 					.string()
 					.optional()
-					.describe('The id or file name from list_images; leave out for the active image.'),
+					.describe('Image id or name; default: active image.'),
 				max_size: z
 					.number()
 					.int()
 					.min(PictureSize.Minimum)
 					.max(PictureSize.Maximum)
 					.optional()
-					.describe(`The picture's longer side in pixels, ${PictureSize.Default} by default; a smaller image keeps its own size.`),
+					.describe('Longer side in pixels.'),
 			},
 			annotations: { readOnlyHint: true },
 		},
@@ -68,7 +74,11 @@ export function createImageToolServer(images: OpenImages, identity: ImageToolsId
 				const view = await images.view(image, max_size ?? PictureSize.Default);
 				return {
 					content: [
-						{ type: 'image', data: Buffer.from(view.png).toString(BASE64), mimeType: PNG_MIME_TYPE },
+						{
+							type: 'image',
+							data: Buffer.from(view.png).toString(BASE64),
+							mimeType: ImageMimeType.Png,
+						},
 						{
 							type: 'text',
 							text: `${view.name}: ${view.imageWidth} × ${view.imageHeight} px, shown at ${view.width} × ${view.height} px.`,
@@ -76,14 +86,15 @@ export function createImageToolServer(images: OpenImages, identity: ImageToolsId
 					],
 				};
 			} catch (error) {
-				return textResult(error instanceof Error ? error.message : String(error), true);
+				return textResult(
+					error instanceof Error ? error.message : String(error),
+					true,
+				);
 			}
 		},
 	);
 	if (canEdit(images)) registerEditingTools(server, images);
+	if (canExport(images)) registerExportTools(server, images);
 	return server;
 }
 
-function textResult(text: string, isError = false): CallToolResult {
-	return { content: [{ type: 'text', text }], isError };
-}

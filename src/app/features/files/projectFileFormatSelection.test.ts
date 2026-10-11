@@ -20,13 +20,14 @@ describe('Project file format selection', () => {
 			background: '#ffffff',
 		});
 
-		const format = document.querySelector<HTMLSelectElement>('#formatSelect')!;
-		expect([...format.options].map((option) => option.value)).toContain(
-			PROJECT_MIME_TYPE,
-		);
-		format.value = PROJECT_MIME_TYPE;
-
+		const picker = vi.fn().mockRejectedValue(new DOMException('cancelled', 'AbortError'));
+		Object.defineProperty(window, 'showSaveFilePicker', { configurable: true, value: picker });
 		await files.saveAs();
+		expect(picker.mock.calls[0]![0].types.map((type: { accept: Record<string, string[]> }) => Object.keys(type.accept))).toContainEqual([
+			PROJECT_MIME_TYPE,
+		]);
+
+		await files.saveAs(PROJECT_MIME_TYPE);
 
 		expect(saveProject).toHaveBeenCalledOnce();
 		expect(saveProject).toHaveBeenCalledWith(true);

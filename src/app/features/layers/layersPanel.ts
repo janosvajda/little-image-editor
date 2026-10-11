@@ -1,3 +1,4 @@
+import { createEditorIcon, EditorIconId } from '../../shared/style/editorIcons';
 import {
 	BLEND_MODE_LABELS,
 	type BlendMode,
@@ -81,18 +82,22 @@ export class LayersPanel {
 		this.newPaintLayerButton.type = 'button';
 		this.newPaintLayerButton.className = 'icon-text-button layer-new-paint';
 		this.newPaintLayerButton.textContent = '+ New layer';
+		this.newPaintLayerButton.prepend(createEditorIcon(EditorIconId.NewLayer));
 		this.newPaintLayerButton.title = 'Create a new layer above the active layer';
 		this.duplicateLayerButton.type = 'button';
 		this.duplicateLayerButton.className = 'icon-text-button layer-duplicate';
 		this.duplicateLayerButton.textContent = 'Duplicate';
+		this.duplicateLayerButton.prepend(createEditorIcon(EditorIconId.Copy));
 		this.duplicateLayerButton.title = 'Duplicate the active layer';
 		this.mergeDownButton.type = 'button';
 		this.mergeDownButton.className = 'icon-text-button layer-merge-down';
 		this.mergeDownButton.textContent = 'Merge down';
+		this.mergeDownButton.prepend(createEditorIcon(EditorIconId.MergeDown));
 		this.mergeDownButton.title = 'Merge the active layer into the layer beneath it';
 		this.flattenButton.type = 'button';
 		this.flattenButton.className = 'icon-text-button layer-flatten';
 		this.flattenButton.textContent = 'Flatten';
+		this.flattenButton.prepend(createEditorIcon(EditorIconId.Flatten));
 		this.flattenButton.title = 'Bake all visible layers into the image';
 		actions.append(
 			this.newPaintLayerButton,

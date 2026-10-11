@@ -37,3 +37,5 @@ Thumbs.db
 
 # Written by Little Image Editor's "Connect to Claude Code": this computer's server address and private key.
 .mcp.json
+# Written by "Connect to Codex": this computer's server address and private key.
+.codex/config.toml

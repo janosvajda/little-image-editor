@@ -4,6 +4,7 @@ import type {
 	NewImageSpec,
 } from '../../../app/features/assistant/assistantCommandTypes';
 import type { FileBytes } from '../vscodeMessages';
+import type { ImageExtension } from '../../../app/core/document/imageFormats';
 
 /** An image open in the editor, as an assistant sees it in a list. */
 export interface OpenImageSummary {
@@ -39,6 +40,30 @@ export interface EditableImages extends OpenImages {
 	command(image: string | undefined, command: AssistantCommand): Promise<AssistantResult>;
 	/** Opens a new, unsaved image and makes it the active one. */
 	create(name: string | undefined, spec: NewImageSpec): Promise<OpenImageSummary>;
+}
+
+/** A raster copy to write into a workspace, independently of the editable document. */
+export interface ImageExportRequest {
+	readonly path: string;
+	/** Choose a workspace folder by name or absolute path in a multi-root window. */
+	readonly workspace?: string;
+	readonly overwrite: boolean;
+}
+
+export interface ImageExportResult {
+	readonly path: string;
+	readonly format: typeof ImageExtension.Png;
+	readonly width: number;
+	readonly height: number;
+	readonly bytesWritten: number;
+}
+
+export interface ExportableImages extends OpenImages {
+	export(image: string | undefined, request: ImageExportRequest): Promise<ImageExportResult>;
+}
+
+export function canExport(images: OpenImages): images is ExportableImages {
+	return 'export' in images && typeof images.export === 'function';
 }
 
 export function canEdit(images: OpenImages): images is EditableImages {

@@ -1,3 +1,4 @@
+import { EditorIconId, editorIconMarkup } from '../../shared/style/editorIcons';
 import {
 	clampDimension,
 	linkedDimension,
@@ -92,11 +93,11 @@ export class NewImageController {
 	private addDynamicControls(): void {
 		element('#openButton').insertAdjacentHTML(
 			'beforebegin',
-			'<button id="newImageButton" role="menuitem"><span>New image…</span><kbd>Ctrl/⌘+N</kbd></button>',
+			`<button id="newImageButton" role="menuitem"><span class="menu-action-copy">${editorIconMarkup(EditorIconId.NewImage)}New image…</span><kbd>Ctrl/⌘+N</kbd></button>`,
 		);
 		element('#quickOpenButton').insertAdjacentHTML(
 			'beforebegin',
-			'<button class="icon-button" id="quickNewButton" data-file-command title="New image (Ctrl/⌘ N)"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>',
+			`<button class="icon-button" id="quickNewButton" data-file-command title="New image (Ctrl/⌘ N)">${editorIconMarkup(EditorIconId.NewImage)}</button>`,
 		);
 		const print = document.querySelector<HTMLOptGroupElement>(
 			'#newImagePreset optgroup[label="Print"]',

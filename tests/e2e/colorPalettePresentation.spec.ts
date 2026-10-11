@@ -6,8 +6,8 @@ test('palette colours reach every theme, HTML default and standalone cursor', as
 	await page.goto('/');
 	await expect(page.locator('#startupSplash')).toHaveCount(0);
 	const themes = {
-		dark: { background: ColorPalette.Midnight, text: ColorPalette.GhostWhite },
-		light: { background: ColorPalette.Cloud, text: ColorPalette.Ink },
+		dark: { background: ColorPalette.StudioDark, text: ColorPalette.StudioText },
+		light: { background: ColorPalette.PaperCanvas, text: ColorPalette.AntInk },
 		contrast: { background: ColorPalette.Black, text: ColorPalette.White },
 	} as const;
 	for (const [theme, colors] of Object.entries(themes)) {

@@ -105,7 +105,7 @@ test('rename, opacity and blend mode survive a reload and a .limg round trip', a
 
 	await page.locator('#quickCloseImageButton').click();
 	await page.locator('#confirmCloseImageButton').click();
-	await page.locator('#projectFileInput').setInputFiles({
+	await page.locator('#fileInput').setInputFiles({
 		name: 'layers.limg',
 		mimeType: PROJECT_MIME_TYPE,
 		buffer: Buffer.from(source),

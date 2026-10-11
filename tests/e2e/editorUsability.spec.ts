@@ -92,7 +92,7 @@ test('the capture toolbar starts numbers red and remembers independent colours i
 	await expect(page.locator('#colorInput')).toHaveValue(ChosenColor.Paint);
 	await drag(page, { x: 320, y: 80 }, { x: 360, y: 80 });
 	const project = await saveProject(page);
-	await page.locator('#projectFileInput').setInputFiles({ name: 'colours.limg', mimeType: PROJECT_MIME_TYPE, buffer: Buffer.from(JSON.stringify(project)) });
+	await page.locator('#fileInput').setInputFiles({ name: 'colours.limg', mimeType: PROJECT_MIME_TYPE, buffer: Buffer.from(JSON.stringify(project)) });
 	await selectShortcut(page, 'n');
 	await expect(page.locator('#colorInput')).toHaveValue(ChosenColor.Number);
 	await selectShortcut(page, 'p');
@@ -130,7 +130,7 @@ test('erasing a photo after adding objects needs no layer-list selection and sur
 	expect(await imagePixel(page, { x: 425, y: 280 })).toEqual([255, 255, 255, 255]);
 	const after = await saveProject(page);
 	expect(after.editableObjects.state).toEqual(before.editableObjects.state);
-	await page.locator('#projectFileInput').setInputFiles({ name: 'erased.limg', mimeType: PROJECT_MIME_TYPE, buffer: Buffer.from(JSON.stringify(after)) });
+	await page.locator('#fileInput').setInputFiles({ name: 'erased.limg', mimeType: PROJECT_MIME_TYPE, buffer: Buffer.from(JSON.stringify(after)) });
 	expect(await imagePixel(page, { x: 425, y: 280 })).toEqual([255, 255, 255, 255]);
 });
 
@@ -187,7 +187,7 @@ async function installProjectWriter(page: Page): Promise<void> {
 async function saveProject(page: Page): Promise<LittleImageProject> {
 	await page.evaluate(() => (window as SavedProjectWindow).usabilityProject = undefined);
 	await page.locator('#fileMenu > summary').click();
-	await page.locator('#saveProjectButton').click();
+	await page.locator('#saveAsButton').click();
 	const source = await page.waitForFunction(() => (window as SavedProjectWindow).usabilityProject).then((handle) => handle.jsonValue());
 	if (typeof source !== 'string') throw new Error('Project save produced no document.');
 	return new ProjectCodec().parse(source);

@@ -1,3 +1,5 @@
+import { textFont } from '../../core/geometry/textShapeMetrics';
+
 export interface InlineTextEditRequest {
 	readonly value: string;
 	readonly clientX: number;
@@ -22,7 +24,8 @@ export class InlineTextEditor {
 		input.value = request.value;
 		input.style.left = `${request.clientX}px`;
 		input.style.top = `${request.clientY}px`;
-		input.style.fontSize = `${request.fontSize}px`;
+		// The canvas's own text font, so the box shows the text at the same width as it is drawn.
+		input.style.font = textFont(request.fontSize);
 		input.style.color = request.color;
 		document.body.append(input);
 		this.#input = input;

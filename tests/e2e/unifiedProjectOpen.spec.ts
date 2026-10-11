@@ -44,5 +44,16 @@ test('the regular Open command accepts and restores a .limg project', async ({
 	});
 
 	await expect(page.locator('#canvasWrap')).toBeVisible();
-	await expect(page.locator('#formatSelect')).toHaveValue(PROJECT_MIME_TYPE);
+	// Saving it again suggests a project, not a flattened image.
+	await page.evaluate(() => {
+		Object.defineProperty(window, 'showSaveFilePicker', {
+			configurable: true,
+			value: async ({ suggestedName }: { suggestedName: string }) => {
+				(window as Window & { suggestedSave?: string }).suggestedSave = suggestedName;
+				throw new DOMException('cancelled', 'AbortError');
+			},
+		});
+	});
+	await page.locator('#quickSaveButton').click();
+	await expect.poll(() => page.evaluate(() => (window as Window & { suggestedSave?: string }).suggestedSave)).toMatch(/\.limg$/);
 });

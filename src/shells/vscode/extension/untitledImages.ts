@@ -1,12 +1,12 @@
 import * as vscode from 'vscode';
-import { fileNameOf, UNTITLED_SCHEME } from './editorSession';
+import { ImageExtension } from '../../../app/core/document/imageFormats';
+import { FILE_SCHEME, fileNameOf, UNTITLED_SCHEME } from './editorSession';
 
 /** Must match the image view type in `contributes.customEditors` of the extension manifest. */
 export const IMAGE_VIEW_TYPE = 'littleImageEditor.image';
 const OPEN_WITH_COMMAND = 'vscode.openWith';
-const FILE_SCHEME = 'file';
 const DEFAULT_NAME = 'Untitled';
-const DEFAULT_EXTENSION = 'png';
+const DEFAULT_EXTENSION = ImageExtension.Png;
 const EXTENSION_SEPARATOR = '.';
 
 /**

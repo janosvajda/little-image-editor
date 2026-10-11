@@ -174,7 +174,7 @@ function lastStroke(source: string): {
 async function closeAndOpen(page: Page, source: string): Promise<void> {
 	await page.locator('#quickCloseImageButton').click();
 	await page.locator('#confirmCloseImageButton').click();
-	await page.locator('#projectFileInput').setInputFiles({
+	await page.locator('#fileInput').setInputFiles({
 		name: 'editable-brush-stroke.limg',
 		mimeType: PROJECT_MIME_TYPE,
 		buffer: Buffer.from(source),

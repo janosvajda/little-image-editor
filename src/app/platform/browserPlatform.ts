@@ -1,4 +1,3 @@
-import { ImageMimeType } from '../core/document/appTypes';
 import type {
 	EditorPlatform,
 	OpenPickerOptions,
@@ -6,6 +5,7 @@ import type {
 	SavePickerOptions,
 	SaveTarget,
 } from './editorPlatform';
+import { writeImageToClipboard } from './clipboardImage';
 
 /** Long enough for the browser to start the download before the URL is released. */
 const OBJECT_URL_RELEASE_DELAY_MS = 1_000;
@@ -41,8 +41,7 @@ export function createBrowserPlatform(): EditorPlatform {
 			},
 		},
 		clipboard: {
-			writeImage: (png) =>
-				navigator.clipboard.write([new ClipboardItem({ [ImageMimeType.Png]: png })]),
+			writeImage: writeImageToClipboard,
 			writeText: (text) => navigator.clipboard.writeText(text),
 		},
 		storage: localStorage,

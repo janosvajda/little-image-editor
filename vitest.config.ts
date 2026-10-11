@@ -1,6 +1,10 @@
 import { defineConfig } from 'vitest/config';
+import { fileURLToPath } from 'node:url';
 
 export default defineConfig({
+	resolve: {
+		alias: { vscode: fileURLToPath(new URL('./tests/support/vscodeApi.ts', import.meta.url)) },
+	},
 	test: {
 		environment: 'jsdom',
 		setupFiles: ['./tests/setup.ts'],

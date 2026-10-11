@@ -33,17 +33,19 @@ describe('raster layer flattening warning', () => {
 			model,
 			() => objects.state.objects.length > 0,
 		);
-		const picker = vi.fn();
+		const handle = { name: 'layered-image.png', createWritable: vi.fn() };
+		const picker = vi.fn().mockResolvedValue(handle);
 		Object.defineProperty(window, 'showSaveFilePicker', {
 			configurable: true,
 			value: picker,
 		});
 		const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
 
-		await files.exportImage();
+		await files.saveAs();
 
 		expect(confirm).toHaveBeenCalledWith(expect.stringContaining('flattened'));
-		expect(picker).not.toHaveBeenCalled();
+		expect(picker).toHaveBeenCalledOnce();
+		expect(handle.createWritable).not.toHaveBeenCalled();
 		expect(objects.object('editable-box')).not.toBeNull();
 	});
 });

@@ -197,7 +197,7 @@ export class GenericToolbar<TTool extends string> {
 			group.control.classList.toggle('active', Boolean(definition));
 			if (definition) {
 				group.select.value = definition.id;
-				group.icon.textContent = definition.icon;
+				group.icon.innerHTML = definition.icon;
 			}
 		});
 		this.#buttonTools.showActiveTool(this.#activeTool);

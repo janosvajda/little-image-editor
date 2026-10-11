@@ -1,4 +1,6 @@
-import type { CropRect, Point, ShapeTool } from '../../core/document/appTypes';
+import type { LineEnd } from '../annotations/lineEnd';
+import { type CropRect, type Point, type ShapeTool, ShapeToolId } from '../../core/document/appTypes';
+import { ColorPalette } from '../../core/document/colorPalette';
 
 /**
  * Edits an assistant can ask the editor for. They run through the same
@@ -16,6 +18,8 @@ export const AssistantCommandKind = {
 	AddText: 'addText',
 	RemoveItem: 'removeItem',
 	Undo: 'undo',
+	/** Several drawing commands as one undo step; nothing changes if one fails. */
+	Batch: 'batch',
 } as const;
 export type AssistantCommandKind =
 	(typeof AssistantCommandKind)[keyof typeof AssistantCommandKind];
@@ -30,7 +34,33 @@ export interface NewImageSpec {
 }
 
 /** Shapes drawn inside a rectangle; lines and arrows are drawn between two points instead. */
-export type BoxShape = Exclude<ShapeTool, 'line' | 'arrow'>;
+export type BoxShape = Exclude<ShapeTool, typeof ShapeToolId.Line | typeof ShapeToolId.Arrow>;
+
+export function isBoxShape(shape: ShapeTool): shape is BoxShape {
+	return shape !== ShapeToolId.Line && shape !== ShapeToolId.Arrow;
+}
+
+/** Every box shape, for choosing one. */
+export const BOX_SHAPES = Object.values(ShapeToolId).filter(isBoxShape) as [BoxShape, ...BoxShape[]];
+
+/** What a drawing command uses when it leaves a style out: in the draw script and in an assistant's single tools. */
+export const DrawingDefault = {
+	Background: ColorPalette.White,
+	StrokeWidth: 4,
+	Opacity: 1,
+	FontSize: 32,
+	Rotation: 0,
+} as const;
+
+/**
+ * Ids are shown to assistants by their first characters, which is plenty to
+ * tell an image's items apart; any unique start of an id is accepted back.
+ */
+export const SHORT_ID_LENGTH = 8;
+
+export function shortId(id: string): string {
+	return id.slice(0, SHORT_ID_LENGTH);
+}
 
 /** Where an item goes: a layer by id or name; without one, the active layer, or a new layer above the image. */
 interface LayerTarget {
@@ -38,7 +68,14 @@ interface LayerTarget {
 }
 
 export type AssistantCommand =
+	| DrawingCommand
 	| Readonly<{ kind: typeof AssistantCommandKind.Describe }>
+	| Readonly<{ kind: typeof AssistantCommandKind.RemoveItem; item: string }>
+	| Readonly<{ kind: typeof AssistantCommandKind.Undo }>
+	| Readonly<{ kind: typeof AssistantCommandKind.Batch; commands: readonly DrawingCommand[] }>;
+
+/** The commands that add to an image, which a batch is made of. */
+export type DrawingCommand =
 	| Readonly<{ kind: typeof AssistantCommandKind.AddLayer; name?: string }>
 	| (LayerTarget &
 			Readonly<{
@@ -46,8 +83,10 @@ export type AssistantCommand =
 				shape: BoxShape;
 				rect: CropRect;
 				color: string;
-				/** Filled with the colour; otherwise only outlined. */
+				/** Filled with the colour, or with `fillColor` under an outline in the colour; otherwise only outlined. */
 				fill: boolean;
+				/** A filled shape's own fill colour. */
+				fillColor?: string;
 				/** Outline width in pixels. */
 				strokeWidth: number;
 				/** From 0 to 1. */
@@ -59,25 +98,31 @@ export type AssistantCommand =
 			Readonly<{
 				kind: typeof AssistantCommandKind.AddLine;
 				from: Point;
+				/** Bends between the ends, in order; a line with bends is one connector item. */
+				via?: readonly Point[];
 				to: Point;
 				/** Draws an arrowhead at `to`. */
 				arrow: boolean;
 				color: string;
 				width: number;
 				opacity: number;
+				/** Drawn in dashes; a dashed line is a connector item too. */
+				dashed?: boolean;
+				/** The end at `to` when it is not the plain arrowhead; any named end makes a connector item. */
+				head?: LineEnd;
+				/** The end at `from`. */
+				tail?: LineEnd;
 			}>)
 	| (LayerTarget &
 			Readonly<{
 				kind: typeof AssistantCommandKind.AddText;
-				/** The text's top left corner. */
+				/** The left end of the text's baseline: the letters sit on this point's y. */
 				at: Point;
 				text: string;
 				color: string;
 				/** Font size in pixels. */
 				size: number;
-			}>)
-	| Readonly<{ kind: typeof AssistantCommandKind.RemoveItem; item: string }>
-	| Readonly<{ kind: typeof AssistantCommandKind.Undo }>;
+			}>);
 
 export interface DescribedItem {
 	readonly id: string;
@@ -112,4 +157,5 @@ export type AssistantResult =
 	| Readonly<{ layerId: string; layerName: string }>
 	| Readonly<{ itemId: string; layerId: string; layerName: string }>
 	| Readonly<{ removed: string }>
-	| Readonly<{ undone: boolean }>;
+	| Readonly<{ undone: boolean }>
+	| Readonly<{ batch: { readonly layers: readonly string[]; readonly items: number } }>;

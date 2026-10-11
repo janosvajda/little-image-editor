@@ -56,7 +56,7 @@ for (const type of ['jpeg', 'png'] as const) {
 				createWritable: async () => ({ write: async (blob: Blob) => { (window as Window & { savedImageCrop?: string }).savedImageCrop = await blob.text(); }, close: async () => undefined }),
 			}) });
 		});
-		await page.locator('#saveProjectButton').evaluate((button: HTMLButtonElement) => button.click());
+		await page.locator('#saveAsButton').evaluate((button: HTMLButtonElement) => button.click());
 		const project = await page.waitForFunction(() => (window as Window & { savedImageCrop?: string }).savedImageCrop).then((handle) => handle.jsonValue());
 		await page.reload();
 		await page.locator('#fileInput').setInputFiles({ name: 'same-layer.limg', mimeType: 'application/vnd.little-image-editor.project+json', buffer: Buffer.from(project) });

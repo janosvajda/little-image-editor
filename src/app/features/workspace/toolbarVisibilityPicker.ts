@@ -1,3 +1,4 @@
+import { EditorIconId, editorIconMarkup } from '../../shared/style/editorIcons';
 import type { ManagedToolbarPanel } from './managedToolbarPanel';
 import {
 	KeyboardKey,
@@ -45,7 +46,7 @@ export class ToolbarVisibilityPicker {
 		this.trigger.setAttribute('aria-haspopup', 'listbox');
 		this.trigger.setAttribute('aria-expanded', 'false');
 		this.trigger.innerHTML =
-			'<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="7" height="7"></rect><rect x="14" y="4" width="7" height="7"></rect><rect x="3" y="15" width="7" height="5"></rect><rect x="14" y="15" width="7" height="5"></rect></svg><span>Toolbars</span>';
+			`${editorIconMarkup(EditorIconId.Toolbars)}<span>Toolbars</span>`;
 		this.trigger.addEventListener('click', (event) => {
 			event.stopPropagation();
 			this.setOpen(this.list.classList.contains('hidden'));

@@ -1,3 +1,4 @@
+import { EditorIconId, editorIconMarkup } from '../../shared/style/editorIcons';
 import { element } from '../../shared/dom/domHelpers';
 import {
 	applyColorEffect,
@@ -127,14 +128,14 @@ export class EffectsController {
 		this.#applyButton.title = 'Apply effect';
 		this.#applyButton.setAttribute('aria-label', 'Apply effect');
 		this.#applyButton.innerHTML =
-			'<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m3 8 3 3 7-7"></path></svg><span>Apply</span>';
+			`${editorIconMarkup(EditorIconId.Apply)}<span>Apply</span>`;
 		this.#clearButton.type = 'button';
 		this.#clearButton.id = 'clearEffectButton';
 		this.#clearButton.className = 'effect-action';
 		this.#clearButton.title = 'Clear last effect';
 		this.#clearButton.setAttribute('aria-label', 'Clear last effect');
 		this.#clearButton.innerHTML =
-			'<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 5H1V2M1.5 5A6 6 0 1 1 2 12"></path></svg><span>Clear</span>';
+			`${editorIconMarkup(EditorIconId.Reset)}<span>Clear</span>`;
 		this.#root.querySelector('.button-grid')!.append(this.#clearButton);
 	}
 
@@ -253,8 +254,8 @@ export class EffectsController {
 			? 'Cancel preview'
 			: 'Preview effect';
 		this.#previewButton.innerHTML = previewing
-			? '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 4 8 8m0-8-8 8"></path></svg><span>Cancel</span>'
-			: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 8s2.3-4 6.5-4 6.5 4 6.5 4-2.3 4-6.5 4-6.5-4-6.5-4Z"></path><circle cx="8" cy="8" r="1.8"></circle></svg><span>Preview</span>';
+			? `${editorIconMarkup(EditorIconId.Close)}<span>Cancel</span>`
+			: `${editorIconMarkup(EditorIconId.Visible)}<span>Preview</span>`;
 		this.#clearButton.disabled =
 			!this.#lastAppliedBase ||
 			Boolean(this.#previewBase) ||

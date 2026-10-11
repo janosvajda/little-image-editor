@@ -21,9 +21,28 @@ const Percentage = {
 	Maximum: 100,
 } as const;
 const ObjectSize = { Minimum: 1, Maximum: 200 } as const;
+/** What each control says beside it; a shape's colour is its line, beside its fill. */
+const PropertyLabel = {
+	Color: 'Color',
+	Line: 'Line',
+	Size: 'Size',
+	Opacity: 'Opacity',
+	Hardness: 'Hardness',
+	Fill: 'Fill',
+} as const;
+/** How assistive technology names each control, whatever it says beside it. */
+const ACCESSIBLE_NAMES: Readonly<Record<EditableObjectProperty, string>> = {
+	[EditableObjectPropertyId.Color]: 'color',
+	[EditableObjectPropertyId.Size]: 'size',
+	[EditableObjectPropertyId.Opacity]: 'opacity',
+	[EditableObjectPropertyId.Hardness]: 'hardness',
+	[EditableObjectPropertyId.Fill]: 'fill',
+	[EditableObjectPropertyId.FillColor]: 'fill colour',
+};
 
 interface PropertyControl {
-	readonly row: HTMLLabelElement;
+	readonly row: HTMLElement;
+	readonly label: Text;
 	readonly input: HTMLInputElement;
 	readonly output?: HTMLOutputElement;
 }
@@ -45,32 +64,33 @@ export class SelectedObjectPropertiesController {
 	) {
 		this.#root.className = 'selected-object-options hidden';
 		this.#root.setAttribute('aria-label', 'Selected object properties');
-		this.#root.append(this.heading());
 		this.#controls = {
-			[EditableObjectPropertyId.Color]: this.colorControl(),
+			[EditableObjectPropertyId.Color]: this.colorControl(EditableObjectPropertyId.Color, PropertyLabel.Color),
 			[EditableObjectPropertyId.Size]: this.rangeControl(
 				EditableObjectPropertyId.Size,
-				'Size',
+				PropertyLabel.Size,
 				ObjectSize.Minimum,
 				ObjectSize.Maximum,
 			),
 			[EditableObjectPropertyId.Opacity]: this.rangeControl(
 				EditableObjectPropertyId.Opacity,
-				'Opacity',
+				PropertyLabel.Opacity,
 				Percentage.Minimum,
 				Percentage.Maximum,
 			),
 			[EditableObjectPropertyId.Hardness]: this.rangeControl(
 				EditableObjectPropertyId.Hardness,
-				'Hardness',
+				PropertyLabel.Hardness,
 				Percentage.Minimum,
 				Percentage.Maximum,
 			),
 			[EditableObjectPropertyId.Fill]: this.checkboxControl(),
+			[EditableObjectPropertyId.FillColor]: this.fillColorControl(),
 		};
-		this.#root.append(
-			...Object.values(this.#controls).map((control) => control.row),
-		);
+		// The fill colour sits on the Fill row, right after the checkbox that names it.
+		const { [EditableObjectPropertyId.FillColor]: fillColor, ...rows } = this.#controls;
+		this.#controls[EditableObjectPropertyId.Fill].row.append(fillColor.row);
+		this.#root.append(...Object.values(rows).map((control) => control.row));
 		parent.prepend(this.#root);
 		objects.onChange((_state, change) => {
 			if (!isEphemeralAnnotationChange(change)) this.sync();
@@ -102,21 +122,23 @@ export class SelectedObjectPropertiesController {
 		);
 	}
 
-	private heading(): HTMLElement {
-		const heading = document.createElement('small');
-		heading.className = 'tool-section-title';
-		heading.textContent = 'Selected object';
-		return heading;
+	private colorControl(property: typeof EditableObjectPropertyId.Color, label: string): PropertyControl {
+		const control = this.baseControl(property, label, 'color');
+		this.bind(control.input, property, () => control.input.value);
+		return control;
 	}
 
-	private colorControl(): PropertyControl {
-		const { row, input } = this.baseControl(
-			EditableObjectPropertyId.Color,
-			'Color',
-			'color',
-		);
-		this.bind(input, EditableObjectPropertyId.Color, () => input.value);
-		return { row, input };
+	/** A swatch without words of its own, placed on the Fill row; a click on it opens the colour, not the checkbox. */
+	private fillColorControl(): PropertyControl {
+		const row = document.createElement('span');
+		row.dataset.objectProperty = EditableObjectPropertyId.FillColor;
+		row.className = 'fill-color-option';
+		const input = document.createElement('input');
+		input.type = 'color';
+		input.setAttribute('aria-label', `Selected object ${ACCESSIBLE_NAMES[EditableObjectPropertyId.FillColor]}`);
+		row.append(input);
+		this.bind(input, EditableObjectPropertyId.FillColor, () => input.value);
+		return { row, label: document.createTextNode(''), input };
 	}
 
 	private rangeControl(
@@ -125,7 +147,7 @@ export class SelectedObjectPropertiesController {
 		minimum: number,
 		maximum: number,
 	): PropertyControl {
-		const { row, input } = this.baseControl(property, label, 'range');
+		const { row, label: text, input } = this.baseControl(property, label, 'range');
 		input.min = String(minimum);
 		input.max = String(maximum);
 		const output = document.createElement('output');
@@ -135,33 +157,30 @@ export class SelectedObjectPropertiesController {
 				? Number(input.value)
 				: Number(input.value) / Percentage.Scale,
 		);
-		return { row, input, output };
+		return { row, label: text, input, output };
 	}
 
 	private checkboxControl(): PropertyControl {
-		const { row, input } = this.baseControl(
-			EditableObjectPropertyId.Fill,
-			'Fill shape',
-			'checkbox',
-		);
-		row.classList.add('check');
-		this.bind(input, EditableObjectPropertyId.Fill, () => input.checked);
-		return { row, input };
+		const control = this.baseControl(EditableObjectPropertyId.Fill, PropertyLabel.Fill, 'checkbox');
+		control.row.classList.add('check');
+		this.bind(control.input, EditableObjectPropertyId.Fill, () => control.input.checked);
+		return control;
 	}
 
 	private baseControl(
 		property: EditableObjectProperty,
 		label: string,
 		type: HTMLInputElement['type'],
-	): { row: HTMLLabelElement; input: HTMLInputElement } {
+	): PropertyControl {
 		const row = document.createElement('label');
 		row.dataset.objectProperty = property;
-		row.append(document.createTextNode(label));
+		const text = document.createTextNode(label);
+		row.append(text);
 		const input = document.createElement('input');
 		input.type = type;
-		input.setAttribute('aria-label', `Selected object ${label.toLowerCase()}`);
+		input.setAttribute('aria-label', `Selected object ${ACCESSIBLE_NAMES[property]}`);
 		row.append(input);
-		return { row, input };
+		return { row, label: text, input };
 	}
 
 	private bind(
@@ -216,6 +235,7 @@ export class SelectedObjectPropertiesController {
 		this.parent.classList.toggle('editing-selected-object', propertiesVisible);
 		if (selected && propertiesVisible) {
 			const values = editableObjectProperties(selected);
+			this.#controls[EditableObjectPropertyId.Color].label.data = values.fill === undefined ? PropertyLabel.Color : PropertyLabel.Line;
 			for (const [property, control] of Object.entries(this.#controls) as Array<
 				[EditableObjectProperty, PropertyControl]
 			>) {

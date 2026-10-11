@@ -155,6 +155,8 @@ export function drawShape(
 	from: Point,
 	to: Point,
 	fill: boolean,
+	/** A filled shape is outlined too, in the stroke colour. */
+	outlined = false,
 ): void {
 	context.beginPath();
 	if (tool === ShapeToolId.Line || tool === ShapeToolId.Arrow) {
@@ -191,9 +193,9 @@ export function drawShape(
 		context.lineTo(from.x, center.y);
 		context.closePath();
 	} else if (tool === ShapeToolId.Star) addStar(context, from, to);
-	if (fill && tool !== ShapeToolId.Line && tool !== ShapeToolId.Arrow)
-		context.fill();
-	else context.stroke();
+	const filled = fill && tool !== ShapeToolId.Line && tool !== ShapeToolId.Arrow;
+	if (filled) context.fill();
+	if (!filled || outlined) context.stroke();
 }
 
 function drawSpray(

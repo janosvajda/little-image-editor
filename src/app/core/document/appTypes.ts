@@ -39,7 +39,13 @@ export const UtilityToolId = {
 	Fill: 'fill',
 } as const;
 export type UtilityTool = (typeof UtilityToolId)[keyof typeof UtilityToolId];
-export type Tool = PaintTool | ShapeTool | MarkupTool | UtilityTool;
+
+/** Tools that draw a connector: one line with bends, kept as one item. */
+export const ConnectorToolId = {
+	ElbowArrow: 'elbowArrow',
+} as const;
+export type ConnectorTool = (typeof ConnectorToolId)[keyof typeof ConnectorToolId];
+export type Tool = PaintTool | ShapeTool | MarkupTool | UtilityTool | ConnectorTool;
 export const DEFAULT_DOCUMENT_NAME = 'untitled';
 export type Point = Readonly<{ x: number; y: number }>;
 export type CropRect = Readonly<{

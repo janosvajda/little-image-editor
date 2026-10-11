@@ -689,6 +689,25 @@ dialog::backdrop {
     grid-column: 2/4
 }
 
+.function-card>.diagram-source {
+    grid-column: 2/4;
+    width: 100%;
+    padding: 8px;
+    resize: vertical;
+    font: 12px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace
+}
+
+.function-card>.diagram-error {
+    grid-column: 2/4;
+    margin: 0;
+    color: var(--accent);
+    font-size: 11px
+}
+
+.function-card>.diagram-error:empty {
+    display: none
+}
+
 .disabled-card {
     opacity: .65
 }
@@ -797,7 +816,6 @@ dialog::backdrop {
     background: var(--border)
 }
 
-.format-row,
 .theme-row {
     display: grid;
     grid-template-columns: 1fr auto;
@@ -806,7 +824,6 @@ dialog::backdrop {
     padding: 6px 8px
 }
 
-.format-row select,
 .theme-row select {
     padding: 4px;
     width: 92px
@@ -1887,6 +1904,15 @@ html[data-workspace-layout='docked'] .canvas-ruler-layer .ruler-corner {
 	grid-column: 1 / -1;
 }
 
+/* Fill: its checkbox, then the fill colour on the same row. */
+.selected-object-options > label.check {
+	grid-template-columns: 1fr auto auto;
+}
+
+.fill-color-option {
+	display: inline-flex;
+}
+
 /* Selected-object properties replace the tool settings, except those that stay with the tool. */
 .tool-options.editing-selected-object
 	> :not(.selected-object-options):not(.tool-option-persistent) {
@@ -1926,6 +1952,86 @@ html[data-host-provides~='application-menus'] body:not(.focus-mode) .workspace {
 
 html[data-document-owner='host'] .host-only {
     display: inline
+}
+
+html[data-document-owner='host'] .export-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    flex: none;
+    padding: 4px 8px;
+    font-size: 11px
+}
+
+.export-action svg {
+    width: 16px;
+    height: 16px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round
+}
+
+.export-image-content {
+    display: grid;
+    gap: 12px;
+    padding: 18px
+}
+
+.export-image-preview {
+    display: grid;
+    place-items: center;
+    min-height: 150px;
+    padding: 16px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background-color: var(--surface2);
+    background-image: conic-gradient(var(--border) 25%, var(--color-transparent) 0 50%, var(--border) 0 75%, var(--color-transparent) 0);
+    background-size: 16px 16px
+}
+
+.export-image-preview img {
+    display: block;
+    max-width: 100%;
+    max-height: 180px;
+    object-fit: contain
+}
+
+.export-image-preview img:not([src]) {
+    visibility: hidden
+}
+
+.export-image-content>label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px
+}
+
+.export-image-content select {
+    min-width: 140px;
+    padding: 7px
+}
+
+.export-image-content p {
+    margin: 0
+}
+
+#exportImageError:empty {
+    display: none
+}
+
+#exportImageError {
+    color: var(--color-rose)
+}
+
+.export-image-form>footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 12px 18px;
+    border-top: 1px solid var(--border)
 }
 
 /* A host that owns the file, such as VS Code, opens, saves and closes it; the editor's own buttons are left out. */
@@ -2131,9 +2237,10 @@ html[data-workspace-layout='docked'] .dock-options-bar>.panel,
     flex: none
 }
 
+/* A label keeps its words and value; only its slider gives up length, down to the slider's minimum. */
 .dock-options-bar .tool-options :has(>input[type=range]) {
     flex: 0 1 auto;
-    min-width: 0
+    min-width: min-content
 }
 
 html[data-workspace-layout='docked'] .dock-options-bar .tool-options input[type=range] {

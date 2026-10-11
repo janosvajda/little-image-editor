@@ -1,3 +1,4 @@
+import { createEditorIcon, EditorIconId } from '../../shared/style/editorIcons';
 import type { CanvasDocument } from '../../core/document/imageDocument';
 import {
 	BLEND_MODE_LABELS,
@@ -31,18 +32,18 @@ import {
 import { LayerMerger } from './layerMerge';
 import { LayersPanel } from './layersPanel';
 
-const VisibilitySymbol = { Visible: '◉', Hidden: '○' } as const;
+const VisibilityIcon = { Visible: EditorIconId.Visible, Hidden: EditorIconId.Hidden } as const;
 /** One chevron; CSS turns it down while the layer is expanded. */
-const EXPAND_SYMBOL = '›';
+const EXPAND_ICON = EditorIconId.ChevronRight;
 const ItemCountLabel = { Empty: 'Empty', One: 'item', Many: 'items' } as const;
-const LayerActionSymbol = {
-	Locked: '🔒',
-	Unlocked: '🔓',
-	Edit: '✎',
-	Delete: '×',
-	Forward: '↑',
-	Backward: '↓',
-	Drag: '⠿',
+const LayerActionIcon = {
+	Locked: EditorIconId.Lock,
+	Unlocked: EditorIconId.Unlock,
+	Edit: EditorIconId.Pencil,
+	Delete: EditorIconId.Close,
+	Forward: EditorIconId.ArrowUp,
+	Backward: EditorIconId.ArrowDown,
+	Drag: EditorIconId.Drag,
 } as const;
 const APPEARANCE_SEPARATOR = ' · ';
 const PERCENT_SUFFIX = '%';
@@ -231,8 +232,8 @@ export class LayersController {
 		row.dataset.layerId = layer.id;
 		row.classList.toggle('locked', layer.locked);
 		this.bindSelectableRow(row, selected, () => this.activateCoreLayer(layer.id));
-		const visibility = this.actionButton(
-			layer.visible ? VisibilitySymbol.Visible : VisibilitySymbol.Hidden,
+		const visibility = this.iconButton(
+			layer.visible ? VisibilityIcon.Visible : VisibilityIcon.Hidden,
 			`${layer.visible ? 'Hide' : 'Show'} ${layer.name}`,
 			() => this.documentModel.layers.setVisible(layer.id, !layer.visible),
 		);
@@ -244,8 +245,8 @@ export class LayersController {
 		const lock = this.lockButton(layer.locked, layer.name, () =>
 			this.documentModel.layers.setLocked(layer.id, !layer.locked),
 		);
-		const edit = this.actionButton(
-			LayerActionSymbol.Edit,
+		const edit = this.iconButton(
+			LayerActionIcon.Edit,
 			`Edit ${layer.name}`,
 			() => this.activateCoreLayer(layer.id),
 		);
@@ -276,8 +277,8 @@ export class LayersController {
 		this.bindSelectableRow(row, active, choose);
 		const handle = this.dragHandle(row, entry, layer.name);
 		const expanded = !this.#collapsedLayerIds.has(layer.id);
-		const expand = this.actionButton(
-			EXPAND_SYMBOL,
+		const expand = this.iconButton(
+			EXPAND_ICON,
 			`${expanded ? 'Hide' : 'Show'} the items of ${layer.name}`,
 			() => this.toggleExpanded(layer.id),
 		);
@@ -294,15 +295,15 @@ export class LayersController {
 		badge.className = 'layer-appearance';
 		badge.textContent = layerSummary(layer);
 		name.append(badge);
-		const moveForward = this.actionButton(
-			LayerActionSymbol.Forward,
+		const moveForward = this.iconButton(
+			LayerActionIcon.Forward,
 			`Move ${layer.name} forward`,
 			() => this.objects?.reorderLayer(layer.id, AnnotationStackDirection.Forward),
 		);
 		moveForward.className = 'layer-forward';
 		moveForward.disabled = indexFromTop === 0;
-		const moveBackward = this.actionButton(
-			LayerActionSymbol.Backward,
+		const moveBackward = this.iconButton(
+			LayerActionIcon.Backward,
 			`Move ${layer.name} backward`,
 			() => this.objects?.reorderLayer(layer.id, AnnotationStackDirection.Backward),
 		);
@@ -311,13 +312,13 @@ export class LayersController {
 		const lock = this.lockButton(layer.locked === true, layer.name, () =>
 			this.objects?.setLayerLocked(layer.id, layer.locked !== true),
 		);
-		const edit = this.actionButton(LayerActionSymbol.Edit, `Edit ${layer.name}`, () =>
+		const edit = this.iconButton(LayerActionIcon.Edit, `Edit ${layer.name}`, () =>
 			this.chooseLayer(layer.id),
 		);
 		edit.className = 'layer-edit';
 		edit.disabled = !this.objects?.isLayerEditable(layer.id);
-		const remove = this.actionButton(
-			LayerActionSymbol.Delete,
+		const remove = this.iconButton(
+			LayerActionIcon.Delete,
 			`Delete ${layer.name}`,
 			() => this.objects?.removeLayer(layer.id),
 		);
@@ -352,7 +353,7 @@ export class LayersController {
 		const lock = this.lockButton(item.locked === true, label, () =>
 			this.objects?.setLocked(item.id, item.locked !== true),
 		);
-		const remove = this.actionButton(LayerActionSymbol.Delete, `Delete ${label}`, () =>
+		const remove = this.iconButton(LayerActionIcon.Delete, `Delete ${label}`, () =>
 			this.objects?.remove(item.id),
 		);
 		remove.className = 'layer-delete';
@@ -409,8 +410,8 @@ export class LayersController {
 		entry: LayerListEntry,
 		label: string,
 	): HTMLButtonElement {
-		const handle = this.actionButton(
-			LayerActionSymbol.Drag,
+		const handle = this.iconButton(
+			LayerActionIcon.Drag,
 			`Drag ${label} to reorder`,
 			() => undefined,
 		);
@@ -424,8 +425,8 @@ export class LayersController {
 		label: string,
 		toggle: () => void,
 	): HTMLButtonElement {
-		const button = this.actionButton(
-			visible ? VisibilitySymbol.Visible : VisibilitySymbol.Hidden,
+		const button = this.iconButton(
+			visible ? VisibilityIcon.Visible : VisibilityIcon.Hidden,
 			`${visible ? 'Hide' : 'Show'} ${label}`,
 			toggle,
 		);
@@ -438,8 +439,8 @@ export class LayersController {
 		label: string,
 		toggle: () => void,
 	): HTMLButtonElement {
-		const button = this.actionButton(
-			locked ? LayerActionSymbol.Locked : LayerActionSymbol.Unlocked,
+		const button = this.iconButton(
+			locked ? LayerActionIcon.Locked : LayerActionIcon.Unlocked,
 			`${locked ? 'Unlock' : 'Lock'} ${label}`,
 			toggle,
 		);
@@ -465,6 +466,17 @@ export class LayersController {
 			event.preventDefault();
 			select();
 		});
+	}
+
+	/** Icon controls keep their existing accessible labels and actions. */
+	private iconButton(
+		icon: EditorIconId,
+		label: string,
+		action: () => void,
+	): HTMLButtonElement {
+		const button = this.actionButton('', label, action);
+		button.append(createEditorIcon(icon));
+		return button;
 	}
 
 	private actionButton(

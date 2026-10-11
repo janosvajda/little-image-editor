@@ -3,7 +3,7 @@
   "displayName": "Little Image Editor",
   "description": "Edit images and layered .limg projects inside VS Code.",
   "icon": "webview/assets/images/extensionIcon-128.png",
-  "version": "0.3.0",
+  "version": "0.3.14",
   "publisher": "janosvajda",
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
@@ -67,6 +67,14 @@
       {
         "command": "littleImageEditor.disconnectAssistant",
         "title": "Disconnect from Claude Code – Little Image Editor"
+      },
+      {
+        "command": "littleImageEditor.connectCodex",
+        "title": "Connect to Codex – Little Image Editor"
+      },
+      {
+        "command": "littleImageEditor.disconnectCodex",
+        "title": "Disconnect from Codex – Little Image Editor"
       }
     ],
     "menus": {

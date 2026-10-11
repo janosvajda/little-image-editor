@@ -35,7 +35,7 @@ test('.limg saves and restores an editable layered project', async ({
 		});
 	});
 	await page.locator('#fileMenu > summary').click();
-	await page.locator('#saveProjectButton').click();
+	await page.locator('#saveAsButton').click();
 	const projectSource = await page
 		.waitForFunction(
 			() => (window as Window & { savedProject?: string }).savedProject,
@@ -51,7 +51,7 @@ test('.limg saves and restores an editable layered project', async ({
 	await page.locator('#quickCloseImageButton').click();
 	await page.locator('#confirmCloseImageButton').click();
 	await expect(page.locator('#canvasWrap')).toBeHidden();
-	await page.locator('#projectFileInput').setInputFiles({
+	await page.locator('#fileInput').setInputFiles({
 		name: 'restored.limg',
 		mimeType: PROJECT_MIME_TYPE,
 		buffer: Buffer.from(projectSource as string),

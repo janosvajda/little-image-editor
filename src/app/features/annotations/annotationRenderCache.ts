@@ -1,5 +1,6 @@
 import type { AnnotationRenderState } from './annotationDocument';
 import { annotationBounds } from './annotationDocument';
+import { lineEndLength } from './arrowHead';
 import { PaintToolId } from '../../core/document/appTypes';
 import { ShapeHandleMetrics } from '../../core/geometry/shapeTransformHelpers';
 import {
@@ -18,7 +19,7 @@ import type {
 } from './annotationTypes';
 import { withContentLayers } from './contentLayerStructure';
 import { LayerMotionPreview } from './layerMotionPreview';
-import { AnnotationObjectTypeId } from './annotationTypes';
+import { AnnotationObjectTypeId, connectorEnds } from './annotationTypes';
 import { hasDefaultCompositing } from '../layers/layerAppearance';
 import {
 	compositeLayer,
@@ -671,10 +672,16 @@ function visualBounds(
 		'blur' in object
 			? object.blur * AnnotationCacheGeometry.BlurPaddingFactor
 			: 0;
+	// An arrowhead reaches beyond the line it ends.
+	const headPadding =
+		object.type === AnnotationObjectTypeId.Connector
+			? Math.max(...Object.values(connectorEnds(object)).map((end) => lineEndLength(object.width, end)))
+			: 0;
 	const padding = Math.max(
 		AnnotationCacheGeometry.SelectionPadding,
 		strokePadding,
 		blurPadding,
+		headPadding,
 	);
 	return clampRegion(
 		{

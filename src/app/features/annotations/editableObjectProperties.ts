@@ -10,6 +10,7 @@ export const EditableObjectPropertyId = {
 	Opacity: 'opacity',
 	Hardness: 'hardness',
 	Fill: 'fill',
+	FillColor: 'fillColor',
 } as const;
 export type EditableObjectProperty =
 	(typeof EditableObjectPropertyId)[keyof typeof EditableObjectPropertyId];
@@ -20,6 +21,8 @@ export interface EditableObjectPropertyValues {
 	readonly opacity?: number;
 	readonly hardness?: number;
 	readonly fill?: boolean;
+	/** Only for a filled shape: its fill, which is its colour until it has a fill colour of its own. */
+	readonly fillColor?: string;
 }
 
 export function editableObjectProperties(
@@ -41,7 +44,7 @@ export function editableObjectProperties(
 				: {}),
 		...('opacity' in object ? { opacity: object.opacity } : {}),
 		...(object.type === AnnotationObjectTypeId.Shape
-			? { fill: object.fill }
+			? { fill: object.fill, ...(object.fill ? { fillColor: object.fillColor ?? object.color } : {}) }
 			: {}),
 	};
 }
@@ -70,6 +73,9 @@ export function setEditableObjectProperty(
 			break;
 		case EditableObjectPropertyId.Fill:
 			setFill(object, value);
+			break;
+		case EditableObjectPropertyId.FillColor:
+			setFillColor(object, value);
 			break;
 	}
 }
@@ -101,6 +107,10 @@ function setFill(object: AnnotationObject, value: unknown): void {
 		typeof value === 'boolean'
 	)
 		object.fill = value;
+}
+
+function setFillColor(object: AnnotationObject, value: unknown): void {
+	if (object.type === AnnotationObjectTypeId.Shape && typeof value === 'string') object.fillColor = value;
 }
 
 function strokeStyleChange(

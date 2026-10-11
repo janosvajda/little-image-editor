@@ -1,5 +1,3 @@
-import { ImageMimeType } from '../../../app/core/document/appTypes';
-import { imageFormatOfFileName } from '../../../app/core/document/imageFormats';
 import {
 	type EditorPlatform,
 	type ImagePicture,
@@ -11,12 +9,13 @@ import {
 	type SaveTarget,
 	type TargetWriter,
 } from '../../../app/platform/editorPlatform';
+import { writeImageToClipboard } from '../../../app/platform/clipboardImage';
 import type {
 	AssistantCommand,
 	AssistantResult,
 	NewImageSpec,
 } from '../../../app/features/assistant/assistantCommandTypes';
-import { PROJECT_MIME_TYPE } from '../../../app/features/projects/projectTypes';
+import { fileTypeOfName } from '../../../app/features/files/openFileTypes';
 import {
 	DOCUMENT_TARGET_ID,
 	type HostMessage,
@@ -37,20 +36,25 @@ export interface VsCodeWebviewApi {
 /** Requests to the extension that wait for its reply. */
 class HostChannel {
 	#nextRequestId = 0;
-	readonly #pending = new Map<number, (value: ReplyValue) => void>();
+	readonly #pending = new Map<number, {
+		resolve: (value: ReplyValue) => void;
+		reject: (error: Error) => void;
+	}>();
 
 	constructor(readonly api: VsCodeWebviewApi) {}
 
 	request(build: (requestId: number) => WebviewMessage): Promise<ReplyValue> {
 		const requestId = this.#nextRequestId++;
-		return new Promise((resolve) => {
-			this.#pending.set(requestId, resolve);
+		return new Promise((resolve, reject) => {
+			this.#pending.set(requestId, { resolve, reject });
 			this.api.postMessage(build(requestId));
 		});
 	}
 
-	resolve(requestId: number, value: ReplyValue): void {
-		this.#pending.get(requestId)?.(value);
+	resolve(requestId: number, value: ReplyValue, error?: string): void {
+		const pending = this.#pending.get(requestId);
+		if (error) pending?.reject(new Error(error));
+		else pending?.resolve(value);
 		this.#pending.delete(requestId);
 	}
 }
@@ -65,20 +69,17 @@ function hostTarget(channel: HostChannel, targetId: string, name: string): SaveT
 				write: async (contents) => void parts.push(contents),
 				close: async () => {
 					const contents = new Uint8Array(await new Blob(parts).arrayBuffer());
-					await channel.request((requestId) => ({
+					const written = await channel.request((requestId) => ({
 						type: WebviewMessageType.Write,
 						requestId,
 						targetId,
 						contents,
 					}));
+					if (written !== true) throw new Error('The save target is no longer available.');
 				},
 			});
 		},
 	};
-}
-
-function mimeTypeOf(fileName: string): string {
-	return imageFormatOfFileName(fileName)?.mimeType ?? PROJECT_MIME_TYPE;
 }
 
 /** Preferences live in the extension; the page starts with a copy and reports changes. */
@@ -171,12 +172,12 @@ export function createVsCodePlatform(api: VsCodeWebviewApi): EditorPlatform {
 	window.addEventListener('message', (event: MessageEvent<HostMessage>) => {
 		const message = event.data;
 		if (message.type === HostMessageType.Reply) {
-			channel.resolve(message.requestId, message.value);
+			channel.resolve(message.requestId, message.value, message.error);
 			return;
 		}
 		if (message.type === HostMessageType.Open) {
 			const file = new File([receivedFileBytes(message.contents)], message.fileName, {
-				type: mimeTypeOf(message.fileName),
+				type: fileTypeOfName(message.fileName),
 			});
 			const target: OpenTarget = {
 				...hostTarget(channel, DOCUMENT_TARGET_ID, message.fileName),
@@ -238,8 +239,7 @@ export function createVsCodePlatform(api: VsCodeWebviewApi): EditorPlatform {
 			},
 		},
 		clipboard: {
-			writeImage: (png) =>
-				navigator.clipboard.write([new ClipboardItem({ [ImageMimeType.Png]: png })]),
+			writeImage: writeImageToClipboard,
 			writeText: async (text) =>
 				api.postMessage({ type: WebviewMessageType.CopyText, text }),
 		},
