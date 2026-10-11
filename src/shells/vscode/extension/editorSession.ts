@@ -15,6 +15,7 @@ import {
 
 /** A file VS Code holds before its first save; Save then asks where to write it. */
 export const UNTITLED_SCHEME = 'untitled';
+export const FILE_SCHEME = 'file';
 /** How long the page may take to answer before the request is given up, for example when it has stopped. */
 const ANSWER_TIMEOUT_MS = 15_000;
 const ANSWER_TIMEOUT_MESSAGE = 'The image editor did not answer in time.';
@@ -74,8 +75,8 @@ export class EditorSession {
 		void this.panel.webview.postMessage(message);
 	}
 
-	reply(requestId: number, value: ReplyValue): void {
-		this.post({ type: HostMessageType.Reply, requestId, value });
+	reply(requestId: number, value: ReplyValue, error?: string): void {
+		this.post({ type: HostMessageType.Reply, requestId, value, ...(error ? { error } : {}) });
 	}
 
 	/** Asks the page to save into the document's destination; resolves when the file has been written. */

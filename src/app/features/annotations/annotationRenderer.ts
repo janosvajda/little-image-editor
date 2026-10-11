@@ -3,6 +3,9 @@ import { PaintToolId } from '../../core/document/appTypes';
 import {
 	AnnotationObjectTypeId,
 	type AnnotationObject,
+	type ConnectorAnnotation,
+	connectorEnds,
+	LineDash,
 	type AnnotationState,
 	type AnnotationStateInput,
 	type ObjectErasurePath,
@@ -29,13 +32,14 @@ import {
 } from './objectErasures';
 import { decodePixelBytes } from '../../shared/image/pixelDataCodec';
 import { compositeLayers } from '../layers/layerCompositing';
+import { drawLineEnd, fillArrowHead, lineEndInset } from './arrowHead';
 import { withContentLayers } from './contentLayerStructure';
 import { EditorLimit } from '../../core/document/editorLimits';
 
 const AnnotationRendering = {
-	ArrowMinimumHead: 10,
-	ArrowHeadWidthFactor: 4,
-	ArrowAngleDivisor: 6,
+	/** A connector's dashes and the gaps between them, in line widths. */
+	DashPerWidth: 3,
+	DashGapPerWidth: 2,
 	StepTextScale: 0.55,
 	StepTextVerticalOffset: 0.02,
 	HalfDivisor: 2,
@@ -209,7 +213,7 @@ function renderAnnotationObjectContent(
 	else if (object.type === AnnotationObjectTypeId.Shape)
 		withShapeTransform(context, object, () => {
 			context.strokeStyle = object.color;
-			context.fillStyle = object.color;
+			context.fillStyle = object.fillColor ?? object.color;
 			context.lineWidth = object.width;
 			context.globalAlpha = object.opacity;
 			const endpoints = rectEndpoints(object.rect, object);
@@ -219,6 +223,7 @@ function renderAnnotationObjectContent(
 				endpoints.from,
 				endpoints.to,
 				object.fill,
+				object.fillColor !== undefined,
 			);
 		});
 	else if (object.type === AnnotationObjectTypeId.Stroke)
@@ -267,6 +272,8 @@ function renderAnnotationObjectContent(
 				object.rect.height,
 			);
 		});
+	else if (object.type === AnnotationObjectTypeId.Connector)
+		withShapeTransform(context, geometry, () => drawConnector(context, object));
 	else if (object.type === AnnotationObjectTypeId.Highlight)
 		withShapeTransform(context, object, () => {
 			context.globalAlpha = object.opacity;
@@ -604,11 +611,6 @@ function drawArrow(
 	color: string,
 	width: number,
 ): void {
-	const angle = Math.atan2(to.y - from.y, to.x - from.x);
-	const head = Math.max(
-		AnnotationRendering.ArrowMinimumHead,
-		width * AnnotationRendering.ArrowHeadWidthFactor,
-	);
 	context.strokeStyle = color;
 	context.fillStyle = color;
 	context.lineWidth = width;
@@ -616,19 +618,48 @@ function drawArrow(
 	context.moveTo(from.x, from.y);
 	context.lineTo(to.x, to.y);
 	context.stroke();
+	fillArrowHead(context, from, to, width);
+}
+
+/** A connector's path, dashed when asked, with its ends on its first and last pieces. */
+function drawConnector(context: CanvasRenderingContext2D, object: ConnectorAnnotation): void {
+	if (!object.points.length) return;
+	context.strokeStyle = object.color;
+	context.fillStyle = object.color;
+	context.lineWidth = object.width;
+	context.globalAlpha = object.opacity;
+	context.setLineDash(
+		object.dash === LineDash.Dashed
+			? [object.width * AnnotationRendering.DashPerWidth, object.width * AnnotationRendering.DashGapPerWidth]
+			: [],
+	);
+	const { head, tail } = connectorEnds(object);
+	const path = trimmedPath(object.points, lineEndInset(object.width, tail), lineEndInset(object.width, head));
 	context.beginPath();
-	context.moveTo(to.x, to.y);
-	const headAngle = Math.PI / AnnotationRendering.ArrowAngleDivisor;
-	context.lineTo(
-		to.x - head * Math.cos(angle - headAngle),
-		to.y - head * Math.sin(angle - headAngle),
-	);
-	context.lineTo(
-		to.x - head * Math.cos(angle + headAngle),
-		to.y - head * Math.sin(angle + headAngle),
-	);
-	context.closePath();
-	context.fill();
+	context.moveTo(path[0]!.x, path[0]!.y);
+	for (const point of path.slice(1)) context.lineTo(point.x, point.y);
+	context.stroke();
+	context.setLineDash([]);
+	const [start, second] = object.points;
+	const tip = object.points.at(-1)!;
+	const before = object.points.at(-2)!;
+	drawLineEnd(context, before, tip, object.width, head);
+	if (second) drawLineEnd(context, second, start!, object.width, tail);
+}
+
+/** A path with its ends pulled back along their pieces, so a hollow end is not crossed by its line. */
+function trimmedPath(points: readonly Point[], start: number, end: number): Point[] {
+	const path = [...points];
+	path[0] = pulledBack(path[0]!, path[1]!, start);
+	path[path.length - 1] = pulledBack(path.at(-1)!, path.at(-2)!, end);
+	return path;
+}
+
+/** A point moved `distance` towards another, unless that would pass it. */
+function pulledBack(tip: Point, towards: Point, distance: number): Point {
+	const length = Math.hypot(towards.x - tip.x, towards.y - tip.y);
+	if (!distance || length <= distance) return tip;
+	return { x: tip.x + ((towards.x - tip.x) * distance) / length, y: tip.y + ((towards.y - tip.y) * distance) / length };
 }
 
 function drawStep(

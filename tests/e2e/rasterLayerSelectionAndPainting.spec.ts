@@ -58,7 +58,7 @@ test('native double-clicks select without paint, and paint stays with a crop thr
 			createWritable: async () => ({ write: async (blob: Blob) => { (window as Window & { savedCrop?: string }).savedCrop = await blob.text(); }, close: async () => undefined }),
 		}) });
 	});
-	await page.locator('#saveProjectButton').evaluate((button: HTMLButtonElement) => button.click());
+	await page.locator('#saveAsButton').evaluate((button: HTMLButtonElement) => button.click());
 	const project = await page.waitForFunction(() => (window as Window & { savedCrop?: string }).savedCrop).then((handle) => handle.jsonValue());
 	await page.reload();
 	await page.locator('#fileInput').setInputFiles({ name: 'painted-crop.limg', mimeType: 'application/vnd.little-image-editor.project+json', buffer: Buffer.from(project) });

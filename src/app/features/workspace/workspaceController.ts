@@ -1,4 +1,5 @@
 import { element, elements } from '../../shared/dom/domHelpers';
+import { createEditorIcon, EditorIconId } from '../../shared/style/editorIcons';
 import { KeyboardKey } from '../../shared/input/keyboardKeys';
 import {
 	type ManagedToolbarPanel,
@@ -138,7 +139,10 @@ export class WorkspaceUi {
 	}
 
 	private initializeFullscreenLabels(): void {
-		element<HTMLElement>('#menuFocusButton span').textContent = 'Fullscreen';
+		element<HTMLElement>('#menuFocusButton span').replaceChildren(
+			createEditorIcon(EditorIconId.Focus),
+			document.createTextNode('Fullscreen'),
+		);
 		element<HTMLElement>('#focusButton').title = 'Fullscreen (Tab)';
 		element<HTMLElement>('#exitFocusButton').textContent = 'Exit fullscreen';
 		const help = document.querySelector<HTMLElement>('.status-help');

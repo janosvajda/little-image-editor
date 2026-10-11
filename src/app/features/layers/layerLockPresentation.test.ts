@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CanvasDocument } from '../../core/document/imageDocument';
+import { EditorIconId } from '../../shared/style/editorIcons';
 import { AnnotationDocument } from '../annotations/annotationDocument';
 import { AnnotationObjectTypeId } from '../annotations/annotationTypes';
 import { LayersController } from './layersController';
@@ -32,14 +33,15 @@ describe('layer lock presentation', () => {
 
 		expect(row().classList).toContain('locked');
 		const lockedButton = row().querySelector<HTMLButtonElement>('.layer-lock')!;
-		expect(lockedButton.textContent).toBe('🔒');
+		expect(lockedButton.querySelector('svg')?.getAttribute('data-editor-icon')).toBe(EditorIconId.Lock);
 		expect(lockedButton.getAttribute('aria-pressed')).toBe('true');
 		expect(lockedButton.getAttribute('aria-label')).toContain('Unlock');
 
 		lockedButton.click();
 		expect(row().classList).not.toContain('locked');
-		expect(
-			row().querySelector<HTMLButtonElement>('.layer-lock')!.textContent,
-		).toBe('🔓');
+		const unlockedButton = row().querySelector<HTMLButtonElement>('.layer-lock')!;
+		expect(unlockedButton.querySelector('svg')?.getAttribute('data-editor-icon')).toBe(EditorIconId.Unlock);
+		expect(unlockedButton.getAttribute('aria-pressed')).toBe('false');
+		expect(unlockedButton.getAttribute('aria-label')).toContain('Lock');
 	});
 });

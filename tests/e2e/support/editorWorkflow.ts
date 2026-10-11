@@ -99,14 +99,14 @@ export function canvasPixel(page: Page, point: Point, selector = '#canvas'): Pro
 export async function saveTestProject(page: Page): Promise<LittleImageProject> {
 	await page.evaluate(() => { (window as ProjectWriterWindow).testProjectSource = undefined; });
 	await page.locator('#fileMenu > summary').click();
-	await page.locator('#saveProjectButton').click();
+	await page.locator('#saveAsButton').click();
 	const source = await page.waitForFunction(() => (window as ProjectWriterWindow).testProjectSource).then((handle) => handle.jsonValue());
 	if (typeof source !== 'string') throw new Error('Project save produced no document.');
 	return new ProjectCodec().parse(source);
 }
 
 export async function restoreTestProject(page: Page, project: LittleImageProject): Promise<void> {
-	await page.locator('#projectFileInput').setInputFiles({ name: 'restored.limg', mimeType: PROJECT_MIME_TYPE, buffer: Buffer.from(JSON.stringify(project)) });
+	await page.locator('#fileInput').setInputFiles({ name: 'restored.limg', mimeType: PROJECT_MIME_TYPE, buffer: Buffer.from(JSON.stringify(project)) });
 }
 
 export async function showLayers(page: Page): Promise<void> {

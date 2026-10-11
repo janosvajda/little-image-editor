@@ -1,3 +1,4 @@
+import { ImageExtension } from '../../core/document/imageFormats';
 import type {
 	BrowserCapturePlatform,
 	BrowserContextMenu,
@@ -42,7 +43,7 @@ export class ChromeCapturePlatform implements BrowserCapturePlatform {
 
 	async captureVisibleTab(windowId: number): Promise<Blob> {
 		const dataUrl = await chrome.tabs.captureVisibleTab(windowId, {
-			format: 'png',
+			format: ImageExtension.Png,
 		});
 		return (await fetch(dataUrl)).blob();
 	}

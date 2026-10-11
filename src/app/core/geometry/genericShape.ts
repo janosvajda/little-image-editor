@@ -2,6 +2,7 @@ import {
 	type AnnotationObject,
 	AnnotationObjectTypeId,
 	type ArrowAnnotation,
+	type ConnectorAnnotation,
 	type FillAnnotation,
 	type RasterFragmentAnnotation,
 	type RectAnnotation,
@@ -153,6 +154,30 @@ export class StrokeShape extends GenericShape<StrokeAnnotation> {
 	}
 }
 
+/**
+ * A connector's frame is the box around its points; resizing the frame
+ * stretches the path with it, and a path with no width or height in one
+ * direction stays centred in the new frame that way.
+ */
+export class ConnectorShape extends GenericShape<ConnectorAnnotation> {
+	protected readRect(): CropRect {
+		const xs = this.object.points.map((point) => point.x);
+		const ys = this.object.points.map((point) => point.y);
+		const x = Math.min(...xs);
+		const y = Math.min(...ys);
+		return { x, y, width: Math.max(...xs) - x, height: Math.max(...ys) - y };
+	}
+	protected writeRect(rect: CropRect): void {
+		const current = this.readRect();
+		const place = (value: number, from: number, size: number, to: number, newSize: number) =>
+			size ? to + ((value - from) * newSize) / size : to + newSize / 2;
+		this.object.points = this.object.points.map((point) => ({
+			x: place(point.x, current.x, current.width, rect.x, rect.width),
+			y: place(point.y, current.y, current.height, rect.y, rect.height),
+		}));
+	}
+}
+
 type ShapeRegistration = Readonly<{
 	supports(object: AnnotationObject): boolean;
 	create(object: AnnotationObject): GenericShape;
@@ -197,6 +222,10 @@ const DEFAULT_SHAPE_FACTORY = new GenericShapeFactory([
 	registration(
 		AnnotationObjectTypeId.Redact,
 		(object) => new RectShape(object),
+	),
+	registration(
+		AnnotationObjectTypeId.Connector,
+		(object) => new ConnectorShape(object),
 	),
 ]);
 

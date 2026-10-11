@@ -17,6 +17,9 @@ export async function imagePicture(
 	if (!documentModel.hasImage) throw new Error(NO_IMAGE_MESSAGE);
 	const { width: imageWidth, height: imageHeight } = documentModel;
 	const scale = Math.min(1, maxSize / Math.max(imageWidth, imageHeight));
+	// At full size the picture is exactly what Export writes as PNG.
+	if (scale === 1)
+		return { png: await documentModel.toBlob(ImageMimeType.Png), width: imageWidth, height: imageHeight, imageWidth, imageHeight };
 	const picture = document.createElement('canvas');
 	picture.width = Math.max(1, Math.round(imageWidth * scale));
 	picture.height = Math.max(1, Math.round(imageHeight * scale));

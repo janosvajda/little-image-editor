@@ -1,0 +1,193 @@
+/* Shared visual skin. Control geometry, layout, and document rendering stay in their existing styles. */
+:root {
+    --bg: var(--color-studio-dark);
+    --surface: var(--color-studio-surface);
+    --surface2: var(--color-studio-raised);
+    --canvas: var(--color-studio-dark);
+    --grid: var(--color-studio-border);
+    --border: var(--color-studio-border);
+    --text: var(--color-studio-text);
+    --muted: var(--color-studio-muted);
+    --accent: var(--color-pencil-gold);
+    --accent2: var(--color-leaf-green);
+    --selected: color-mix(in srgb, var(--accent) 12%, var(--surface));
+    --layer-selection: var(--color-leaf-green);
+    --focus-ring: var(--color-leaf-green);
+    --icon-ink: var(--color-icon-light-ink);
+    --icon-paper: var(--color-icon-dark-paper);
+    --icon-soft: var(--color-icon-dark-soft);
+    --icon-gold: var(--color-pencil-gold);
+    --icon-leaf: var(--color-leaf-green);
+    --icon-wood: var(--color-pencil-wood);
+    --icon-highlight: var(--color-pencil-highlight);
+    --icon-shine: var(--color-white);
+}
+
+html[data-theme=light] {
+    --bg: var(--color-paper-canvas);
+    --surface: var(--color-white);
+    --surface2: var(--color-paper-surface);
+    --canvas: var(--color-paper-canvas);
+    --grid: var(--color-paper-border);
+    --border: var(--color-paper-border);
+    --text: var(--color-ant-ink);
+    --muted: var(--color-paper-muted);
+    --accent: var(--color-pencil-gold);
+    --accent2: var(--color-leaf-deep);
+    --layer-selection: var(--color-leaf-green);
+    --focus-ring: var(--color-leaf-focus);
+    --icon-ink: var(--color-ant-ink);
+    --icon-paper: var(--color-white);
+    --icon-soft: var(--color-icon-soft);
+}
+
+html[data-theme=contrast] {
+    --bg: var(--color-black);
+    --surface: var(--color-black);
+    --surface2: var(--color-black);
+    --canvas: var(--color-black);
+    --grid: var(--color-dark-gray);
+    --border: var(--color-white);
+    --text: var(--color-white);
+    --muted: var(--color-white);
+    --accent: var(--color-yellow);
+    --accent2: var(--color-yellow);
+    --layer-selection: var(--color-lime);
+    --focus-ring: var(--color-yellow);
+    --icon-ink: var(--color-white);
+    --icon-paper: var(--color-black);
+    --icon-soft: var(--color-white);
+    --icon-gold: var(--color-yellow);
+    --icon-leaf: var(--color-lime);
+    --icon-wood: var(--color-yellow);
+    --icon-highlight: var(--color-white);
+}
+
+/* Keep outline and fill rules local to the SVG so toolbar text never inherits icon colors. */
+svg.editor-icon {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    vertical-align: middle;
+    pointer-events: none;
+    color: var(--icon-ink);
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.7;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+svg.editor-icon .icon-gold { fill: var(--icon-gold) }
+svg.editor-icon .icon-leaf { fill: var(--icon-leaf) }
+svg.editor-icon .icon-paper { fill: var(--icon-paper) }
+svg.editor-icon .icon-wood { fill: var(--icon-wood) }
+svg.editor-icon .icon-ink { fill: var(--icon-ink) }
+svg.editor-icon .icon-green-stroke { stroke: var(--icon-leaf) }
+svg.editor-icon .icon-gold-stroke { stroke: var(--icon-gold) }
+svg.editor-icon .icon-soft { stroke: var(--icon-soft) }
+svg.editor-icon .icon-shine { stroke: var(--icon-highlight); stroke-width: 1.3 }
+svg.editor-icon .icon-shine-fill { fill: var(--icon-shine); stroke: none }
+
+.icon-button svg.editor-icon,
+.icon-button svg.editor-icon.filled-icon { fill: none; stroke: currentColor; stroke-width: 1.7 }
+.tool-select-icon svg.editor-icon { width: 24px; height: 24px }
+.utility-tool svg.editor-icon { width: 20px; height: 20px }
+.grouped-tool-palette .tool > span svg.editor-icon { width: 21px; height: 21px }
+.tool-flyout svg.editor-icon { width: 22px; height: 22px }
+.panel-action svg.editor-icon,
+.effect-action svg.editor-icon { width: 14px; height: 14px }
+.crop-mode-button svg.editor-icon { width: 22px; height: 22px }
+.menu-action-copy svg.editor-icon { width: 16px; height: 16px }
+.function-icon svg.editor-icon { width: 30px; height: 30px }
+.confirmation-content svg.editor-icon { width: 36px; height: 36px }
+.dialog-close svg.editor-icon,
+.panel-header button svg.editor-icon { width: 14px; height: 14px }
+.dialog-action svg.editor-icon { width: 16px; height: 16px }
+.layer-row button svg.editor-icon { width: 16px; height: 16px }
+.layer-drag-handle svg.editor-icon { width: 13px; height: 16px }
+.dock-rail-button svg.editor-icon { width: 22px; height: 22px }
+.dock-panel-close svg.editor-icon { width: 16px; height: 16px }
+.marker-reset svg.editor-icon { width: 13px; height: 13px }
+.zoom-tool-options svg.editor-icon { width: 12px; height: 12px }
+.layer-actions svg.editor-icon { width: 14px; height: 14px }
+.annotation-action svg.editor-icon { width: 17px; height: 17px }
+#statusBar .icon-button svg.editor-icon { width: 16px; height: 16px }
+
+button:hover:not(:disabled) { filter: none }
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible { outline-color: var(--focus-ring) }
+.primary,
+.annotation-action.primary {
+    color: var(--color-ant-ink);
+    background: var(--color-pencil-gold);
+    border-color: color-mix(in srgb, var(--color-pencil-gold) 75%, var(--color-ant-ink));
+    box-shadow: inset 0 1px color-mix(in srgb, var(--color-white) 35%, var(--color-transparent));
+}
+.primary:hover:not(:disabled),
+.annotation-action.primary:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--color-pencil-gold) 90%, var(--color-white));
+    color: var(--color-ant-ink);
+}
+.panel,
+.menu-popover,
+.toolbar-visibility,
+.tool-flyout { box-shadow: 0 8px 28px color-mix(in srgb, var(--color-ant-ink) 12%, var(--color-transparent)) }
+.panel-header,
+.dock-panel-header { background: var(--surface); color: var(--text) }
+.panel-header button:hover:not(:disabled),
+.icon-button:hover:not(:disabled) { background: var(--surface2); border-color: var(--border) }
+.menu-popover button:hover:not(:disabled),
+.menu-popover button:focus-visible { background: var(--selected); color: var(--text) }
+.function-card:hover { background: var(--selected); border-color: var(--accent) }
+.tool-select.active,
+.utility-tool.active,
+.grouped-tool-palette .tool.active {
+    border-color: color-mix(in srgb, var(--accent) 65%, var(--border));
+    background: var(--selected);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 15%, var(--color-transparent));
+    color: var(--text);
+}
+.dock-rail-button.dock-active { background: var(--selected) }
+.layer-row.active,
+.layer-row.active:not(.layer-item-row) {
+    border-color: color-mix(in srgb, var(--layer-selection) 55%, var(--border));
+    background: color-mix(in srgb, var(--layer-selection) 9%, var(--surface));
+}
+input[type=range],
+input[type=checkbox],
+.drawing-panel input[type=range],
+.panel label input[type=range],
+.toolbar-visibility input { accent-color: var(--accent2) }
+html[data-theme=light] input[type=range],
+html[data-theme=light] .drawing-panel input[type=range],
+html[data-theme=light] .panel label input[type=range] { accent-color: var(--color-leaf-deep) }
+.icon-text-button,
+.annotation-action,
+.marker-reset { display: inline-flex; align-items: center; justify-content: center; gap: 5px }
+.layer-row button:not(.layer-name) { display: grid; place-items: center }
+.menu-popover .menu-action-copy { display: inline-flex; align-items: center; gap: 8px }
+.function-icon { display: grid; place-items: center }
+
+/* The logo remains the original artwork; only the surrounding surfaces change. */
+.startup-spinner { border-top-color: var(--color-pencil-gold) }
+.function-icon,
+.gif-icon { color: var(--text); background: var(--selected) }
+html[data-theme=contrast] .primary,
+html[data-theme=contrast] .annotation-action.primary { background: var(--color-yellow); color: var(--color-black) }
+html[data-theme=contrast] .tool.active,
+html[data-theme=contrast] .layer-row.active { border-color: var(--accent) }
+@media (forced-colors: active) {
+    svg.editor-icon {
+        --icon-ink: CanvasText;
+        --icon-paper: Canvas;
+        --icon-gold: Canvas;
+        --icon-leaf: Canvas;
+        --icon-wood: Canvas;
+        --icon-highlight: CanvasText;
+        --icon-soft: CanvasText;
+        --icon-shine: CanvasText;
+    }
+}

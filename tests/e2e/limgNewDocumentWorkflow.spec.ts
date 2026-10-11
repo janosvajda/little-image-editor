@@ -56,7 +56,7 @@ test('a new .limg document saves and reopens its editable shape through primary 
 
 	await page.locator('#quickCloseImageButton').click();
 	await page.locator('#confirmCloseImageButton').click();
-	await page.locator('#projectFileInput').setInputFiles({
+	await page.locator('#fileInput').setInputFiles({
 		name: 'editable-project.limg',
 		mimeType: PROJECT_MIME_TYPE,
 		buffer: Buffer.from(source as string),

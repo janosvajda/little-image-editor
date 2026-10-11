@@ -1,4 +1,6 @@
 import {
+	type ConnectorTool,
+	ConnectorToolId,
 	MarkupToolId,
 	PaintToolId,
 	ShapeToolId,
@@ -17,6 +19,8 @@ import { SelectionPresentation } from '../annotations/selectionOverlayRenderer';
 export const DrawingToolKind = {
 	Paint: 'paint',
 	Shape: 'shape',
+	/** Draws one connector item: a line with bends. */
+	Connector: 'connector',
 	Markup: 'markup',
 	Select: 'select',
 	Picker: 'picker',
@@ -69,6 +73,8 @@ export interface DrawingToolOptions {
 	readonly zoom: boolean;
 	/** The next number a numbered marker gets, with a reset. */
 	readonly marker: boolean;
+	/** What a line ends in, at its start and at its end. */
+	readonly lineEnds: boolean;
 }
 
 export interface DrawingToolBehavior {
@@ -92,6 +98,7 @@ const NO_OPTIONS: DrawingToolOptions = {
 	crop: false,
 	zoom: false,
 	marker: false,
+	lineEnds: false,
 };
 const PAINT_OPTIONS: DrawingToolOptions = {
 	...NO_OPTIONS,
@@ -106,6 +113,14 @@ const SHAPE_OPTIONS: DrawingToolOptions = {
 	size: true,
 	opacity: true,
 	shapeFill: true,
+};
+
+const CONNECTOR_OPTIONS: DrawingToolOptions = {
+	...NO_OPTIONS,
+	color: true,
+	size: true,
+	opacity: true,
+	lineEnds: true,
 };
 
 const paint = (
@@ -163,6 +178,13 @@ export const DRAWING_TOOL_BEHAVIORS: Readonly<
 	[ShapeToolId.Triangle]: shape(),
 	[ShapeToolId.Diamond]: shape(),
 	[ShapeToolId.Star]: shape(),
+	[ConnectorToolId.ElbowArrow]: {
+		kind: DrawingToolKind.Connector,
+		cursor: 'crosshair',
+		options: CONNECTOR_OPTIONS,
+		optionSource: ToolOptionSource.Contextual,
+		sizeLabel: ToolSizeLabel.ShapeStrokeWidth,
+	},
 	[MarkupToolId.Number]: markup(
 		{ color: true, size: true, marker: true },
 		{ sizeLabel: ToolSizeLabel.MarkerSize, colorScope: ToolColorScope.Own },
@@ -235,6 +257,9 @@ export function isPaintTool(tool: Tool): tool is PaintTool {
 }
 export function isShapeTool(tool: Tool): tool is ShapeTool {
 	return isToolKind(tool, DrawingToolKind.Shape);
+}
+export function isConnectorTool(tool: Tool): tool is ConnectorTool {
+	return isToolKind(tool, DrawingToolKind.Connector);
 }
 export function isMarkupTool(tool: Tool): tool is MarkupTool {
 	return isToolKind(tool, DrawingToolKind.Markup);

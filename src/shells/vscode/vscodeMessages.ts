@@ -99,6 +99,8 @@ export type HostMessage =
 			type: typeof HostMessageType.Reply;
 			requestId: number;
 			value: boolean | string | PickedSaveTarget | null;
+			/** A failed host operation rejects the pending request in the page. */
+			error?: string;
 	  }>
 	| Readonly<{
 			type: typeof HostMessageType.View;

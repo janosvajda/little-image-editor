@@ -38,11 +38,10 @@ describe("FileController", () => {
   it("exports in the selected format without changing the active document file", async () => {
     const { model, files } = subject();
     model.create({ name: "picture", width: 2, height: 2, transparent: false, background: "#fff" });
-    document.querySelector<HTMLSelectElement>("#formatSelect")!.value = "image/webp";
     const writable = { write: vi.fn(), close: vi.fn() };
     const handle = { name: "export.webp", createWritable: vi.fn().mockResolvedValue(writable) } as unknown as FileSystemFileHandle;
     Object.defineProperty(window, "showSaveFilePicker", { configurable: true, value: vi.fn().mockResolvedValue(handle) });
-    await files.exportImage();
+    await files.exportImage("image/webp");
     expect(model.fileHandle).toBeNull();
     expect(model.savedType).toBe("image/png");
     expect(writable.write).toHaveBeenCalledOnce();
@@ -51,10 +50,9 @@ describe("FileController", () => {
   it("handles save cancellation and fallback download", async () => {
     const { model, files } = subject();
     model.create({ name: "alpha", width: 2, height: 2, transparent: true, background: "#fff" });
-    const format = document.querySelector<HTMLSelectElement>("#formatSelect")!; format.value = "image/jpeg";
-    vi.mocked(window.confirm).mockReturnValueOnce(false); await files.saveAs();
+    vi.mocked(window.confirm).mockReturnValueOnce(false); await files.saveAs("image/jpeg");
     Object.defineProperty(window, "showSaveFilePicker", { configurable: true, value: undefined });
-    format.value = "image/png"; await files.saveAs();
+    await files.saveAs("image/png");
     vi.mocked(window.prompt).mockReturnValueOnce(null); await files.saveAs(); files.open();
   });
 

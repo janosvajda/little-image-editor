@@ -26,7 +26,7 @@ test('moving a lower object preserves every object and canonical z-order after r
 
 	await page.locator('#quickCloseImageButton').click();
 	await page.locator('#confirmCloseImageButton').click();
-	await page.locator('#projectFileInput').setInputFiles({
+	await page.locator('#fileInput').setInputFiles({
 		name: 'composite-order.limg',
 		mimeType: ProjectMimeType,
 		buffer: Buffer.from(source),

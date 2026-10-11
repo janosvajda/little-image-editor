@@ -1,3 +1,5 @@
+import { EditorIconId, editorIconMarkup } from '../../shared/style/editorIcons';
+import { ARROW_ENDS, isLineEnd, LINE_END_LABELS, LineEnd, type LineEnds } from '../annotations/lineEnd';
 import {
 	MarkupToolId,
 	PaintToolId,
@@ -24,7 +26,7 @@ import {
 	DRAWING_TOOL_DEFINITIONS,
 	ERASER_TOOL_DEFINITION,
 	MARKUP_TOOL_DEFINITIONS,
-	SHAPE_TOOL_DEFINITIONS,
+	SHAPE_MENU_TOOL_DEFINITIONS,
 	UTILITY_TOOL_DEFINITIONS,
 } from './drawingToolCatalog';
 import type { DrawingToolSettings } from './drawingToolSettings';
@@ -58,6 +60,9 @@ const PROFILED_DRAWING_CONTROL_IDS = [
 	DrawingControlId.Hardness,
 ] as const;
 
+/** The names of a line's two ends where they are chosen. */
+const LineEndChoice = { Start: 'Start', End: 'End' } as const;
+
 /** Toolbar presentation and persisted tool settings; no image mutation. */
 export class DrawingToolControls implements DrawingToolSettings {
 	readonly #toolsPanel = element<HTMLElement>(toolbarSelector(ToolbarId.Tools));
@@ -80,6 +85,8 @@ export class DrawingToolControls implements DrawingToolSettings {
 	readonly #sampledColor: HTMLInputElement;
 	readonly #cropOptions: HTMLElement;
 	readonly #markerOptions: HTMLElement | null;
+	readonly #lineEndOptions: HTMLElement;
+	readonly #lineEndSelects: Readonly<Record<keyof LineEnds, HTMLSelectElement>>;
 	#cropSelectionKind: CropSelectionKind = CropSelectionKind.Rectangle;
 	readonly #contextHint: HTMLElement;
 	readonly #selectedObjectProperties?: SelectedObjectPropertiesController;
@@ -100,6 +107,9 @@ export class DrawingToolControls implements DrawingToolSettings {
 		this.#pickerSwatch = pickerControls.swatch;
 		this.#sampledColor = pickerControls.color;
 		this.#cropOptions = this.createCropOptions();
+		const lineEndControls = this.createLineEndOptions();
+		this.#lineEndOptions = lineEndControls.root;
+		this.#lineEndSelects = lineEndControls.selects;
 		this.#markerOptions = shapes ? this.createMarkerOptions(shapes) : null;
 		this.#contextHint = this.createContextHint();
 		if (shapes)
@@ -128,7 +138,7 @@ export class DrawingToolControls implements DrawingToolSettings {
 					control: element('#shapeToolControl'),
 					icon: element('.tool-select-icon', element('#shapeToolControl')),
 					select: this.#shapeSelect,
-					tools: SHAPE_TOOL_DEFINITIONS,
+					tools: SHAPE_MENU_TOOL_DEFINITIONS,
 					defaultTool: ShapeToolId.Rectangle,
 				},
 				{
@@ -161,7 +171,7 @@ export class DrawingToolControls implements DrawingToolSettings {
 				{
 					label: 'Shape tools',
 					select: this.#shapeSelect,
-					tools: SHAPE_TOOL_DEFINITIONS,
+					tools: SHAPE_MENU_TOOL_DEFINITIONS,
 				},
 				{
 					label: 'Markup tools',
@@ -198,6 +208,10 @@ export class DrawingToolControls implements DrawingToolSettings {
 	}
 	get fillShape(): boolean {
 		return this.#fill.checked;
+	}
+	lineEnds(): LineEnds {
+		const chosen = (select: HTMLSelectElement, fallback: LineEnd) => (isLineEnd(select.value) ? select.value : fallback);
+		return { head: chosen(this.#lineEndSelects.head, ARROW_ENDS.head), tail: chosen(this.#lineEndSelects.tail, ARROW_ENDS.tail) };
 	}
 	get cropSelectionKind(): CropSelectionKind {
 		return this.#cropSelectionKind;
@@ -280,6 +294,7 @@ export class DrawingToolControls implements DrawingToolSettings {
 		this.#pickerOptions.classList.toggle('hidden', !options.picker);
 		this.#cropOptions.classList.toggle('hidden', !options.crop);
 		this.#markerOptions?.classList.toggle('hidden', !options.marker);
+		this.#lineEndOptions.classList.toggle('hidden', !options.lineEnds);
 		this.#contextHint.classList.toggle('hidden', !options.zoom);
 		if (options.picker) this.updatePickerSwatch(this.#sampledColor.value);
 	}
@@ -326,16 +341,38 @@ export class DrawingToolControls implements DrawingToolSettings {
 		};
 	}
 
+	/** A choice of end for each end of a line, from every end a line can have. */
+	private createLineEndOptions(): { root: HTMLElement; selects: Record<keyof LineEnds, HTMLSelectElement> } {
+		const root = document.createElement('div');
+		root.className = 'line-end-options hidden';
+		const select = (label: string, id: string, chosen: LineEnd): HTMLSelectElement => {
+			const wrapper = document.createElement('label');
+			wrapper.textContent = label;
+			const input = document.createElement('select');
+			input.id = id;
+			for (const end of Object.values(LineEnd)) input.add(new Option(LINE_END_LABELS[end], end, false, end === chosen));
+			wrapper.append(input);
+			root.append(wrapper);
+			return input;
+		};
+		const selects = {
+			tail: select(LineEndChoice.Start, 'lineTailSelect', ARROW_ENDS.tail),
+			head: select(LineEndChoice.End, 'lineHeadSelect', ARROW_ENDS.head),
+		};
+		element('.tool-options', this.#toolsPanel).append(root);
+		return { root, selects };
+	}
+
 	private createCropOptions(): HTMLElement {
 		const root = document.createElement('div');
 		root.className = 'crop-tool-options hidden';
 		root.innerHTML = `<p class="tool-hint">Start on the image or object you want to cut, select an area, then drag the cut-out to move it. Image cuts create a new layer.</p>
 			<div class="crop-selection-modes" role="group" aria-label="Crop selection mode">
 				<button type="button" class="crop-mode-button active" data-crop-selection-kind="${CropSelectionKind.Rectangle}" aria-label="Rectangle crop selection" aria-pressed="true" title="Rectangle selection">
-					<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="1"/></svg><span>Rectangle</span>
+					${editorIconMarkup(EditorIconId.RectangleSelection)}<span>Rectangle</span>
 				</button>
 				<button type="button" class="crop-mode-button" data-crop-selection-kind="${CropSelectionKind.Lasso}" aria-label="Lasso crop selection" aria-pressed="false" title="Freehand lasso selection">
-					<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.5 11.5c0 4-3.2 7-7.2 7S4 15.8 4 11.5 7.2 5 11.3 5s7.2 2.5 7.2 6.5Z"/><path d="M11.3 18.5c1.8 0 3.2.8 3.2 2"/></svg><span>Lasso</span>
+					${editorIconMarkup(EditorIconId.Lasso)}<span>Lasso</span>
 				</button>
 			</div>
 			<div class="context-actions"><button type="button" data-cancel-crop>Cancel</button></div>`;
@@ -381,7 +418,7 @@ export class DrawingToolControls implements DrawingToolSettings {
 		const reset = document.createElement('button');
 		reset.type = 'button';
 		reset.className = 'marker-reset';
-		reset.textContent = `↺ Reset to ${MarkerNumber.First}`;
+		reset.innerHTML = `${editorIconMarkup(EditorIconId.Reset)}<span>Reset to ${MarkerNumber.First}</span>`;
 		root.append(label, reset);
 		next.addEventListener('change', () => {
 			const value = Number(next.value);
@@ -412,18 +449,22 @@ export class DrawingToolControls implements DrawingToolSettings {
 		const heading = document.createElement('small');
 		heading.className = 'tool-section-title';
 		heading.textContent = 'View';
-		const actions: ReadonlyArray<readonly [string, string, () => void]> = [
-			['−', 'Zoom out', () => viewport.zoomOut()],
-			['+', 'Zoom in', () => viewport.zoomIn()],
+		const actions: ReadonlyArray<readonly [string, string, () => void, EditorIconId?]> = [
+			['−', 'Zoom out', () => viewport.zoomOut(), EditorIconId.Minus],
+			['+', 'Zoom in', () => viewport.zoomIn(), EditorIconId.Plus],
 			['Fit', 'Fit image to window', () => viewport.fitToWindow()],
 			['100%', 'Actual pixels', () => viewport.actualPixels()],
 		];
 		options.append(
 			heading,
-			...actions.map(([label, title, action]) => {
+			...actions.map(([label, title, action, icon]) => {
 				const button = document.createElement('button');
 				button.type = 'button';
 				button.textContent = label;
+				if (icon) {
+					button.innerHTML = editorIconMarkup(icon);
+					button.setAttribute('aria-label', title);
+				}
 				button.title = title;
 				button.addEventListener('click', action);
 				return button;

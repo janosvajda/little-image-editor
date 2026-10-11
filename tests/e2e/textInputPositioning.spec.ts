@@ -53,7 +53,7 @@ test('positions text creation and double-click editing after zooming and scrolli
 	const editPosition = { x: Position.x + 10, y: Position.y - 10 };
 	const client = await canvasClientPoint(page, editPosition);
 	await page.mouse.dblclick(client.x, client.y);
-	await expectPositionedInput(page, editPosition);
+	await expectPositionedInput(page, Position);
 	await expect(page.locator(InlineText)).toHaveValue(Label);
 	await page.locator(InlineText).fill('Edited label');
 	await page.locator(InlineText).press('Enter');

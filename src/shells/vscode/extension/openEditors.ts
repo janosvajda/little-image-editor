@@ -4,11 +4,14 @@ import type {
 	AssistantResult,
 	NewImageSpec,
 } from '../../../app/features/assistant/assistantCommandTypes';
-import type { EditableImages, OpenImageSummary, OpenImageView } from '../assistant/openImages';
-import type { EditorSession } from './editorSession';
+import { MAX_CANVAS_DIMENSION } from '../../../app/core/geometry/geometryHelpers';
+import type {
+	EditableImages, ExportableImages, ImageExportRequest, ImageExportResult, OpenImageSummary, OpenImageView,
+} from '../assistant/openImages';
+import { type EditorSession, FILE_SCHEME } from './editorSession';
 import { openUntitledImage, untitledImageUri } from './untitledImages';
+import { WorkspaceImageExporter } from './workspaceImageExporter';
 
-const FILE_SCHEME = 'file';
 const NO_EDITOR_MESSAGE =
 	'No image is open in Little Image Editor. Open an image or a .limg project in VS Code with Little Image Editor first, or create one with create_image.';
 const CHOOSE_IMAGE_MESSAGE =
@@ -18,7 +21,7 @@ const CHOOSE_IMAGE_MESSAGE =
  * Every open Little Image Editor tab, whichever file type opened it, and the
  * one the user works in. Assistant tools reach the images through it.
  */
-export class OpenEditors implements EditableImages {
+export class OpenEditors implements EditableImages, ExportableImages {
 	readonly #sessions = new Set<EditorSession>();
 	#active: EditorSession | null = null;
 	/** Sizes for untitled images an assistant asked for, until their editors open. */
@@ -61,6 +64,22 @@ export class OpenEditors implements EditableImages {
 
 	command(image: string | undefined, command: AssistantCommand): Promise<AssistantResult> {
 		return this.find(image).command(command);
+	}
+
+	/** Writes a full-size PNG copy into the workspace without saving or flattening the open project. */
+	export(image: string | undefined, request: ImageExportRequest): Promise<ImageExportResult> {
+		const session = this.find(image);
+		const workspaces = (vscode.workspace.workspaceFolders ?? [])
+			.filter(({ uri }) => uri.scheme === FILE_SCHEME)
+			.map(({ name, uri }) => ({ name, path: uri.fsPath }));
+		return new WorkspaceImageExporter(workspaces).export(
+			request,
+			session.document.uri.fsPath,
+			async () => {
+				const { contents, ...sizes } = await session.view(MAX_CANVAS_DIMENSION);
+				return { name: session.document.name, png: contents, ...sizes };
+			},
+		);
 	}
 
 	/** Opens a new, unsaved image in the project and waits until its editor has created it. */

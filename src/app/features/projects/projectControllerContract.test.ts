@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { CanvasDocument } from '../../core/document/imageDocument';
+import { FileController } from '../files/fileController';
 import { ProjectCodec } from './projectCodec';
 import { ProjectController } from './projectController';
 import { PROJECT_MIME_TYPE } from './projectTypes';
@@ -92,8 +93,10 @@ describe('ProjectController contract', () => {
 			value: vi.fn().mockResolvedValue([opened.handle]),
 		});
 		const controller = new ProjectController(documentModel);
+		const files = new FileController(documentModel);
+		files.setProjectOpenHandler((file, target) => controller.openFile(file, target));
 
-		await controller.open();
+		await files.open();
 
 		expect(documentModel.hasImage).toBe(true);
 		expect(documentModel.baseName).toBe('project-source');
@@ -111,8 +114,10 @@ describe('ProjectController contract', () => {
 		await controller.save();
 		expect(click).toHaveBeenCalledOnce();
 
+		const files = new FileController(documentModel);
+		files.setProjectOpenHandler((file, target) => controller.openFile(file, target));
 		const input =
-			document.querySelector<HTMLInputElement>('#projectFileInput')!;
+			document.querySelector<HTMLInputElement>('#fileInput')!;
 		Object.defineProperty(input, 'files', {
 			configurable: true,
 			value: [

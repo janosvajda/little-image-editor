@@ -1,3 +1,4 @@
+import { EditorIconId, editorIconMarkup } from '../../shared/style/editorIcons';
 export interface ToolbarPanelState {
 	readonly x: number;
 	readonly y: number;
@@ -25,9 +26,6 @@ export interface ToolbarAvailabilitySource {
 export const TOOLBAR_VISIBILITY_EVENT = 'toolbar:visibility-change';
 export const TOOLBAR_AUTO_OPEN_EVENT = 'toolbar:auto-open';
 const CLOSE_BUTTON_CLASS = 'panel-close';
-const CLOSE_BUTTON_SYMBOL = '×';
-const EXPAND_BUTTON_SYMBOL = '+';
-const COLLAPSE_BUTTON_SYMBOL = '−';
 const PANEL_TOP_PROPERTY = '--toolbar-panel-top';
 
 export class ManagedToolbarPanel {
@@ -213,7 +211,7 @@ export class ManagedToolbarPanel {
 		const button = document.createElement('button');
 		button.type = 'button';
 		button.className = CLOSE_BUTTON_CLASS;
-		button.textContent = CLOSE_BUTTON_SYMBOL;
+		button.innerHTML = editorIconMarkup(EditorIconId.Close);
 		button.title = `Close ${this.title}`;
 		button.setAttribute('aria-label', button.title);
 		this.collapseButton.after(button);
@@ -222,9 +220,9 @@ export class ManagedToolbarPanel {
 
 	private updateCollapsePresentation(): void {
 		const action = this.collapsed ? 'Expand' : 'Collapse';
-		this.collapseButton.textContent = this.collapsed
-			? EXPAND_BUTTON_SYMBOL
-			: COLLAPSE_BUTTON_SYMBOL;
+		this.collapseButton.innerHTML = editorIconMarkup(
+			this.collapsed ? EditorIconId.Plus : EditorIconId.Minus,
+		);
 		this.collapseButton.title = `${action} ${this.title}`;
 		this.collapseButton.setAttribute('aria-label', this.collapseButton.title);
 		this.collapseButton.setAttribute('aria-expanded', String(!this.collapsed));
@@ -269,3 +267,4 @@ function required<TElement extends Element>(
 		throw new Error(`Managed toolbar is missing required element: ${selector}`);
 	return result;
 }
+

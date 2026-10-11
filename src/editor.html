@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="editor.css">
     <link rel="stylesheet" href="drawingTools.css">
     <link rel="stylesheet" href="annotationTools.css">
+    <link rel="stylesheet" href="antTheme.css">
 </head>
 
 <body>
@@ -20,31 +21,29 @@
         <nav class="menubar" aria-label="Application menu" role="menubar">
             <details class="menu" id="fileMenu">
                 <summary role="menuitem" aria-label="File"><span class="mnemonic">F</span>ile</summary>
-                <div class="menu-popover" role="menu"><button id="openButton" role="menuitem"><span>Open
-                            image…</span><kbd>Ctrl/⌘+O</kbd></button>
-                    <div class="menu-rule"></div><label class="format-row"><span>File format</span><select
-                            id="formatSelect" aria-label="File format">
-                            <option value="image/png">PNG</option>
-                            <option value="image/jpeg">JPEG</option>
-                            <option value="image/webp">WebP</option>
-                        </select></label><button id="saveButton" role="menuitem"
-                        disabled><span>Save</span><kbd>Ctrl/⌘+S</kbd></button><button id="saveAsButton" role="menuitem"
-                        disabled><span>Save As…</span><kbd>⇧ Ctrl/⌘+S</kbd></button><button id="copyImageButton"
-                        role="menuitem" disabled><span>Copy image</span><kbd>Ctrl/⌘+C</kbd></button>
+                <div class="menu-popover" role="menu"><button id="openButton" role="menuitem"><span class="menu-action-copy"><svg data-editor-icon="open" viewBox="0 0 32 32" aria-hidden="true"></svg>Open…</span><kbd>Ctrl/⌘+O</kbd></button>
+                    <div class="menu-rule"></div><button id="saveButton" role="menuitem"
+                        disabled><span class="menu-action-copy"><svg data-editor-icon="save" viewBox="0 0 32 32" aria-hidden="true"></svg>Save</span><kbd>Ctrl/⌘+S</kbd></button><button id="saveAsButton" role="menuitem"
+                        disabled><span class="menu-action-copy"><svg data-editor-icon="save" viewBox="0 0 32 32" aria-hidden="true"></svg>Save As…</span><kbd>⇧ Ctrl/⌘+S</kbd></button>
+                    <div class="menu-rule"></div><button id="copyImageButton"
+                        role="menuitem" disabled><span class="menu-action-copy"><svg data-editor-icon="copy" viewBox="0 0 32 32" aria-hidden="true"></svg>Copy image</span><kbd>Ctrl/⌘+C</kbd></button>
+                    <div class="menu-rule"></div><button id="insertDiagramMenuButton" role="menuitem"><span class="menu-action-copy"><svg data-editor-icon="diagram" viewBox="0 0 32 32" aria-hidden="true"></svg>Insert
+                            Mermaid diagram…</span></button><button id="importDiagramButton" role="menuitem"><span class="menu-action-copy"><svg data-editor-icon="open" viewBox="0 0 32 32" aria-hidden="true"></svg>Import
+                            Mermaid diagram…</span></button>
                 </div>
             </details>
             <details class="menu" id="editMenu">
                 <summary role="menuitem" aria-label="Edit"><span class="mnemonic">E</span>dit</summary>
                 <div class="menu-popover" role="menu"><button id="menuUndoButton"
-                        role="menuitem"><span>Undo</span><kbd>Ctrl/⌘+Z</kbd></button><button id="menuRedoButton"
-                        role="menuitem"><span>Redo</span><kbd>⇧ Ctrl/⌘+Z</kbd></button>
-                    <div class="menu-rule"></div><button id="resetLayoutButton" role="menuitem"><span>Reset panel
+                        role="menuitem"><span class="menu-action-copy"><svg data-editor-icon="undo" viewBox="0 0 32 32" aria-hidden="true"></svg>Undo</span><kbd>Ctrl/⌘+Z</kbd></button><button id="menuRedoButton"
+                        role="menuitem"><span class="menu-action-copy"><svg data-editor-icon="redo" viewBox="0 0 32 32" aria-hidden="true"></svg>Redo</span><kbd>⇧ Ctrl/⌘+Z</kbd></button>
+                    <div class="menu-rule"></div><button id="resetLayoutButton" role="menuitem"><span class="menu-action-copy"><svg data-editor-icon="toolbars" viewBox="0 0 32 32" aria-hidden="true"></svg>Reset panel
                             layout</span></button>
                 </div>
             </details>
             <details class="menu" id="viewMenu">
                 <summary role="menuitem" aria-label="View"><span class="mnemonic">V</span>iew</summary>
-                <div class="menu-popover" role="menu"><button id="menuFocusButton" role="menuitem"><span>Canvas focus
+                <div class="menu-popover" role="menu"><button id="menuFocusButton" role="menuitem"><span class="menu-action-copy"><svg data-editor-icon="focus" viewBox="0 0 32 32" aria-hidden="true"></svg>Canvas focus
                             mode</span><kbd>Tab</kbd></button><label class="theme-row"><span>Color theme</span><select
                             id="themeSelect" aria-label="Color theme">
                             <option value="auto">Auto</option>
@@ -55,27 +54,14 @@
             </details>
         </nav>
         <div class="toolbar" role="toolbar" aria-label="Quick actions"><button class="icon-button" id="quickOpenButton" data-file-command
-                title="Open image (Ctrl/⌘ O)"><svg viewBox="0 0 24 24">
-                    <path d="M3 6.5h6l2 2h10v10H3zM3 6.5v-2h6l2 2h8v2" />
-                </svg></button><span class="separator" data-file-command></span><button class="icon-button" id="undoButton"
-                title="Undo (Ctrl/⌘ Z)" disabled><svg viewBox="0 0 24 24">
-                    <path d="m9 7-5 5 5 5M5 12h8a6 6 0 0 1 6 6" />
-                </svg></button><button class="icon-button" id="redoButton" title="Redo (Ctrl/⌘ Shift Z)" disabled><svg
-                    viewBox="0 0 24 24">
-                    <path d="m15 7 5 5-5 5m4-5h-8a6 6 0 0 0-6 6" />
-                </svg></button><span class="separator"></span><button class="icon-button" id="functionsButton"
-                title="Image functions"><svg viewBox="0 0 24 24">
-                    <path d="M4 5h16M4 12h16M4 19h16M8 3v4m8 3v4M10 17v4" />
-                </svg></button><button class="icon-button" id="focusButton" title="Canvas focus mode (Tab)"><svg
-                    viewBox="0 0 24 24">
-                    <path d="M8 3H3v5m13-5h5v5M8 21H3v-5m13 5h5v-5" />
-                </svg></button><button class="icon-button accent-icon" id="quickSaveButton" data-file-command
-                title="Save image (Ctrl/⌘ S)" disabled><svg class="filled-icon" viewBox="0 0 24 24">
-                    <path fill-rule="evenodd" d="M5.5 3h10.7L21 7.8v10.7a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 18.5v-13A2.5 2.5 0 0 1 5.5 3ZM7 5v4.5h8.5V5H7Zm5.8 1v2.5h1.7V6h-1.7ZM6.5 13v6h11v-6h-11Z" />
-                </svg></button><button class="icon-button" id="quickCopyButton" title="Copy image (Ctrl/⌘ C)"
-                disabled><svg viewBox="0 0 24 24"><rect x="8" y="8" width="11" height="11" rx="1"/><path
-                    d="M16 8V5H5v11h3"/></svg></button><button class="icon-button" id="quickCloseImageButton" data-file-command
-                title="Close image" aria-label="Discard current image" disabled><svg viewBox="0 0 24 24"><path d="M13 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6"/><path d="m3 16 5-5 4 4 2-2 5 5"/><path d="m16 3 5 5m0-5-5 5"/></svg></button></div><input id="fileInput" type="file" accept="image/*" hidden><input id="spriteInput"
+                title="Open image (Ctrl/⌘ O)"><svg data-editor-icon="open" viewBox="0 0 32 32" aria-hidden="true"></svg></button><span class="separator" data-file-command></span><button class="icon-button" id="undoButton"
+                title="Undo (Ctrl/⌘ Z)" disabled><svg data-editor-icon="undo" viewBox="0 0 32 32" aria-hidden="true"></svg></button><button class="icon-button" id="redoButton" title="Redo (Ctrl/⌘ Shift Z)" disabled><svg data-editor-icon="redo" viewBox="0 0 32 32" aria-hidden="true"></svg></button><span class="separator"></span><button class="icon-button" id="functionsButton"
+                title="Image functions"><svg data-editor-icon="adjust" viewBox="0 0 32 32" aria-hidden="true"></svg></button><button class="icon-button" id="quickDiagramButton" title="Insert Mermaid diagram"
+                aria-label="Insert Mermaid diagram"><svg data-editor-icon="diagram" viewBox="0 0 32 32" aria-hidden="true"></svg></button><button class="icon-button" id="focusButton" title="Canvas focus mode (Tab)"><svg data-editor-icon="focus" viewBox="0 0 32 32" aria-hidden="true"></svg></button><button class="icon-button accent-icon" id="quickSaveButton" data-file-command
+                title="Save image (Ctrl/⌘ S)" disabled><svg class="filled-icon" data-editor-icon="save" viewBox="0 0 32 32" aria-hidden="true"></svg></button><button class="icon-button" id="quickCopyButton" title="Copy image (Ctrl/⌘ C)"
+                disabled><svg data-editor-icon="copy" viewBox="0 0 32 32" aria-hidden="true"></svg></button><button class="host-only export-action" id="quickExportButton"
+                title="Export image" aria-label="Export image" disabled><svg data-editor-icon="export" viewBox="0 0 32 32" aria-hidden="true"></svg><span>Export…</span></button><button class="icon-button" id="quickCloseImageButton" data-file-command
+                title="Close image" aria-label="Discard current image" disabled><svg data-editor-icon="close-image" viewBox="0 0 32 32" aria-hidden="true"></svg></button></div><input id="fileInput" type="file" accept="image/*" hidden><input id="spriteInput"
             type="file" accept="image/*" multiple hidden>
     </header>
     <main class="workspace">
@@ -93,7 +79,7 @@
             <header class="panel-header"><span>Tools</span><button class="collapse">−</button></header>
             <div class="panel-body">
                 <div class="tool-choosers"><label id="paintToolControl" class="tool-select active"><span
-                            class="tool-select-icon">●</span><span class="tool-select-copy"><small>Paint
+                            class="tool-select-icon"><svg data-editor-icon="brush" viewBox="0 0 32 32" aria-hidden="true"></svg></span><span class="tool-select-copy"><small>Paint
                                 tool</small><select id="paintToolSelect" aria-label="Paint tool">
                                 <option value="pencil">Pencil</option>
                                 <option value="brush" selected>Brush</option>
@@ -103,7 +89,7 @@
                                 <option value="spray">Spray paint</option>
                                 <option value="eraser">Eraser</option>
                             </select></span></label><label id="shapeToolControl" class="tool-select"><span
-                            class="tool-select-icon">□</span><span class="tool-select-copy"><small>Shape
+                            class="tool-select-icon"><svg data-editor-icon="rectangle" viewBox="0 0 32 32" aria-hidden="true"></svg></span><span class="tool-select-copy"><small>Shape
                                 tool</small><select id="shapeToolSelect" aria-label="Shape tool">
                                 <option value="line">Line</option>
                                 <option value="arrow">Arrow</option>
@@ -113,22 +99,15 @@
                                 <option value="triangle">Triangle</option>
                                 <option value="diamond">Diamond</option>
                                 <option value="star">Star</option>
+                                <option value="elbowArrow">Elbow arrow</option>
                             </select></span></label><label id="markupToolControl" class="tool-select"><span
-                            class="tool-select-icon">①</span><span class="tool-select-copy"><small>Markup
+                            class="tool-select-icon"><svg data-editor-icon="number" viewBox="0 0 32 32" aria-hidden="true"></svg></span><span class="tool-select-copy"><small>Markup
                                 tool</small><select id="markupToolSelect" aria-label="Markup tool">
                                 <option value="step" selected>Number</option>
                             </select></span></label></div>
                 <div class="utility-tools" aria-label="Utility tools"><button class="tool utility-tool"
-                        data-tool="picker" title="Color picker (I)"><span><svg class="eyedropper-icon"
-                                viewBox="0 0 24 24" aria-hidden="true">
-                                <g transform="rotate(38 12 12)">
-                                    <path class="eyedropper-bulb" d="M9 5a3 3 0 0 1 6 0v3H9Z"></path>
-                                    <path class="eyedropper-collar" d="M7.5 7.5h9v3h-9Z"></path>
-                                    <path class="eyedropper-glass" d="M9.5 10.5h5v6.25L13 20h-2l-1.5-3.25Z"></path>
-                                    <path class="eyedropper-liquid" d="M11 12h2v4.4l-1 2.1-1-2.1Z"></path>
-                                </g>
-                            </svg></span>Picker</button><button class="tool utility-tool" data-tool="crop"
-                        title="Crop (C)"><span>⌗</span>Crop</button></div>
+                        data-tool="picker" title="Color picker (I)"><span><svg data-editor-icon="picker" viewBox="0 0 32 32" aria-hidden="true"></svg></span>Picker</button><button class="tool utility-tool" data-tool="crop"
+                        title="Crop (C)"><span><svg data-editor-icon="crop" viewBox="0 0 32 32" aria-hidden="true"></svg></span>Crop</button></div>
                 <div class="tool-options"><label>Color <input id="colorInput" type="color"
                             value="{{ColorPalette.White}}"></label><label><span id="sizeLabel">Width</span> <span id="sizeValue">5 px</span><input id="sizeInput"
                             type="range" min="1" max="200" value="5"></label><label>Opacity <span
@@ -182,10 +161,10 @@
         <form method="dialog" class="dialog-shell">
             <header>
                 <div><strong>Image functions</strong><small>Specialized and batch operations</small></div><button
-                    class="dialog-close" value="cancel" aria-label="Close">×</button>
+                    class="dialog-close" value="cancel" aria-label="Close"><svg data-editor-icon="close" viewBox="0 0 32 32" aria-hidden="true"></svg></button>
             </header>
             <div class="function-card">
-                <div class="function-icon">▦</div>
+                <div class="function-icon"><svg data-editor-icon="sprite-sheet" viewBox="0 0 32 32" aria-hidden="true"></svg></div>
                 <div class="function-copy">
                     <h2>Sprite sheet</h2>
                     <p>Combine a sequence of image frames into a single grid.</p>
@@ -196,7 +175,7 @@
                     type="button" class="primary wide">Create sprite sheet</button>
             </div>
             <div class="function-card disabled-card">
-                <div class="function-icon gif-icon">GIF</div>
+                <div class="function-icon gif-icon"><svg data-editor-icon="sprite-sheet" viewBox="0 0 32 32" aria-hidden="true"></svg></div>
                 <div class="function-copy">
                     <h2>Animated GIF</h2>
                     <p>GIF animation export will be added as a separate frame workflow.</p>
@@ -208,7 +187,7 @@
         <form method="dialog" class="dialog-shell new-image-form">
             <header>
                 <div><strong>New image<span class="host-only"> – Little Image Editor</span></strong><small>Create a blank canvas</small></div><button class="dialog-close"
-                    value="cancel" formnovalidate aria-label="Close">×</button>
+                    value="cancel" formnovalidate aria-label="Close"><svg data-editor-icon="close" viewBox="0 0 32 32" aria-hidden="true"></svg></button>
             </header>
             <div class="new-image-fields"><label>Preset<select id="newImagePreset">
                         <option value="custom">Custom / manual</option>
@@ -248,30 +227,62 @@
                         limitation:</strong> PNG and WebP preserve transparency. JPEG does not; saving as JPEG will
                     replace transparent pixels with white.</p>
             </div>
-            <footer><button value="cancel" formnovalidate class="dialog-action"><svg viewBox="0 0 16 16"
-                        aria-hidden="true">
-                        <path d="m4 4 8 8m0-8-8 8"></path>
-                    </svg><span>Cancel</span></button><button id="createImageButton" type="button"
-                    class="dialog-action confirm" aria-label="Create image"><svg viewBox="0 0 16 16" aria-hidden="true">
-                        <path d="m3 8 3 3 7-7"></path>
-                    </svg><span>Create</span></button></footer>
+            <footer><button value="cancel" formnovalidate class="dialog-action"><svg data-editor-icon="close" viewBox="0 0 32 32" aria-hidden="true"></svg><span>Cancel</span></button><button id="createImageButton" type="button"
+                    class="dialog-action confirm" aria-label="Create image"><svg data-editor-icon="new-image" viewBox="0 0 32 32" aria-hidden="true"></svg><span>Create</span></button></footer>
         </form>
     </dialog>
+    <dialog id="exportImageDialog" aria-labelledby="exportImageDialogTitle">
+        <form method="dialog" class="dialog-shell export-image-form">
+            <header>
+                <div><strong id="exportImageDialogTitle">Export image</strong><small>Save a copy for your project</small></div>
+                <button class="dialog-close" value="cancel" aria-label="Close"><svg data-editor-icon="close" viewBox="0 0 32 32" aria-hidden="true"></svg></button>
+            </header>
+            <div class="export-image-content">
+                <div class="export-image-preview"><img id="exportImagePreview" alt="Image export preview"></div>
+                <p id="exportImageDimensions" class="hint"></p>
+                <label>File format<select id="exportImageFormat" aria-label="Export file format"></select></label>
+                <p id="exportImageFormatHint" class="hint"></p>
+                <p class="hint">Exports all visible layers and objects. Your layered document stays editable.</p>
+                <p id="exportImageError" role="alert"></p>
+            </div>
+            <footer><button value="cancel">Cancel</button><button id="confirmExportImageButton" value="export"
+                    class="primary">Export PNG…</button></footer>
+        </form>
+    </dialog>
+    <dialog id="diagramDialog" aria-labelledby="diagramDialogTitle">
+        <form method="dialog" class="dialog-shell">
+            <header>
+                <div><strong id="diagramDialogTitle">Insert Mermaid diagram</strong><small>Laid out as editable layers</small></div><button
+                    class="dialog-close" value="cancel" aria-label="Close"><svg data-editor-icon="close" viewBox="0 0 32 32" aria-hidden="true"></svg></button>
+            </header>
+            <div class="function-card diagram-card">
+                <div class="function-icon"><svg data-editor-icon="convert" viewBox="0 0 32 32" aria-hidden="true"></svg></div>
+                <div class="function-copy">
+                    <h2>Mermaid diagram</h2>
+                    <p>Paste a Mermaid flowchart, state, class or sequence diagram, or import a .mmd or Markdown file. It is laid out into shapes and arrows you can edit.</p>
+                </div>
+                <textarea id="mermaidSource" class="diagram-source" rows="7" spellcheck="false"
+                    aria-label="Mermaid diagram"
+                    placeholder="flowchart LR&#10;  web[Web app] -->|HTTPS| api[API]&#10;  api --> db[(Database)]"></textarea>
+                <p id="diagramError" class="diagram-error" role="alert"></p>
+                <button id="insertDiagramButton" type="button" class="primary wide">Insert diagram</button>
+                <button id="importDiagramFileButton" type="button" class="wide">Import from file…</button>
+            </div>
+        </form>
+    </dialog>
+    <input id="diagramFileInput" type="file" hidden>
     <dialog id="closeImageDialog" aria-labelledby="closeImageDialogTitle">
         <form method="dialog" class="dialog-shell confirmation-dialog">
             <header>
                 <div><strong id="closeImageDialogTitle">Close image?</strong><small>Unsaved changes will be lost</small></div><button
-                    class="dialog-close" value="cancel" aria-label="Close">×</button>
+                    class="dialog-close" value="cancel" aria-label="Close"><svg data-editor-icon="close" viewBox="0 0 32 32" aria-hidden="true"></svg></button>
             </header>
             <div class="confirmation-content">
-                <svg class="confirmation-icon" viewBox="0 0 32 32" aria-hidden="true"><path
-                    d="M3 9h8l3 3h15v15H3zM11 16l10 9m0-9-10 9"/></svg>
+                <svg class="confirmation-icon" data-editor-icon="close-image" viewBox="0 0 32 32" aria-hidden="true"></svg>
                 <p>Are you sure you want to close this image without saving?</p>
             </div>
-            <footer><button value="cancel" class="dialog-action"><svg viewBox="0 0 16 16" aria-hidden="true"><path
-                        d="m4 4 8 8m0-8-8 8"></path></svg><span>Cancel</span></button><button
-                    id="confirmCloseImageButton" value="confirm" class="dialog-action danger"><svg viewBox="0 0 16 16"
-                        aria-hidden="true"><path d="M3 5h4l2 2h5v7H3zM7 9l3 3m0-3-3 3"></path></svg><span>Close without saving</span></button></footer>
+            <footer><button value="cancel" class="dialog-action"><svg data-editor-icon="close" viewBox="0 0 32 32" aria-hidden="true"></svg><span>Cancel</span></button><button
+                    id="confirmCloseImageButton" value="confirm" class="dialog-action danger"><svg data-editor-icon="close-image" viewBox="0 0 32 32" aria-hidden="true"></svg><span>Close without saving</span></button></footer>
         </form>
     </dialog>
     <script type="module" src="editor.js"></script>

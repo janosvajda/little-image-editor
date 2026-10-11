@@ -40,7 +40,13 @@ describe("editor integration", () => {
     click("#createImageButton");
     expect(document.querySelector("#canvasWrap")!.classList.contains("hidden")).toBe(false);
     expect(document.querySelector<HTMLButtonElement>("#saveButton")!.disabled).toBe(false);
-    expect(document.querySelector<HTMLSelectElement>("#formatSelect")!.value).toBe("image/webp");
+    const saveAsOptions = vi.fn().mockRejectedValue(new DOMException("cancelled", "AbortError"));
+    Object.defineProperty(window, "showSaveFilePicker", { configurable: true, value: saveAsOptions });
+    click("#saveAsButton");
+    await vi.waitFor(() => expect(saveAsOptions).toHaveBeenCalledOnce());
+    expect(saveAsOptions.mock.calls[0]![0].suggestedName).toMatch(/\.webp$/);
+    expect(saveAsOptions.mock.calls[0]![0].types[0].accept).toHaveProperty("image/webp");
+    Object.defineProperty(window, "showSaveFilePicker", { configurable: true, value: undefined });
     expect(document.querySelector<HTMLButtonElement>("#exportButton")!.disabled).toBe(false);
 
     const effect = document.querySelector<HTMLSelectElement>("#effectSelect")!;

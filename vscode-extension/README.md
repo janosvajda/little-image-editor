@@ -1,28 +1,68 @@
 # Little Image Editor
 
-Edit images and layered `.limg` projects without leaving VS Code.
+A layered image editor inside VS Code. Open a PNG, JPEG or WebP, annotate a screenshot, or draw an icon without leaving your project, and let an AI assistant draw with you.
 
-- **`.limg` projects** open in the editor directly.
-- **PNG, JPEG and WebP images**: right-click the file, choose **Open With…**, then **Little Image Editor**.
-- **New images**: run **New Image – Little Image Editor** from the Command Palette, or right-click a folder in the Explorer and choose it there. Pick the size and background; the first save asks where to write it, and the file name's extension (`.png`, `.jpg`, `.webp` or `.limg`) decides the format.
-- Draw, add shapes, numbered markers, highlights, text, blur and redaction, and organise everything in layers.
-- **Ctrl+S / Cmd+S** saves back into the same file. Saving a layered image as PNG, JPEG or WebP asks before flattening its layers; save as `.limg` to keep them editable.
+## Features
 
-## Let Claude Code see and draw in your images
+- **Drawing:** brushes, shapes, arrows, bent elbow arrows, text and numbered markers.
+- **Diagrams:** click **Insert Mermaid diagram** in the toolbar, then paste a Mermaid flowchart, state, class or sequence diagram, or import it from a `.mmd` or Markdown file. You get editable shapes and arrows.
+- **Layers:** every shape, stroke and text stays a movable, editable object, with undo and redo.
+- **Screenshot annotation:** highlights, blur and redaction.
+- **Image tools:** cut and move selections, resize, rotate, flip, brightness, contrast, saturation and effects.
+- **Formats:** open and save PNG, JPEG and WebP. Save as `.limg` to keep layers editable, and export an image copy at any time.
+- **AI assistants:** Claude Code and Codex can look at your images, draw on layers, draw diagrams and export PNG files.
 
-Little Image Editor can let an AI assistant such as Claude Code look at the images you have open and draw in them: "what's wrong with this screenshot?", "create a new image with two circles on one layer and an apple on another".
+## Getting started
 
-1. Run **Connect to Claude Code – Little Image Editor** from the Command Palette. This starts a small server that only this computer can reach and adds it to the workspace's `.mcp.json`.
-2. Start a new Claude Code session in the workspace and approve the `little-image-editor` server when asked.
+Little Image Editor's commands are in VS Code's **Command Palette**. Open it with **Cmd+Shift+P** on macOS, or **Ctrl+Shift+P** on Windows and Linux, then type part of a command's name, such as `Little Image Editor`.
 
-The assistant can then:
+- **Open an image:** right-click a PNG, JPEG or WebP file in the Explorer and choose **Open With… → Little Image Editor**. `.limg` projects open in the editor directly.
+- **Create an image:** run **New Image – Little Image Editor** from the Command Palette, or right-click a folder in the Explorer and choose **New Image – Little Image Editor**.
+- **Save:** **Cmd+S** on macOS, **Ctrl+S** on Windows and Linux. Use **Export…** in the toolbar to save an image copy while keeping your layers.
 
-- **look** at the open images, with every layer and object as you see it;
-- **create** a new image and **draw** on it: add layers, shapes (rectangles, ellipses and circles, triangles, diamonds, stars…), lines, arrows and text, and remove items;
-- **undo**, as Cmd/Ctrl+Z does.
+The editor uses VS Code's own menus and shortcuts, and gives the image as much room as possible: tools sit on the left, tool settings in the top bar, and the layers and other panels open from the icons on the right.
 
-Everything it draws is a normal, editable item in the layers panel: move, recolour or delete it, or undo it. It never saves or changes files itself; you save with Cmd/Ctrl+S.
+## Draw with an AI assistant
 
-- It is off until you connect it. **Disconnect from Claude Code – Little Image Editor** switches it off again and removes it from `.mcp.json`.
-- Every request needs a secret key kept in VS Code's secret storage. Connecting writes it into `.mcp.json` with this computer's address for the server, so **keep `.mcp.json` out of version control** (add it to `.gitignore`).
-- The connection belongs to the project: each project window has its own server and port, so Claude Code sees the images of the project it works in. Connect each project you want to use it in.
+Little Image Editor includes an MCP server that lets Claude Code or Codex see the open images, create new ones, draw on named layers, draw diagrams and export PNG files. Everything the assistant draws is a normal editable object that you can move, change or undo.
+
+### Connect to coding agents
+
+Connect **once per project**: the connection belongs to the project open in that VS Code window, so a different project needs its own.
+
+**Claude Code**
+
+1. Open the Command Palette (**Cmd+Shift+P** / **Ctrl+Shift+P**) and run **Connect to Claude Code – Little Image Editor**.
+2. Start a new Claude Code conversation. If Claude Code asks whether to use the project's MCP servers, approve `little-image-editor`.
+3. To check, type **`/mcp`** in the Claude Code chat: `little-image-editor` should be listed as connected. If it shows an error, choose **Reconnect** there.
+
+**Codex**
+
+1. Open the Command Palette (**Cmd+Shift+P** / **Ctrl+Shift+P**) and run **Connect to Codex – Little Image Editor**.
+2. If Codex asks for permission, choose **Allow for This Project**.
+3. Run **Developer: Reload Window** from the Command Palette, then start a new Codex chat.
+4. To check, open the gear menu in the Codex panel and choose **MCP servers**: `little-image-editor` should be listed and enabled.
+
+To switch a connection off, run **Disconnect from Claude Code – Little Image Editor** or **Disconnect from Codex – Little Image Editor**.
+
+After updating the extension, run **Developer: Restart Extension Host** (or reload the window), then reconnect in `/mcp` or start a new chat, so the assistant loads the new tools.
+
+### Ask
+
+Say that you want the result **in Little Image Editor** or **as an image**. Otherwise an assistant may answer in its own way, for example with a diagram in the chat or in a Markdown file.
+
+> In Little Image Editor, create a 512 × 512 icon for this project on a transparent background, with each part on a named layer, and export it to `assets/icon.png`.
+
+> On the open screenshot, put a red box around the error message and an arrow pointing to it, on a new layer.
+
+> Read this project and draw its architecture as a diagram in Little Image Editor.
+
+The assistant writes diagrams in Mermaid (flowcharts, state, class and sequence diagrams), and the editor lays them out into shapes, groups and arrows that you can still edit. A bent arrow is one object, so it moves as a whole.
+
+### Security
+
+The server only accepts connections from your own computer, and only with the access key that the connect command writes into `.mcp.json` (Claude Code) or `.codex/config.toml` (Codex). Keep those files out of version control. The assistant cannot save or change your files: you save the images, and `export_image` writes only inside the workspace.
+
+## Feedback
+
+Report problems and ideas on [GitHub](https://github.com/janosvajda/little-image-editor/issues).

@@ -1,3 +1,4 @@
+import { LineEnd, type LineEnds } from './lineEnd';
 import type {
 	CropRect,
 	PaintTool,
@@ -21,6 +22,8 @@ export const AnnotationObjectTypeId = {
 	Stroke: 'stroke',
 	Fill: 'fill',
 	RasterFragment: 'rasterFragment',
+	/** A line through several points, with bends, as one item: a diagram link, for example. */
+	Connector: 'connector',
 } as const;
 export type AnnotationObjectType =
 	(typeof AnnotationObjectTypeId)[keyof typeof AnnotationObjectTypeId];
@@ -117,6 +120,30 @@ export interface ArrowAnnotation extends AnnotationBase {
 	width: number;
 }
 
+export const LineDash = { Solid: 'solid', Dashed: 'dashed' } as const;
+export type LineDash = (typeof LineDash)[keyof typeof LineDash];
+
+export interface ConnectorAnnotation extends AnnotationBase {
+	type: typeof AnnotationObjectTypeId.Connector;
+	/** The path from its first point to its last; straight pieces join them. */
+	points: Point[];
+	color: string;
+	width: number;
+	opacity: number;
+	/** An arrowhead at the last point; `head` names another end instead. */
+	arrow: boolean;
+	dash: LineDash;
+	/** The end at the last point, when it is not the plain arrowhead `arrow` asks for. */
+	head?: LineEnd;
+	/** The end at the first point; none when absent. */
+	tail?: LineEnd;
+}
+
+/** A connector's ends: its named ones, and otherwise the arrowhead its `arrow` flag asks for. */
+export function connectorEnds(connector: Pick<ConnectorAnnotation, 'arrow' | 'head' | 'tail'>): LineEnds {
+	return { head: connector.head ?? (connector.arrow ? LineEnd.Arrow : LineEnd.None), tail: connector.tail ?? LineEnd.None };
+}
+
 export interface RectAnnotation extends AnnotationBase {
 	type:
 		| typeof AnnotationObjectTypeId.Box
@@ -135,10 +162,13 @@ export interface ShapeAnnotation extends AnnotationBase, RectOrientation {
 	type: typeof AnnotationObjectTypeId.Shape;
 	shape: ShapeTool;
 	rect: CropRect;
+	/** The outline's colour; for a filled shape without `fillColor`, the fill's too. */
 	color: string;
 	width: number;
 	opacity: number;
 	fill: boolean;
+	/** A filled shape's own fill colour, drawn under an outline in `color`. */
+	fillColor?: string;
 }
 
 export interface StepAnnotation extends AnnotationBase {
@@ -166,7 +196,8 @@ export type AnnotationObject =
 	| ShapeAnnotation
 	| StrokeAnnotation
 	| FillAnnotation
-	| RasterFragmentAnnotation;
+	| RasterFragmentAnnotation
+	| ConnectorAnnotation;
 
 export const LinkedHistoryDomain = {
 	Document: 'document',

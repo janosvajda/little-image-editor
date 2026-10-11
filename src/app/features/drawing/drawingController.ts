@@ -1,3 +1,4 @@
+import { ColorPickerGuard } from './colorPickerGuard';
 import {
 	PaintToolId,
 	type Point,
@@ -35,6 +36,7 @@ interface GestureSession {
 /** Coordinates tool ownership and routes normalized input to one active gesture. */
 export class DrawingController {
 	readonly #canvasWrap = element<HTMLElement>('#canvasWrap');
+	readonly #colorPicker = new ColorPickerGuard();
 	readonly #controls: DrawingToolControls;
 	readonly #router: DrawingToolRouter;
 	readonly #selectionGesture?: CanvasSelectionGesture;
@@ -164,6 +166,7 @@ export class DrawingController {
 		const overlay = this.documentModel.overlay;
 		overlay.addEventListener('pointerdown', (event) => {
 			event.preventDefault();
+			if (this.#colorPicker.closesPicker()) return;
 			this.onPointerDown(event);
 		});
 		overlay.addEventListener('pointermove', (event) => {

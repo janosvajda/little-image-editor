@@ -1,6 +1,8 @@
+import { isLineEnd } from './lineEnd';
 import { PaintToolId, ShapeToolId } from '../../core/document/appTypes';
 import {
 	AnnotationObjectTypeId,
+	LineDash,
 	LinkedHistoryDomain,
 	type AnnotationObject,
 	type AnnotationSessionState,
@@ -18,6 +20,8 @@ import { decodePixelBytes } from '../../shared/image/pixelDataCodec';
 const MINIMUM_HISTORY_LENGTH = 1;
 const MINIMUM_INDEX = 0;
 const MINIMUM_POLYGON_POINTS = 3;
+/** A connector runs from one point to at least one more. */
+const MINIMUM_CONNECTOR_POINTS = 2;
 const RGBA_CHANNEL_COUNT = 4;
 
 export function isAnnotationSessionState(
@@ -103,6 +107,20 @@ function isAnnotationObject(value: unknown): value is AnnotationObject {
 				isFiniteNumber(value.width) &&
 				isOptionalRotation(value.rotation)
 			);
+		case AnnotationObjectTypeId.Connector:
+			return (
+				Array.isArray(value.points) &&
+				value.points.length >= MINIMUM_CONNECTOR_POINTS &&
+				value.points.every(isPoint) &&
+				isColor(value.color) &&
+				isFiniteNumber(value.width) &&
+				isFiniteNumber(value.opacity) &&
+				typeof value.arrow === 'boolean' &&
+				Object.values(LineDash).some((dash) => dash === value.dash) &&
+				isOptionalLineEnd(value.head) &&
+				isOptionalLineEnd(value.tail) &&
+				isOptionalRotation(value.rotation)
+			);
 		case AnnotationObjectTypeId.Step:
 			return (
 				isPoint(value.at) &&
@@ -142,6 +160,7 @@ function isAnnotationObject(value: unknown): value is AnnotationObject {
 				isFiniteNumber(value.width) &&
 				isFiniteNumber(value.opacity) &&
 				typeof value.fill === 'boolean' &&
+				isOptionalColor(value.fillColor) &&
 				isOptionalRotation(value.rotation)
 			);
 		case AnnotationObjectTypeId.Stroke:
@@ -328,6 +347,14 @@ function isRect(value: unknown): boolean {
 
 function isColor(value: unknown): boolean {
 	return typeof value === 'string' && value.length > 0;
+}
+
+function isOptionalColor(value: unknown): boolean {
+	return value === undefined || isColor(value);
+}
+
+function isOptionalLineEnd(value: unknown): boolean {
+	return value === undefined || isLineEnd(value);
 }
 
 function isOptionalRotation(value: unknown): boolean {

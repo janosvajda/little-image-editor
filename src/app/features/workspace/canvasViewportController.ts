@@ -1,4 +1,5 @@
 import { element } from '../../shared/dom/domHelpers';
+import { createEditorIcon, EditorIconId } from '../../shared/style/editorIcons';
 import { rulerTicks } from './rulerHelpers';
 import {
 	MEASUREMENT_UNITS,
@@ -236,17 +237,17 @@ export class CanvasViewportController {
 		this.#rulerButton.title = 'Show or hide rulers';
 		this.#rulerButton.setAttribute('aria-label', 'Show rulers');
 		this.#rulerButton.setAttribute('aria-pressed', 'true');
-		this.#rulerButton.textContent = '⌑';
+		this.#rulerButton.append(createEditorIcon(EditorIconId.Ruler));
 		this.#rulerVisible.id = 'rulerVisibleInput';
 		this.#rulerVisible.type = 'checkbox';
 		this.#rulerVisible.checked = true;
 		this.#rulerVisible.hidden = true;
 		this.#controls.append(
-			this.controlButton('−', 'Zoom out', () =>
+			this.controlButton(EditorIconId.Minus, 'Zoom out', () =>
 				this.stepZoom(ZoomDirection.Out),
 			),
 			this.#zoomSelect,
-			this.controlButton('+', 'Zoom in', () => this.stepZoom(ZoomDirection.In)),
+			this.controlButton(EditorIconId.Plus, 'Zoom in', () => this.stepZoom(ZoomDirection.In)),
 			this.#rulerButton,
 			this.#unitSelect,
 			this.#rulerVisible,
@@ -255,14 +256,15 @@ export class CanvasViewportController {
 	}
 
 	private controlButton(
-		label: string,
+		icon: EditorIconId,
 		title: string,
 		action: () => void,
 	): HTMLButtonElement {
 		const button = document.createElement('button');
 		button.type = 'button';
 		button.className = 'icon-button';
-		button.textContent = label;
+		button.append(createEditorIcon(icon));
+		button.setAttribute('aria-label', title);
 		button.title = title;
 		button.addEventListener('click', action);
 		return button;

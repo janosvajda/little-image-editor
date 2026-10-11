@@ -8,8 +8,10 @@ import {
 	type WebviewMessage,
 	WebviewMessageType,
 } from '../vscodeMessages';
-import { AssistantCommand, AssistantConnection, OUTPUT_NAME } from './assistantConnection';
-import { EditorDocument, EditorSession, fileNameOf } from './editorSession';
+import { ASSISTANT_CLIENTS, AssistantClient } from './assistantClients';
+import { AssistantConnection, OUTPUT_NAME } from './assistantConnection';
+import { AssistantSetupController } from './assistantSetupController';
+import { EditorDocument, EditorSession, FILE_SCHEME, fileNameOf } from './editorSession';
 import { OpenEditors } from './openEditors';
 import { IMAGE_VIEW_TYPE, openUntitledImage, untitledImageUri } from './untitledImages';
 
@@ -133,18 +135,18 @@ class LittleImageEditorProvider
 				return;
 			case WebviewMessageType.Write: {
 				const uri = session.targetUri(message.targetId);
-				if (uri)
-					await vscode.workspace.fs.writeFile(uri, receivedFileBytes(message.contents));
-				session.reply(message.requestId, uri !== undefined);
+				try {
+					if (uri)
+						await vscode.workspace.fs.writeFile(uri, receivedFileBytes(message.contents));
+					session.reply(message.requestId, uri !== undefined);
+				} catch (error) {
+					session.reply(message.requestId, false, error instanceof Error ? error.message : String(error));
+				}
 				return;
 			}
 			case WebviewMessageType.PickSaveTarget: {
 				const uri = await vscode.window.showSaveDialog({
-					defaultUri: vscode.Uri.joinPath(
-						session.document.uri,
-						'..',
-						message.suggestedName,
-					),
+					defaultUri: suggestedSaveUri(session.document, message.suggestedName),
 					filters: saveFilters(message.filters),
 				});
 				session.reply(
@@ -160,7 +162,7 @@ class LittleImageEditorProvider
 			}
 			case WebviewMessageType.Download: {
 				const uri = await vscode.window.showSaveDialog({
-					defaultUri: vscode.Uri.joinPath(session.document.uri, '..', message.fileName),
+					defaultUri: suggestedSaveUri(session.document, message.fileName),
 				});
 				if (uri)
 					await vscode.workspace.fs.writeFile(uri, receivedFileBytes(message.contents));
@@ -230,6 +232,15 @@ async function newImage(folder?: vscode.Uri): Promise<void> {
 	await openUntitledImage(untitledImageUri(folder));
 }
 
+/** Native save pickers need a real file address, including for untitled images. */
+function suggestedSaveUri(document: EditorDocument, name: string): vscode.Uri | undefined {
+	if (!document.isUntitled) return vscode.Uri.joinPath(document.destination, '..', name);
+	if (document.uri.path.startsWith('/'))
+		return vscode.Uri.joinPath(document.uri.with({ scheme: FILE_SCHEME }), '..', name);
+	const folder = vscode.workspace.workspaceFolders?.[0]?.uri;
+	return folder ? vscode.Uri.joinPath(folder, name) : undefined;
+}
+
 function saveFilters(
 	filters: readonly PickerFileFilter[],
 ): Record<string, string[]> {
@@ -258,12 +269,15 @@ export function activate(context: vscode.ExtensionContext): void {
 	context.subscriptions.push(vscode.commands.registerCommand(Command.NewImage, newImage));
 	const log = vscode.window.createOutputChannel(OUTPUT_NAME);
 	const assistant = new AssistantConnection(context, editors, log);
-	context.subscriptions.push(
-		log,
-		assistant,
-		vscode.commands.registerCommand(AssistantCommand.Connect, () => assistant.connect()),
-		vscode.commands.registerCommand(AssistantCommand.Disconnect, () => assistant.disconnect()),
-	);
+	const setup = new AssistantSetupController(assistant, log);
+	context.subscriptions.push(log, assistant);
+	for (const client of Object.values(AssistantClient)) {
+		const definition = ASSISTANT_CLIENTS[client];
+		context.subscriptions.push(
+			vscode.commands.registerCommand(definition.connectCommand, () => setup.connect(client)),
+			vscode.commands.registerCommand(definition.disconnectCommand, () => assistant.disconnect(client)),
+		);
+	}
 	void assistant.resume();
 }
 
