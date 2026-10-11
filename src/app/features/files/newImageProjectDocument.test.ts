@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DocumentType, ImageMimeType } from '../../core/document/appTypes';
 import { CanvasDocument } from '../../core/document/imageDocument';
+import { SVG_MIME_TYPE } from '../../core/document/svgFormat';
 import { NewImageController } from './newImageController';
 
 describe('New image file type', () => {
@@ -13,6 +14,7 @@ describe('New image file type', () => {
 		const fileType = document.querySelector<HTMLSelectElement>('#newImageFormat')!;
 		expect([...fileType.options].map(({ value }) => value)).toEqual([
 			'application/vnd.little-image-editor.project+json',
+			SVG_MIME_TYPE,
 			ImageMimeType.Png,
 			ImageMimeType.Jpeg,
 			ImageMimeType.Webp,

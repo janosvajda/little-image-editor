@@ -19,6 +19,7 @@ import {
 	type BugReportPreferences,
 } from './app/features/annotations/bugReportController';
 import { ContentLayerCanvas } from './app/features/annotations/contentLayerCanvas';
+import { SelectionPresentation } from './app/features/annotations/selectionOverlayRenderer';
 import { BrowserCaptureImporter } from './app/features/capture/browserCaptureImporter';
 import { DrawingController } from './app/features/drawing/drawingController';
 import { selectionPresentationFor } from './app/features/drawing/drawingToolBehavior';
@@ -30,6 +31,8 @@ import { ImageExportController } from './app/features/files/imageExportControlle
 import { NewImageController } from './app/features/files/newImageController';
 import { AssistantCommandRunner } from './app/features/assistant/assistantCommandRunner';
 import { DiagramImportController } from './app/features/diagrams/diagramImportController';
+import { PlaceImageController } from './app/features/files/placeImageController';
+import { SvgDocumentController } from './app/features/files/svgDocumentController';
 import { imagePicture } from './app/features/files/imagePicture';
 import { SessionPersistence } from './app/features/files/sessionPersistence';
 import { SpriteController } from './app/features/files/spriteController';
@@ -81,7 +84,11 @@ const files = new FileController(
 	documentModel,
 	() => vectorShapes.state.objects.length > 0,
 );
-const imageExport = new ImageExportController(documentModel, files);
+const svgDocuments = new SvgDocumentController(documentModel, vectorShapes);
+files.setSvgDocument(svgDocuments);
+const imageExport = new ImageExportController(documentModel, files, svgDocuments);
+// Export… asks how a copy is written, in the same dialog in every edition.
+files.setExportDialog(() => imageExport.open());
 const clipboard = new ClipboardController(documentModel);
 const sprites = new SpriteController(documentModel);
 const annotationPanel = new AnnotationPanel((tool) => drawing.select(tool));
@@ -138,6 +145,10 @@ const presentSelectionFor = (tool: Tool) =>
 	layerCanvas.setSelectionPresentation(selectionPresentationFor(tool));
 presentSelectionFor(drawing.tool);
 drawing.onToolChange(presentSelectionFor);
+// While a path's points are edited, its nodes take the place of the resize frame.
+drawing.onPathPointEditingChange((editing) =>
+	editing ? layerCanvas.setSelectionPresentation(SelectionPresentation.Hidden) : presentSelectionFor(drawing.tool),
+);
 const projects = new ProjectController(documentModel, undefined, vectorShapes);
 files.setProjectSaveHandler((saveAs) => projects.save(saveAs));
 files.setProjectOpenHandler((file, target) => projects.openFile(file, target));
@@ -196,7 +207,7 @@ function connectDocumentHost(host: PlatformDocumentHost, assistant: AssistantCom
 	host.onCreate((fileName, image) =>
 		image ? newImage.createImage(fileName, image) : newImage.open(fileName),
 	);
-	host.onCommand((command) => assistant.run(command));
+	host.onCommand((command) => assistant.handle(command));
 	newImage.onCreate(() => host.changed());
 	host.onPictureRequested((maxSize) => imagePicture(documentModel, maxSize));
 	// The host chooses the file; saving it is the editor's own, as in every edition.
@@ -269,6 +280,8 @@ redoButtons.forEach((button) => button.addEventListener('click', redo));
 // After the history, which assistant commands and diagram imports undo through.
 const assistantCommands = new AssistantCommandRunner(documentModel, vectorShapes, editorHistory);
 new DiagramImportController(documentModel, newImage, assistantCommands, element<HTMLDialogElement>('#diagramDialog'));
+// A placed picture is selected with Select, ready to move and resize.
+new PlaceImageController(documentModel, assistantCommands, (itemId) => drawing.editObject(itemId));
 if (platform.document) connectDocumentHost(platform.document, assistantCommands);
 
 const workspace = element<HTMLElement>('.workspace');
@@ -286,13 +299,13 @@ for (const eventName of ['dragleave', 'drop']) {
 }
 workspace.addEventListener('drop', (event) => {
 	const file = (event as DragEvent).dataTransfer?.files[0];
-	if (file) void documentModel.load(file);
+	if (file) void files.openFile(file);
 });
 document.addEventListener('paste', (event) => {
 	const file = [...(event.clipboardData?.files ?? [])].find((candidate) =>
 		candidate.type.startsWith('image/'),
 	);
-	if (file) void documentModel.load(file);
+	if (file) void files.openFile(file);
 });
 
 document.addEventListener('keydown', handleKeyboardShortcut);
@@ -304,7 +317,7 @@ function handleKeyboardShortcut(event: KeyboardEvent): void {
 	const target = event.target as HTMLElement;
 	if (modifier && handleModifiedShortcut(event, key, target)) return;
 	if (handleWorkspaceShortcut(event, target)) return;
-	if (!modifier && !acceptsTyping(target)) drawing.selectFromShortcut(key);
+	if (!modifier && !acceptsTyping(target)) drawing.handleShortcut(key, event.shiftKey);
 }
 
 function handleModifiedShortcut(

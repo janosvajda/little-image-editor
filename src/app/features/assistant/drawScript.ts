@@ -9,6 +9,8 @@ import {
 	type NewImageSpec,
 } from './assistantCommandTypes';
 import { isLineEnd, LineEnd } from '../annotations/lineEnd';
+import { parsePathData } from '../../core/geometry/vectorPath';
+import { type Gradient, type GradientKind, gradientOf, MINIMUM_GRADIENT_STOPS } from '../../core/geometry/gradient';
 
 /**
  * A compact drawing language, so an assistant draws a whole picture in one
@@ -19,10 +21,12 @@ import { isLineEnd, LineEnd } from '../annotations/lineEnd';
  *   use Circles                            (draw on an existing layer)
  *   circle 40,40 110 #3a86ff               (x,y of the top left corner, then the diameter)
  *   ellipse 150,215 125x195 #d62828 rotate 20 opacity 0.8
- *   rect 10,10 80x40 #222222 outline 3     (also roundrect, triangle, diamond, star; fill #ffffff fills under the outline)
+ *   rect 10,10 80x40 #222222 outline 3     (also roundrect, triangle, diamond, star; fill #ffffff fills under the outline;
+ *                                           fill linear(90deg,#ffcc00,#ff6600) or fill radial(#ffffff,#000000) fills with a gradient)
  *   arrow 10,10 200,120 #000000 width 6    (also line; more points are bends; dashed draws dashes;
  *                                           head/tail triangle, diamond, filledDiamond, openArrow, circle, cross, none)
  *   text 20,60 #000000 size 48 "Hello"      (x,y: the left end of the baseline)
+ *   path "M10 10 C 40 0 60 0 90 10 Z" #333333 width 2 fill #ffcc00   (SVG path data; head/tail and dashed as for lines)
  *   // a comment
  *
  * The whole script is checked before anything is drawn.
@@ -44,6 +48,7 @@ const Keyword = {
 	Line: 'line',
 	Arrow: 'arrow',
 	Text: 'text',
+	Path: 'path',
 } as const;
 const Option = {
 	Outline: 'outline',
@@ -57,6 +62,9 @@ const Option = {
 	Tail: 'tail',
 	Fill: 'fill',
 } as const;
+/** A gradient fill, written as in CSS: linear(90deg,#a,#b,…) with an optional angle first, or radial(#a,#b,…). */
+const GRADIENT_FILL = /^(linear|radial)\(([^)]*)\)$/i;
+const GRADIENT_ANGLE = /^(-?\d+(?:\.\d+)?)deg$/i;
 /** Options that stand alone, without a number after them. */
 const FLAG_OPTIONS: ReadonlySet<string> = new Set([Option.Dashed]);
 /** Options followed by a word: the end a line has at its last or first point. */
@@ -120,6 +128,7 @@ class Statement {
 	#index = 0;
 	readonly #ends = new Map<string, LineEnd>();
 	#fill: string | undefined;
+	#gradient: Gradient | undefined;
 
 	constructor(
 		readonly keyword: string,
@@ -151,6 +160,7 @@ class Statement {
 	item(): DrawingCommand {
 		if (this.keyword === Keyword.Line || this.keyword === Keyword.Arrow) return this.connector();
 		if (this.keyword === Keyword.Text) return this.text();
+		if (this.keyword === Keyword.Path) return this.path();
 		const shape = BOX_SHAPES[this.keyword];
 		if (!shape) return this.fail(`unknown statement "${this.keyword}"`);
 		const [x, y] = this.point();
@@ -158,13 +168,15 @@ class Statement {
 		const color = this.color(this.next('a colour'));
 		const options = this.options([Option.Outline, Option.Opacity, Option.Rotate, Option.Fill]);
 		const fillColor = this.#fill;
+		const fillGradient = this.#gradient;
 		return {
 			kind: AssistantCommandKind.AddShape,
 			shape,
 			rect: { x, y, width, height },
 			color,
-			fill: Boolean(fillColor) || !(Option.Outline in options),
+			fill: Boolean(fillColor || fillGradient) || !(Option.Outline in options),
 			...(fillColor ? { fillColor } : {}),
+			...(fillGradient ? { fillGradient } : {}),
 			strokeWidth: options[Option.Outline] ?? DrawingDefault.StrokeWidth,
 			opacity: this.opacity(options[Option.Opacity]),
 			rotation: options[Option.Rotate] ?? DrawingDefault.Rotation,
@@ -190,6 +202,36 @@ class Statement {
 			color,
 			width: this.positive(options[Option.Width] ?? DrawingDefault.StrokeWidth, Option.Width),
 			opacity: this.opacity(options[Option.Opacity]),
+			...(Option.Dashed in options ? { dashed: true } : {}),
+			...(head ? { head } : {}),
+			...(tail ? { tail } : {}),
+		};
+	}
+
+	/** A vector path from SVG path data in quotes, with a line colour and the options lines take, and a fill. */
+	private path(): DrawingCommand {
+		const data = this.next('path data in quotes');
+		if (!data.startsWith(QUOTE)) this.fail('path needs its data in quotes, such as "M10 10 C 40 0 60 0 90 10"');
+		const d = data.slice(1);
+		try {
+			parsePathData(d);
+		} catch (error) {
+			this.fail(error instanceof Error ? error.message.replace(/\.$/, '') : String(error));
+		}
+		const color = this.color(this.next('a colour'));
+		const options = this.options([Option.Width, Option.Opacity, Option.Dashed, Option.Head, Option.Tail, Option.Fill]);
+		const fillColor = this.#fill;
+		const fillGradient = this.#gradient;
+		const head = this.#ends.get(Option.Head);
+		const tail = this.#ends.get(Option.Tail);
+		return {
+			kind: AssistantCommandKind.AddPath,
+			d,
+			color,
+			width: this.positive(options[Option.Width] ?? DrawingDefault.StrokeWidth, Option.Width),
+			opacity: this.opacity(options[Option.Opacity]),
+			...(fillColor ? { fill: true, fillColor } : {}),
+			...(fillGradient ? { fill: true, fillGradient } : {}),
 			...(Option.Dashed in options ? { dashed: true } : {}),
 			...(head ? { head } : {}),
 			...(tail ? { tail } : {}),
@@ -259,9 +301,23 @@ class Statement {
 	/** Reads an option followed by a word, such as an end or a colour; whether it was one. */
 	private wordOption(name: string): boolean {
 		if (END_OPTIONS.has(name)) this.#ends.set(name, this.lineEnd(name));
-		else if (name === Option.Fill) this.#fill = this.color(this.next(`a colour after ${Option.Fill}`));
+		else if (name === Option.Fill) this.readFill(this.next(`a colour or gradient after ${Option.Fill}`));
 		else return false;
 		return true;
+	}
+
+	/** A fill colour, or a gradient written as linear(#a,#b) or radial(#a,#b). */
+	private readFill(value: string): void {
+		const gradient = GRADIENT_FILL.exec(value);
+		if (!gradient) {
+			this.#fill = this.color(value);
+			return;
+		}
+		const parts = gradient[2]!.split(',').map((part) => part.trim());
+		const angle = GRADIENT_ANGLE.exec(parts[0] ?? '');
+		const colors = (angle ? parts.slice(1) : parts).map((color) => this.color(color));
+		if (colors.length < MINIMUM_GRADIENT_STOPS) this.fail(`a gradient needs at least ${MINIMUM_GRADIENT_STOPS} colours`);
+		this.#gradient = gradientOf(gradient[1]!.toLowerCase() as GradientKind, colors, angle ? Number(angle[1]) : undefined);
 	}
 
 	private lineEnd(option: string): LineEnd {

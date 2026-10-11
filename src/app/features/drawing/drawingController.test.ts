@@ -29,8 +29,7 @@ describe("DrawingController preferences", () => {
     change("#sizeInput", "47");
     change("#opacityInput", "64");
     change("#hardnessInput", "72");
-    const fill = document.querySelector<HTMLInputElement>("#fillInput")!;
-    fill.checked = true; fill.dispatchEvent(new Event("change", { bubbles: true }));
+    document.querySelector<HTMLButtonElement>('[aria-label="Shape style"] [data-shape-style="fill"]')!.click();
 
     const session = source.model.snapshotSession();
     resetMarkup();
@@ -43,7 +42,7 @@ describe("DrawingController preferences", () => {
     expect(document.querySelector<HTMLInputElement>("#sizeInput")!.value).toBe("47");
     expect(document.querySelector<HTMLInputElement>("#opacityInput")!.value).toBe("64");
     expect(document.querySelector<HTMLInputElement>("#hardnessInput")!.value).toBe("72");
-    expect(document.querySelector<HTMLInputElement>("#fillInput")!.checked).toBe(true);
+    expect(document.querySelector<HTMLInputElement>("#shapeStyleInput")!.value).toBe("fill");
   });
 
   it("resets tool state for a newly created image", () => {
@@ -79,10 +78,10 @@ describe("DrawingController preferences", () => {
     expect(model.overlay.style.cursor).toBe("zoom-in");
     expect(document.querySelector(".zoom-tool-hint")!.classList).not.toContain("hidden");
     expect(document.querySelector(".zoom-tool-options")!.classList).not.toContain("hidden");
-    expect(document.querySelector("#colorInput")!.closest("label")!.classList).toContain("hidden");
+    expect(document.querySelector("#colorInput")!.closest("label")!.classList).not.toContain("hidden");
   });
 
-  it("keeps sampled, paint, and fill colours independent until explicitly copied", () => {
+  it("the picker picks the line colour, or the fill colour with Alt/Option", () => {
     const { model, controller } = setupController();
     expect(document.querySelector('[data-tool="eraser"] .eraser-icon path')).not.toBeNull();
     const pickerIcon = document.querySelector('[data-tool="picker"] svg');
@@ -96,19 +95,12 @@ describe("DrawingController preferences", () => {
 
     expect(document.querySelector(".picker-tool-options")!.classList).not.toContain("hidden");
     expect(document.querySelector(".fill-tool-options")!.classList).toContain("hidden");
-    expect(document.querySelector(".sampled-color code")!.textContent).toBe("#123456");
-    expect(document.querySelector<HTMLInputElement>("#colorInput")!.value).not.toBe("#123456");
+    // A click picks the line colour, an Alt/Option-click the fill colour.
+    expect(document.querySelector<HTMLInputElement>("#colorInput")!.value).toBe("#123456");
     expect(document.querySelector<HTMLInputElement>("#fillColorInput")!.value).not.toBe("#123456");
-    expect(document.querySelector("#colorInput")!.closest("label")!.classList).toContain("hidden");
-    const paintColor = document.querySelector<HTMLInputElement>("#colorInput")!;
-    paintColor.value = "#abcdef";
-    paintColor.dispatchEvent(new Event("input", { bubbles: true }));
-    controller.select("brush");
-    controller.select("picker");
-    expect(document.querySelector(".sampled-color code")!.textContent).toBe("#123456");
-    document.querySelector<HTMLButtonElement>("[data-use-color=fill]")!.click();
-    expect(document.querySelector<HTMLInputElement>("#fillColorInput")!.value).toBe("#123456");
-    document.querySelector<HTMLButtonElement>("[data-use-color=paint]")!.click();
+    vi.mocked(model.context.getImageData).mockReturnValueOnce(new ImageData(new Uint8ClampedArray([171, 205, 239, 255]), 1, 1));
+    model.overlay.dispatchEvent(new MouseEvent("pointerdown", { clientX: 0, clientY: 0, altKey: true, bubbles: true }) as unknown as PointerEvent);
+    expect(document.querySelector<HTMLInputElement>("#fillColorInput")!.value).toBe("#abcdef");
     expect(document.querySelector<HTMLInputElement>("#colorInput")!.value).toBe("#123456");
 
     controller.select("fill");

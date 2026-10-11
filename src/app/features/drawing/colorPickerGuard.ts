@@ -10,14 +10,22 @@ export class ColorPickerGuard {
 	#open: HTMLInputElement | null = null;
 
 	constructor(root: Document = document) {
+		// A colour opens only from its swatch: a press on its word or its row, which a label would pass on to the swatch, would open the picker again as it closes.
 		root.addEventListener(
 			'click',
 			(event) => {
 				const target = event.target;
-				this.#open = target instanceof HTMLInputElement && target.matches(COLOR_INPUT_SELECTOR) ? target : null;
+				if (!(target instanceof Element) || target.matches(COLOR_INPUT_SELECTOR)) return;
+				const control = target.closest('label')?.control;
+				if (control instanceof HTMLInputElement && control.matches(COLOR_INPUT_SELECTOR)) event.preventDefault();
 			},
 			true,
 		);
+		// Heard after the input's own handlers, so a press that only made its swatch the active one, opening nothing, is not remembered.
+		root.addEventListener('click', (event) => {
+			const target = event.target;
+			this.#open = !event.defaultPrevented && target instanceof HTMLInputElement && target.matches(COLOR_INPUT_SELECTOR) ? target : null;
+		});
 	}
 
 	/** Whether this press only closes an open colour picker; the picker's input then lets go of the focus. */

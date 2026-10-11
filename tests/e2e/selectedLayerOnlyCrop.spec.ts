@@ -6,15 +6,17 @@ test('crop extracts only the selected item', async ({ page }) => {
 	await page.locator('#newImageTransparent').check();
 	await page.locator('#createImageButton').click();
 	await page.getByRole('button', { name: 'Shape tools: Rectangle' }).click();
-	await page.locator('#fillInput').check();
+	await page.getByRole('group', { name: 'Shape style' }).getByRole('button', { name: 'Fill', exact: true }).click();
 	const overlay = page.locator('#overlay');
 	const bounds = await overlay.boundingBox();
 	if (!bounds) throw new Error('Canvas overlay is not visible.');
 
 	await page.locator('#colorInput').fill('#d02020');
+	await page.locator('#fillColorInput').fill('#d02020');
 	await drag(page, bounds.x + 300, bounds.y + 100, bounds.x + 500, bounds.y + 220);
 	await page.getByRole('button', { name: 'Shape tools: Rectangle' }).click();
 	await page.locator('#colorInput').fill('#2050d0');
+	await page.locator('#fillColorInput').fill('#2050d0');
 	await drag(page, bounds.x + 580, bounds.y + 220, bounds.x + 380, bounds.y + 100);
 	// The first, red rectangle is the bottom item of the layer.
 	await page

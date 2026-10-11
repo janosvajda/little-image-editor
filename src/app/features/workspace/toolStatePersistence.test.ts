@@ -6,17 +6,17 @@ describe("toolStatePersistence", () => {
     const root = document.querySelector('[data-panel="tools"]')!;
     const paint = document.querySelector<HTMLSelectElement>("#paintToolSelect")!;
     const color = document.querySelector<HTMLInputElement>("#colorInput")!;
-    const fill = document.querySelector<HTMLInputElement>("#fillInput")!;
-    paint.value = "marker"; color.value = "#123456"; fill.checked = true;
+    const style = document.querySelector<HTMLInputElement>("#shapeStyleInput")!;
+    paint.value = "marker"; color.value = "#123456"; style.value = "fill";
     saveToolState(root, "marker");
-    paint.value = "brush"; color.value = "#000000"; fill.checked = false;
+    paint.value = "brush"; color.value = "#000000"; style.value = "outline";
 
     const restored = restoreToolState(root);
     expect(restored.activeTool).toBe("marker");
     expect(restored.restoredControlIds.has("paintToolSelect")).toBe(true);
     expect(restored.restoredControlIds.has("colorInput")).toBe(true);
-    expect(restored.restoredControlIds.has("fillInput")).toBe(true);
-    expect([paint.value, color.value, fill.checked]).toEqual(["marker", "#123456", true]);
+    expect(restored.restoredControlIds.has("shapeStyleInput")).toBe(true);
+    expect([paint.value, color.value, style.value]).toEqual(["marker", "#123456", "fill"]);
   });
 
   it("ignores unavailable values and removes invalid records", () => {

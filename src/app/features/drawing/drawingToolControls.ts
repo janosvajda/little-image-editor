@@ -1,5 +1,5 @@
 import { EditorIconId, editorIconMarkup } from '../../shared/style/editorIcons';
-import { ARROW_ENDS, isLineEnd, LINE_END_LABELS, LineEnd, type LineEnds } from '../annotations/lineEnd';
+import { ARROW_ENDS, isLineEnd, LINE_END_LABELS, LineEnd, type LineEnds, PLAIN_ENDS } from '../annotations/lineEnd';
 import {
 	MarkupToolId,
 	PaintToolId,
@@ -16,11 +16,7 @@ import { GroupedToolPalette } from '../workspace/groupedToolPalette';
 import { ToolbarId, toolbarSelector } from '../workspace/toolbarTypes';
 import { CropSelectionKind } from './cropSelectionTypes';
 import type { StrokeOptions } from './drawingHelpers';
-import {
-	colorProfileOwner,
-	colorProfileOwnerOfItem,
-	drawingToolBehavior,
-} from './drawingToolBehavior';
+import { colorProfileOwner, colorProfileOwnerOfItem, drawingToolBehavior, isPathTool } from './drawingToolBehavior';
 import {
 	BRUSH_TOOL_DEFINITIONS,
 	DRAWING_TOOL_DEFINITIONS,
@@ -32,6 +28,9 @@ import {
 import type { DrawingToolSettings } from './drawingToolSettings';
 import type { FloodFillOptions } from './floodFillHelpers';
 import { SelectedObjectPropertiesController } from './selectedObjectPropertiesController';
+import { ShapeStyleButtons } from './shapeStyleButtons';
+import { DEFAULT_TOOL_COLORS, ToolColorsControl, ToolColorTarget } from './toolColorsControl';
+import { isShapeStyle, ShapeStyle } from '../annotations/shapeStyle';
 
 const PERCENT_SCALE = 100;
 const MarkerNumber = { First: 1, Minimum: 0, Maximum: 9_999 } as const;
@@ -43,7 +42,7 @@ const DrawingControlId = {
 	Size: 'sizeInput',
 	Opacity: 'opacityInput',
 	Hardness: 'hardnessInput',
-	Fill: 'fillInput',
+	ShapeStyle: 'shapeStyleInput',
 	FillColor: 'fillColorInput',
 	FillTolerance: 'fillToleranceInput',
 } as const;
@@ -53,12 +52,18 @@ const TOOL_CONTROL_DEFAULTS = {
 		[DrawingControlId.Opacity]: HIGHLIGHT_OPACITY_PERCENT,
 	},
 } as const;
+/** Each tool keeps its own size, opacity and hardness; the line colour is shared, except by tools with their own, such as numbered markers. */
 const PROFILED_DRAWING_CONTROL_IDS = [
 	DrawingControlId.Color,
 	DrawingControlId.Size,
 	DrawingControlId.Opacity,
 	DrawingControlId.Hardness,
 ] as const;
+
+/** The ends a tool draws until someone chooses others: a pen path is a plain line, other lines are arrows. */
+function defaultLineEnds(tool: Tool): LineEnds {
+	return isPathTool(tool) ? PLAIN_ENDS : ARROW_ENDS;
+}
 
 /** The names of a line's two ends where they are chosen. */
 const LineEndChoice = { Start: 'Start', End: 'End' } as const;
@@ -71,7 +76,6 @@ export class DrawingToolControls implements DrawingToolSettings {
 	readonly #sizeLabel = element<HTMLElement>('#sizeLabel');
 	readonly #opacity = element<HTMLInputElement>('#opacityInput');
 	readonly #hardness = element<HTMLInputElement>('#hardnessInput');
-	readonly #fill = element<HTMLInputElement>('#fillInput');
 	readonly #paintSelect = element<HTMLSelectElement>('#paintToolSelect');
 	readonly #shapeSelect = element<HTMLSelectElement>('#shapeToolSelect');
 	readonly #markupSelect = element<HTMLSelectElement>('#markupToolSelect');
@@ -81,12 +85,16 @@ export class DrawingToolControls implements DrawingToolSettings {
 	readonly #fillColor: HTMLInputElement;
 	readonly #fillTolerance: HTMLInputElement;
 	readonly #pickerOptions: HTMLElement;
-	readonly #pickerSwatch: HTMLElement;
-	readonly #sampledColor: HTMLInputElement;
+	readonly #colors: ToolColorsControl;
+	/** The style shape tools draw in, kept in a hidden control so it is remembered with the other settings. */
+	readonly #shapeStyleValue = element<HTMLInputElement>('#shapeStyleInput');
+	readonly #shapeStyle: ShapeStyleButtons;
 	readonly #cropOptions: HTMLElement;
 	readonly #markerOptions: HTMLElement | null;
 	readonly #lineEndOptions: HTMLElement;
 	readonly #lineEndSelects: Readonly<Record<keyof LineEnds, HTMLSelectElement>>;
+	/** Each tool's own ends: an elbow arrow starts with an arrowhead, a pen path with none. */
+	readonly #lineEndsByTool = new Map<Tool, LineEnds>();
 	#cropSelectionKind: CropSelectionKind = CropSelectionKind.Rectangle;
 	readonly #contextHint: HTMLElement;
 	readonly #selectedObjectProperties?: SelectedObjectPropertiesController;
@@ -102,27 +110,27 @@ export class DrawingToolControls implements DrawingToolSettings {
 		this.#fillOptions = fillControls.root;
 		this.#fillColor = fillControls.color;
 		this.#fillTolerance = fillControls.tolerance;
-		const pickerControls = this.createPickerOptions();
-		this.#pickerOptions = pickerControls.root;
-		this.#pickerSwatch = pickerControls.swatch;
-		this.#sampledColor = pickerControls.color;
+		this.#pickerOptions = this.createPickerOptions();
 		this.#cropOptions = this.createCropOptions();
 		const lineEndControls = this.createLineEndOptions();
 		this.#lineEndOptions = lineEndControls.root;
 		this.#lineEndSelects = lineEndControls.selects;
 		this.#markerOptions = shapes ? this.createMarkerOptions(shapes) : null;
 		this.#contextHint = this.createContextHint();
+		// The colours come first in the tool options, where every tool that paints shows them.
+		this.#colors = new ToolColorsControl(this.#color, this.#fillColor, () => this.#toolbar.persist());
+		this.#shapeStyle = this.createShapeStyle();
+		element('.tool-options', this.#toolsPanel).prepend(this.#colors.element, this.#shapeStyle.element);
 		if (shapes)
 			this.#selectedObjectProperties = new SelectedObjectPropertiesController(
 				shapes,
 				element('.tool-options', this.#toolsPanel),
-				(object, color) =>
-					this.#toolbar.setProfileControl(
-						colorProfileOwnerOfItem(object.type),
-						DrawingControlId.Color,
-						color,
-					),
+				(object, color) => this.#toolbar.setProfileControl(colorProfileOwnerOfItem(object.type), DrawingControlId.Color, color),
+				(color) => this.#colors.set(ToolColorTarget.Fill, color),
+				{ fillColor: () => this.#colors.fillColor, chooseShapeStyle: (style) => this.setShapeStyle(style) },
 			);
+		// The tools' colours stay first, above a selected item's own properties.
+		element('.tool-options', this.#toolsPanel).prepend(this.#colors.element);
 		this.#toolbar = new GenericToolbar<Tool>({
 			root: this.#toolsPanel,
 			tools: DRAWING_TOOL_DEFINITIONS,
@@ -155,8 +163,7 @@ export class DrawingToolControls implements DrawingToolSettings {
 			documentModel,
 			stateKey: 'drawing',
 			profiledControlIds: PROFILED_DRAWING_CONTROL_IDS,
-			profileOwner: (tool, controlId) =>
-				controlId === DrawingControlId.Color ? colorProfileOwner(tool) : tool,
+			profileOwner: (tool, controlId) => (controlId === DrawingControlId.Color ? colorProfileOwner(tool) : tool),
 			toolDefaults: TOOL_CONTROL_DEFAULTS,
 		});
 		element('.tool-choosers').classList.add('hidden');
@@ -206,12 +213,25 @@ export class DrawingToolControls implements DrawingToolSettings {
 	get tool(): Tool {
 		return this.#toolbar.activeTool;
 	}
-	get fillShape(): boolean {
-		return this.#fill.checked;
+	get shapeStyle(): ShapeStyle {
+		return isShapeStyle(this.#shapeStyleValue.value) ? this.#shapeStyleValue.value : ShapeStyle.Outline;
+	}
+	/** The fill colour: what shapes and paths are filled with, and what the Fill tool pours. */
+	get fillColor(): string {
+		return this.#colors.fillColor;
+	}
+	/** Makes a picked colour the line or the fill colour. */
+	pickColor(color: string, target: ToolColorTarget): void {
+		this.#colors.set(target, color);
+	}
+	swapColors(): void {
+		this.#colors.swap();
+	}
+	resetColors(): void {
+		this.#colors.reset();
 	}
 	lineEnds(): LineEnds {
-		const chosen = (select: HTMLSelectElement, fallback: LineEnd) => (isLineEnd(select.value) ? select.value : fallback);
-		return { head: chosen(this.#lineEndSelects.head, ARROW_ENDS.head), tail: chosen(this.#lineEndSelects.tail, ARROW_ENDS.tail) };
+		return this.#lineEndsByTool.get(this.tool) ?? defaultLineEnds(this.tool);
 	}
 	get cropSelectionKind(): CropSelectionKind {
 		return this.#cropSelectionKind;
@@ -223,19 +243,13 @@ export class DrawingToolControls implements DrawingToolSettings {
 
 	fillOptions(): FloodFillOptions {
 		return {
-			color: this.#fillColor.value,
+			color: this.#colors.fillColor,
 			opacity: Number(this.#opacity.value) / PERCENT_SCALE,
 			tolerance: Math.min(
 				COLOR_CHANNEL_MAXIMUM,
 				Number(this.#fillTolerance.value),
 			),
 		};
-	}
-
-	showSampledColor(color: string): void {
-		this.#sampledColor.value = color;
-		this.updatePickerSwatch(color);
-		this.#toolbar.persist();
 	}
 
 	setInitialColor(theme: string): void {
@@ -252,7 +266,7 @@ export class DrawingToolControls implements DrawingToolSettings {
 
 	strokeOptions(): StrokeOptions {
 		return {
-			color: this.#color.value,
+			color: this.#colors.lineColor,
 			size: Number(this.#size.value),
 			opacity: Number(this.#opacity.value) / PERCENT_SCALE,
 			hardness: Number(this.#hardness.value) / PERCENT_SCALE,
@@ -280,13 +294,13 @@ export class DrawingToolControls implements DrawingToolSettings {
 		const behavior = drawingToolBehavior(tool);
 		const options = behavior.options;
 		this.#selectedObjectProperties?.setTool(tool);
-		element('.shape-option').classList.toggle('hidden', !options.shapeFill);
 		this.#hardness
 			.closest('label')!
 			.classList.toggle('hidden', !options.hardness);
 		this.#size.closest('label')!.classList.toggle('hidden', !options.size);
 		if (behavior.sizeLabel) this.#sizeLabel.textContent = behavior.sizeLabel;
-		this.#color.closest('label')!.classList.toggle('hidden', !options.color);
+		this.#shapeStyle.element.classList.toggle('hidden', !options.shapeFill);
+		this.#shapeStyle.show(this.shapeStyle);
 		this.#opacity
 			.closest('label')!
 			.classList.toggle('hidden', !options.opacity);
@@ -295,8 +309,12 @@ export class DrawingToolControls implements DrawingToolSettings {
 		this.#cropOptions.classList.toggle('hidden', !options.crop);
 		this.#markerOptions?.classList.toggle('hidden', !options.marker);
 		this.#lineEndOptions.classList.toggle('hidden', !options.lineEnds);
+		if (options.lineEnds) {
+			const ends = this.lineEnds();
+			this.#lineEndSelects.head.value = ends.head;
+			this.#lineEndSelects.tail.value = ends.tail;
+		}
 		this.#contextHint.classList.toggle('hidden', !options.zoom);
-		if (options.picker) this.updatePickerSwatch(this.#sampledColor.value);
 	}
 
 	private createFillOptions(): {
@@ -306,39 +324,42 @@ export class DrawingToolControls implements DrawingToolSettings {
 	} {
 		const root = document.createElement('div');
 		root.className = 'fill-tool-options hidden';
-		root.innerHTML = `<label>Fill color <input id="fillColorInput" type="color" value="${ColorPalette.Black}"></label><label>Tolerance <span id="fillToleranceValue">32</span><input id="fillToleranceInput" type="range" min="0" max="255" value="32"></label>`;
+		root.innerHTML = `<label>Tolerance <span id="fillToleranceValue">32</span><input id="fillToleranceInput" type="range" min="0" max="255" value="32"></label>`;
 		element('.tool-options', this.#toolsPanel).prepend(root);
+		// The fill colour joins the line colour in the colour control, as a second colour does in painting programs.
+		const fillColor = document.createElement('input');
+		fillColor.id = DrawingControlId.FillColor;
+		fillColor.type = 'color';
+		// A fresh start has the colours a reset gives.
+		fillColor.value = DEFAULT_TOOL_COLORS.fill;
 		return {
 			root,
-			color: element<HTMLInputElement>('#fillColorInput', root),
+			color: fillColor,
 			tolerance: element<HTMLInputElement>('#fillToleranceInput', root),
 		};
 	}
 
-	private createPickerOptions(): {
-		root: HTMLElement;
-		swatch: HTMLElement;
-		color: HTMLInputElement;
-	} {
+	/** The Picker needs no settings: a click picks the line colour and Alt/Option-click the fill colour. */
+	private createPickerOptions(): HTMLElement {
 		const root = document.createElement('div');
 		root.className = 'picker-tool-options hidden';
-		root.innerHTML = `<input id="sampledColorInput" type="hidden" value="${ColorPalette.Black}"><p class="tool-hint">Click pixels repeatedly to sample colours without changing paint or fill.</p><div class="sampled-color"><span>Last sampled colour</span><i aria-hidden="true"></i><code>${ColorPalette.Black}</code></div><div class="context-actions"><button type="button" data-use-color="paint">Use for paint</button><button type="button" data-use-color="fill">Use for fill</button></div>`;
-		root.addEventListener('click', (event) => {
-			const target = (event.target as HTMLElement).closest<HTMLButtonElement>(
-				'[data-use-color]',
-			);
-			if (!target) return;
-			if (target.dataset.useColor === 'paint')
-				this.#color.value = this.#sampledColor.value;
-			else this.#fillColor.value = this.#sampledColor.value;
-			this.#toolbar.persist();
-		});
+		root.innerHTML = '<p class="tool-hint">Click to pick the line colour. Alt/Option-click to pick the fill colour.</p>';
 		element('.tool-options', this.#toolsPanel).prepend(root);
-		return {
-			root,
-			swatch: element<HTMLElement>('.sampled-color', root),
-			color: element<HTMLInputElement>('#sampledColorInput', root),
-		};
+		return root;
+	}
+
+	/** The style shape tools draw in: outline, fill, or both. */
+	private createShapeStyle(): ShapeStyleButtons {
+		const buttons = new ShapeStyleButtons('Shape style', (style) => this.setShapeStyle(style));
+		buttons.element.append(this.#shapeStyleValue);
+		return buttons;
+	}
+
+	/** Makes a style the one shape tools draw in, and remembers it. */
+	private setShapeStyle(style: ShapeStyle): void {
+		this.#shapeStyleValue.value = style;
+		this.#shapeStyle.show(style);
+		this.#toolbar.persist();
 	}
 
 	/** A choice of end for each end of a line, from every end a line can have. */
@@ -359,6 +380,12 @@ export class DrawingToolControls implements DrawingToolSettings {
 			tail: select(LineEndChoice.Start, 'lineTailSelect', ARROW_ENDS.tail),
 			head: select(LineEndChoice.End, 'lineHeadSelect', ARROW_ENDS.head),
 		};
+		const remember = () => {
+			const chosen = (input: HTMLSelectElement, fallback: LineEnd) => (isLineEnd(input.value) ? input.value : fallback);
+			const fallback = defaultLineEnds(this.tool);
+			this.#lineEndsByTool.set(this.tool, { head: chosen(selects.head, fallback.head), tail: chosen(selects.tail, fallback.tail) });
+		};
+		for (const input of Object.values(selects)) input.addEventListener('change', remember);
 		element('.tool-options', this.#toolsPanel).append(root);
 		return { root, selects };
 	}
@@ -472,12 +499,6 @@ export class DrawingToolControls implements DrawingToolSettings {
 		);
 		this.#toolsPanel.querySelector('.panel-body')!.append(options);
 		return options;
-	}
-
-	private updatePickerSwatch(color: string): void {
-		element<HTMLElement>('i', this.#pickerSwatch).style.backgroundColor = color;
-		element<HTMLElement>('code', this.#pickerSwatch).textContent =
-			color.toUpperCase();
 	}
 }
 

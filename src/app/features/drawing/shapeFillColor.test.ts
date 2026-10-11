@@ -111,13 +111,13 @@ describe('the selected object controls', () => {
 		expect(parent.querySelector<HTMLInputElement>('[aria-label="Selected object fill colour"]')!.value).toBe('#ffeeaa');
 	});
 
-	it('change the fill colour, and hide it when the shape stops being filled', () => {
+	it('change the fill colour, and keep showing it when the shape stops being filled', () => {
 		const { objects, parent, row } = controls(BOX);
 		change(parent.querySelector<HTMLInputElement>('[aria-label="Selected object fill colour"]')!, '#00aa00');
 		expect(objects.selected).toMatchObject({ fillColor: '#00aa00', color: '#333333' });
-		change(parent.querySelector<HTMLInputElement>('[aria-label="Selected object fill"]')!, false);
+		parent.querySelector<HTMLButtonElement>('[aria-label="Selected object style"] [data-shape-style="outline"]')!.click();
 		expect(objects.selected).toMatchObject({ fill: false });
-		expect(row(EditableObjectPropertyId.FillColor).classList).toContain('hidden');
+		expect(row(EditableObjectPropertyId.FillColor).classList).not.toContain('hidden');
 	});
 
 	it('call the colour of anything that is not a shape its colour', () => {

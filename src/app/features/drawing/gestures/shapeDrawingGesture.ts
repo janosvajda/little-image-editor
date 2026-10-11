@@ -12,10 +12,14 @@ import {
 	type StrokeOptions,
 } from '../drawingHelpers';
 import type { DrawingGesture } from './drawingGesture';
+import { ShapeStyle, styledFields } from '../../annotations/shapeStyle';
 
 const MINIMUM_SHAPE_LENGTH = 2;
 export interface ShapeDrawingStyle extends StrokeOptions {
-	readonly fill: boolean;
+	/** Outline, fill, or both. */
+	readonly shapeStyle: ShapeStyle;
+	/** What a filled shape is filled with, inside its line in the stroke's colour. */
+	readonly fillColor: string;
 }
 
 export class ShapeDrawingGesture implements DrawingGesture {
@@ -55,9 +59,8 @@ export class ShapeDrawingGesture implements DrawingGesture {
 			...rectOrientation(this.start, point),
 			rotation: 0,
 			color: style.color,
-			width: style.size,
 			opacity: style.opacity,
-			fill: style.fill,
+			...styledFields(style.shapeStyle, style.size, style.fillColor),
 		});
 	}
 
@@ -69,7 +72,8 @@ export class ShapeDrawingGesture implements DrawingGesture {
 		const style = this.style();
 		context.save();
 		configureStroke(context, style);
-		drawShape(context, this.tool, this.start, point, style.fill);
+		context.fillStyle = style.fillColor;
+		drawShape(context, this.tool, this.start, point, style.shapeStyle !== ShapeStyle.Outline, style.shapeStyle === ShapeStyle.OutlineAndFill);
 		context.restore();
 	}
 }

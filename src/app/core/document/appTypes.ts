@@ -45,7 +45,14 @@ export const ConnectorToolId = {
 	ElbowArrow: 'elbowArrow',
 } as const;
 export type ConnectorTool = (typeof ConnectorToolId)[keyof typeof ConnectorToolId];
-export type Tool = PaintTool | ShapeTool | MarkupTool | UtilityTool | ConnectorTool;
+/** Tools that draw a vector path of lines and curves, kept as one item. */
+export const PathToolId = {
+	Pen: 'pen',
+	/** Straight pieces only, as SVG's polyline and polygon. */
+	Polyline: 'polyline',
+} as const;
+export type PathTool = (typeof PathToolId)[keyof typeof PathToolId];
+export type Tool = PaintTool | ShapeTool | MarkupTool | UtilityTool | ConnectorTool | PathTool;
 export const DEFAULT_DOCUMENT_NAME = 'untitled';
 export type Point = Readonly<{ x: number; y: number }>;
 export type CropRect = Readonly<{
@@ -64,6 +71,8 @@ export type ImageFormat = (typeof ImageMimeType)[keyof typeof ImageMimeType];
 export const DocumentType = {
 	Image: 'image',
 	Project: 'project',
+	/** An SVG: saved as SVG, its layers as groups and its shapes, paths and text as vectors. */
+	Svg: 'svg',
 } as const;
 export type DocumentType = (typeof DocumentType)[keyof typeof DocumentType];
 

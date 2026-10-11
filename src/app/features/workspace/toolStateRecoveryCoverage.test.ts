@@ -21,8 +21,8 @@ describe('tool state recovery', () => {
 		expect(document.querySelector<HTMLInputElement>('#colorInput')?.value).toBe(
 			'#123456',
 		);
-		expect(document.querySelector<HTMLInputElement>('#fillInput')?.checked).toBe(
-			true,
+		expect(document.querySelector<HTMLInputElement>('#shapeStyleInput')?.value).toBe(
+			'fill',
 		);
 	});
 

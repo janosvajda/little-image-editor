@@ -6,8 +6,10 @@ import type {
 } from '../../../app/features/assistant/assistantCommandTypes';
 import { MAX_CANVAS_DIMENSION } from '../../../app/core/geometry/geometryHelpers';
 import type {
-	EditableImages, ExportableImages, ImageExportRequest, ImageExportResult, OpenImageSummary, OpenImageView,
+	ExportableImages, ImageExportRequest, ImageExportResult, ImagePlacementRequest, OpenImageSummary, OpenImageView, PlaceableImages,
 } from '../assistant/openImages';
+import { AssistantCommandKind } from '../../../app/features/assistant/assistantCommandTypes';
+import { WorkspacePictureReader } from './workspacePictureReader';
 import { type EditorSession, FILE_SCHEME } from './editorSession';
 import { openUntitledImage, untitledImageUri } from './untitledImages';
 import { WorkspaceImageExporter } from './workspaceImageExporter';
@@ -21,7 +23,7 @@ const CHOOSE_IMAGE_MESSAGE =
  * Every open Little Image Editor tab, whichever file type opened it, and the
  * one the user works in. Assistant tools reach the images through it.
  */
-export class OpenEditors implements EditableImages, ExportableImages {
+export class OpenEditors implements PlaceableImages, ExportableImages {
 	readonly #sessions = new Set<EditorSession>();
 	#active: EditorSession | null = null;
 	/** Sizes for untitled images an assistant asked for, until their editors open. */
@@ -66,18 +68,35 @@ export class OpenEditors implements EditableImages, ExportableImages {
 		return this.find(image).command(command);
 	}
 
+	/** Reads a picture from the workspace and has the editor place it, decoded there, as one item. */
+	async place(image: string | undefined, request: ImagePlacementRequest): Promise<AssistantResult> {
+		const session = this.find(image);
+		const { fileName, bytes } = await new WorkspacePictureReader(localWorkspaces()).read(request, session.document.uri.fsPath);
+		return session.command({
+			kind: AssistantCommandKind.PlaceImage,
+			fileName,
+			contents: Buffer.from(bytes).toString('base64'),
+			...(request.layer ? { layer: request.layer } : {}),
+			...(request.at ? { at: request.at } : {}),
+			...(request.width ? { width: request.width } : {}),
+			...(request.height ? { height: request.height } : {}),
+		});
+	}
+
 	/** Writes a full-size PNG copy into the workspace without saving or flattening the open project. */
 	export(image: string | undefined, request: ImageExportRequest): Promise<ImageExportResult> {
 		const session = this.find(image);
-		const workspaces = (vscode.workspace.workspaceFolders ?? [])
-			.filter(({ uri }) => uri.scheme === FILE_SCHEME)
-			.map(({ name, uri }) => ({ name, path: uri.fsPath }));
-		return new WorkspaceImageExporter(workspaces).export(
+		return new WorkspaceImageExporter(localWorkspaces()).export(
 			request,
 			session.document.uri.fsPath,
 			async () => {
 				const { contents, ...sizes } = await session.view(MAX_CANVAS_DIMENSION);
 				return { name: session.document.name, png: contents, ...sizes };
+			},
+			async () => {
+				const result = await session.command({ kind: AssistantCommandKind.ExportSvg });
+				if (!('svg' in result)) throw new Error('The editor did not return an SVG.');
+				return result.svg;
 			},
 		);
 	}
@@ -122,4 +141,11 @@ export class OpenEditors implements EditableImages, ExportableImages {
 
 function locationOf(uri: vscode.Uri): string {
 	return uri.scheme === FILE_SCHEME ? uri.fsPath : uri.toString();
+}
+
+/** The workspace folders on this computer, which assistants may read pictures from and export into. */
+function localWorkspaces(): { name: string; path: string }[] {
+	return (vscode.workspace.workspaceFolders ?? [])
+		.filter(({ uri }) => uri.scheme === FILE_SCHEME)
+		.map(({ name, uri }) => ({ name, path: uri.fsPath }));
 }

@@ -1,4 +1,4 @@
-import { PaintToolId } from '../../core/document/appTypes';
+import { type CropRect, PaintToolId } from '../../core/document/appTypes';
 import { ColorPalette } from '../../core/document/colorPalette';
 import { CoreLayerId } from '../../core/layers/layerTypes';
 import { encodePixelBytes } from '../../shared/image/pixelDataCodec';
@@ -44,15 +44,19 @@ export function createEmptyStroke(): StrokeAnnotation {
 	};
 }
 
-/** A pixel item holding exactly the given pixels at their document position. */
+/**
+ * A pixel item holding exactly the given pixels: at their document position,
+ * or shown in another frame, as a placed picture is, keeping every pixel.
+ */
 export function createRasterFragmentItem(
 	fragment: ExtractedPixelFragment,
+	frame?: CropRect,
 ): RasterFragmentAnnotation {
 	const { left, top, width, height } = fragment.bounds;
 	return {
 		id: crypto.randomUUID(),
 		type: AnnotationObjectTypeId.RasterFragment,
-		rect: { x: left, y: top, width, height },
+		rect: frame ?? { x: left, y: top, width, height },
 		pixelWidth: width,
 		pixelHeight: height,
 		pixels: encodePixelBytes(fragment.pixels),

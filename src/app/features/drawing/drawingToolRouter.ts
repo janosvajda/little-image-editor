@@ -1,4 +1,7 @@
 import {
+	type ConnectorTool,
+	type PathTool,
+	PathToolId,
 	MarkupToolId,
 	type MarkupTool,
 	type PaintTool,
@@ -22,7 +25,11 @@ import {
 import { CropTool } from './cropTool';
 import { drawingLayerTargetAt } from './drawingLayerTarget';
 import { DrawingImageActions } from './drawingImageActions';
-import { isConnectorTool, isMarkupTool, isPaintTool, isShapeTool } from './drawingToolBehavior';
+import { isConnectorTool, isMarkupTool, isPaintTool, isPathTool, isShapeTool } from './drawingToolBehavior';
+import { GradientHandles } from './gradientHandles';
+import { PathPointEditor } from './pathPointEditor';
+import { PenPieces, PenTool } from './penTool';
+import { ToolColorTarget } from './toolColorsControl';
 import { ConnectorDrawingGesture } from './gestures/connectorDrawingGesture';
 import type { DrawingToolSettings } from './drawingToolSettings';
 import { BaseImagePaintGesture } from './gestures/baseImagePaintGesture';
@@ -39,6 +46,12 @@ export class DrawingToolRouter {
 	readonly #objects: ObjectInteractionTool;
 	readonly #imageActions: DrawingImageActions;
 	readonly #markup: MarkupActions | null;
+	/** The Pen and the Polyline, each drawing its own kind of path. */
+	readonly #pens: Readonly<Record<PathTool, PenTool>> | null;
+	/** The one of them that last began a path, which Enter finishes and Escape drops. */
+	#pen: PenTool | null = null;
+	readonly #pathPoints: PathPointEditor | null;
+	readonly #gradients: GradientHandles | null;
 
 	constructor(
 		private readonly documentModel: CanvasDocument,
@@ -51,6 +64,17 @@ export class DrawingToolRouter {
 		this.#objects = new ObjectInteractionTool(shapes, rasterSelection);
 		this.#imageActions = new DrawingImageActions(documentModel, shapes);
 		this.#markup = shapes ? new MarkupActions(documentModel, shapes) : null;
+		const penStyle = () => ({ stroke: settings.strokeOptions(), shapeStyle: settings.shapeStyle, fillColor: settings.fillColor, ends: settings.lineEnds() });
+		this.#pens = shapes
+			? {
+					[PathToolId.Pen]: new PenTool(documentModel, shapes, penStyle, PenPieces.Curves),
+					[PathToolId.Polyline]: new PenTool(documentModel, shapes, penStyle, PenPieces.Straight),
+				}
+			: null;
+		this.#pathPoints = shapes ? new PathPointEditor(documentModel, shapes) : null;
+		this.#gradients = shapes ? new GradientHandles(documentModel, shapes, () => this.editingPathPoints) : null;
+		// Point marks and gradient points share the overlay; the gradient's come back when point editing ends.
+		this.#pathPoints?.onEditingChange(() => this.#gradients?.render());
 	}
 
 	/** Edits a text item in place, as a double-click on it does with any tool. */
@@ -63,6 +87,47 @@ export class DrawingToolRouter {
 
 	cancelCrop(): void {
 		this.#crop.cancel();
+	}
+
+	/** Whether the Pen has a path under way, which Enter finishes and Escape drops. */
+	get penDrawing(): boolean {
+		return this.#pen?.drawing ?? false;
+	}
+	hoverPen(point: Point): void {
+		this.#pen?.hover(point);
+	}
+	finishPen(): void {
+		this.#pen?.finish();
+	}
+	cancelPen(): void {
+		this.#pen?.cancel();
+	}
+
+	/** Whether a path's points are being edited, where presses and Delete act on its nodes. */
+	get editingPathPoints(): boolean {
+		return this.#pathPoints?.editing ?? false;
+	}
+	editPathPoints(pathId: string): void {
+		this.#pathPoints?.edit(pathId);
+	}
+	stopEditingPathPoints(): void {
+		this.#pathPoints?.stop();
+	}
+	beginPathPointEdit(point: Point, visualScale: number, alternate: boolean): DrawingGesture | null {
+		return this.#pathPoints?.begin(point, visualScale, alternate) ?? null;
+	}
+	onPathPointEditingChange(listener: (editing: boolean) => void): void {
+		this.#pathPoints?.onEditingChange(listener);
+	}
+	/** Gradient points are shown while the tool that moves items is chosen. */
+	setGradientHandlesActive(active: boolean): void {
+		this.#gradients?.setActive(active);
+	}
+	beginGradientDrag(point: Point, visualScale: number): DrawingGesture | null {
+		return this.#gradients?.begin(point, visualScale) ?? null;
+	}
+	removeSelectedPathNode(): boolean {
+		return this.#pathPoints?.removeSelected() ?? false;
 	}
 	cursor(tool: Tool, point: Point, visualScale: number): string {
 		if (
@@ -82,7 +147,7 @@ export class DrawingToolRouter {
 		if (tool === PaintToolId.Eraser)
 			return this.beginErasure(point, event.pressure);
 		if (isMarkupTool(tool)) return this.beginMarkup(tool, point, event);
-		if (isConnectorTool(tool)) return this.beginConnector(point);
+		if (isConnectorTool(tool) || isPathTool(tool)) return this.beginLineItem(tool, point, visualScale);
 		const shape = isShapeTool(tool)
 			? new ShapeDrawingGesture(
 					this.documentModel,
@@ -91,7 +156,8 @@ export class DrawingToolRouter {
 					point,
 					() => ({
 						...this.settings.strokeOptions(),
-						fill: this.settings.fillShape,
+						shapeStyle: this.settings.shapeStyle,
+						fillColor: this.settings.fillColor,
 					}),
 				)
 			: null;
@@ -110,8 +176,15 @@ export class DrawingToolRouter {
 		return null;
 	}
 
-	/** Connectors are items, so they are drawn only where the document keeps items. */
-	private beginConnector(point: Point): DrawingGesture | null {
+	/** Connectors and paths are items, so they are drawn only where the document keeps items. */
+	private beginLineItem(tool: ConnectorTool | PathTool, point: Point, visualScale: number): DrawingGesture | null {
+		if (isPathTool(tool)) {
+			const pen = this.#pens?.[tool] ?? null;
+			// A path under way with the other tool is finished before this one begins.
+			if (pen !== this.#pen) this.#pen?.finish();
+			this.#pen = pen;
+			return pen?.begin(point, visualScale) ?? null;
+		}
 		if (!this.shapes) return null;
 		return new ConnectorDrawingGesture(
 			this.documentModel,
@@ -213,8 +286,9 @@ export class DrawingToolRouter {
 		point: Point,
 		event: PointerEvent,
 	): void {
+		// As painting programs do: a click picks the line colour, Alt/Option-click the fill colour.
 		if (tool === UtilityToolId.Picker)
-			this.settings.showSampledColor(this.#imageActions.sampleColor(point));
+			this.settings.pickColor(this.#imageActions.sampleColor(point), event.altKey ? ToolColorTarget.Fill : ToolColorTarget.Line);
 		else if (tool === UtilityToolId.Fill)
 			this.#imageActions.fillAt(point, this.settings.fillOptions());
 		else if (tool === UtilityToolId.Zoom)

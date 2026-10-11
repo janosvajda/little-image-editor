@@ -50,7 +50,7 @@ test('dragging just outside the frame rotates, and Shift snaps the angle', async
 	await selectTool(page);
 	await page.mouse.click(...screen(await canvasBox(page), RectangleCenter));
 	await movePointer(page, AboveTopEdge);
-	await expect(page.locator('#overlay')).toHaveCSS('cursor', /data:image\/svg\+xml/);
+	await expect(page.locator('#overlay')).toHaveCSS('cursor', /rotate\.svg["']?\) 12 12, alias$/);
 
 	await drag(page, AboveTopEdge, RightOfFrame);
 	await expect.poll(() => frameRotation(page)).toBeCloseTo(QUARTER_TURN, 0);
@@ -80,8 +80,9 @@ async function createDocumentWithRectangle(page: Page): Promise<void> {
 	await page.locator('#quickNewButton').click();
 	await page.locator('#createImageButton').click();
 	await page.getByRole('button', { name: 'Shape tools: Rectangle' }).click();
-	await page.locator('#fillInput').check();
+	await page.getByRole('group', { name: 'Shape style' }).getByRole('button', { name: 'Fill', exact: true }).click();
 	await page.locator('#colorInput').fill('#2050d0');
+	await page.locator('#fillColorInput').fill('#2050d0');
 	await drag(page, Rectangle.from, Rectangle.to);
 	await expect(page.locator('.layer-object-row')).toHaveCount(1);
 }

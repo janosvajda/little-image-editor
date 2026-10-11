@@ -1,4 +1,5 @@
 import type { Point } from '../../core/document/appTypes';
+import type { PathContour } from '../../core/geometry/vectorPath';
 import { LineEnd } from './lineEnd';
 
 
@@ -133,4 +134,40 @@ function crossEnd(context: CanvasRenderingContext2D, from: Point, to: Point, wid
 		context.lineTo(end.x, end.y);
 	}
 	context.stroke();
+}
+
+/** An open contour needs two nodes to have ends that point somewhere. */
+const MINIMUM_END_NODES = 2;
+
+/** Where an open path's ends point: from the handle or the node before each end. */
+export function pathEnds(contours: readonly PathContour[]): { head: Point; headFrom: Point; tail: Point; tailFrom: Point } | null {
+	const first = contours[0];
+	const last = contours.at(-1);
+	if (!first || !last || first.closed || last.closed || first.nodes.length < MINIMUM_END_NODES || last.nodes.length < MINIMUM_END_NODES)
+		return null;
+	const end = last.nodes.at(-1)!;
+	const beforeEnd = last.nodes.at(-2)!;
+	const start = first.nodes[0]!;
+	const afterStart = first.nodes[1]!;
+	return {
+		head: end.point,
+		headFrom: end.in ?? beforeEnd.out ?? beforeEnd.point,
+		tail: start.point,
+		tailFrom: start.out ?? afterStart.in ?? afterStart.point,
+	};
+}
+
+/** A path with its ends pulled back along their pieces, so a hollow end is not crossed by its line. */
+export function trimmedPath(points: readonly Point[], start: number, end: number): Point[] {
+	const path = [...points];
+	path[0] = pulledBack(path[0]!, path[1]!, start);
+	path[path.length - 1] = pulledBack(path.at(-1)!, path.at(-2)!, end);
+	return path;
+}
+
+/** A point moved `distance` towards another, unless that would pass it. */
+function pulledBack(tip: Point, towards: Point, distance: number): Point {
+	const length = Math.hypot(towards.x - tip.x, towards.y - tip.y);
+	if (!distance || length <= distance) return tip;
+	return { x: tip.x + ((towards.x - tip.x) * distance) / length, y: tip.y + ((towards.y - tip.y) * distance) / length };
 }

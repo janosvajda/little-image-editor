@@ -26,12 +26,20 @@ Everything happens on your computer. Images are never uploaded, and no data is c
 
 - **Paint tools:** pencil, brush, marker, highlighter, calligraphy ink, spray paint and eraser, with colour, width, opacity and hardness.
 - **Shapes:** line, arrow, rectangle, rounded rectangle, ellipse, triangle, diamond and star, filled or outlined.
+- **Pen (`Y`):** draws vector paths. Click for corners, drag for curves, click the first point to close; Enter or a double-click finishes, Escape cancels. A path has a line colour, width, fill and fill colour, and the same line ends as arrows. Double-click a path with Select to edit its points: drag nodes and handles, Alt-click a node to switch between corner and curve, Delete removes a node.
+- **Polyline (`J`):** draws a path of straight pieces, as SVG's polylines and polygons are. Click each corner, click the first one to close it into a polygon; Enter or a double-click finishes it.
 - **Elbow arrow:** a right-angled, bent arrow for diagrams. Choose what each end has: an arrowhead, an open arrow, a hollow triangle, a hollow or filled diamond, a circle, a cross or nothing. It stays one object when you move or resize it.
 - **Mermaid diagrams:** the **Insert Mermaid diagram** toolbar button, in every edition, opens a box to paste a diagram or import it from a file. In the web app and Chrome extension, the **File** menu also has **Insert Mermaid diagram…** and **Import Mermaid diagram…**. An import reads a `.mmd` file or the first mermaid block of a Markdown file. The editor lays it out itself, as editable shapes, lines and text on named layers. With no image open, it creates one sized to the diagram.
   - **Flowcharts** (`flowchart`, `graph`): node shapes, labelled arrows, nested subgraphs.
   - **State diagrams** (`stateDiagram-v2`): start and end dots, composite states, forks, joins, choices, notes, and transitions back to earlier states routed around the diagram.
   - **Class diagrams** (`classDiagram`): classes with attributes and methods, annotations such as «interface», namespaces, notes, and UML relations (inheritance, realisation, composition, aggregation, association, dependency) with multiplicities.
   - **Sequence diagrams** (`sequenceDiagram`): participants and actors, solid and dashed messages with arrow, open or × ends, self messages, activations, notes, `loop`, `alt`/`else`, `opt`, `par`, `critical`, `break` and `rect` frames, and `autonumber`.
+- **Place image…:** puts a PNG, JPEG, WebP or SVG picture on the open image as one item on the active layer, at full resolution, centred and fitted, selected and ready to move, resize, rotate, fade or erase. It's in the File menu and the toolbar (also in VS Code).
+- **Gradients:** fill a selected shape or path with a linear or radial gradient: choose **Solid / Linear / Radial** beside **Fill**, pick the first and last colours, and drag the gradient's two points on the canvas to set its direction or radius. Gradients move, resize and rotate with their item and are kept in `.limg`.
+- **Patterns:** the same Fill menu has **Stripes, Dots, Grid and Checks**. The two colours are the pattern and its background, and **Pattern size** sets the tile. Patterns move with their item.
+- **Effects:** the **Effects** button on a selected item opens a **Blur** and a **Shadow** with its colour, distance and softness. They work on any item: shapes, paths, lines, text, brush strokes and pictures.
+- **Clip:** put a shape or a closed path directly above an item in the same layer, select the item, and press **Clip**. The item then shows only inside that shape, and the clip moves, resizes and turns with it. **Release clip** gives the shape back as a path.
+- Patterns, effects and clips are kept in `.limg` and written to SVG as standard `<pattern>`, `<filter>` (blur and drop shadow) and `<clipPath>`, which open again as the same editable settings.
 - **Fill:** fills a contiguous area, with adjustable tolerance and opacity.
 - **Colour picker:** samples a colour from the image to use for painting or fill.
 
@@ -63,11 +71,12 @@ Everything happens on your computer. Images are never uploaded, and no data is c
 
 ### Files
 
-- **Open…** PNG, JPEG and WebP images and `.limg` projects from one file picker, by drag and drop, or by pasting an image from the clipboard. In Chrome, Save writes back into the file you opened.
+- **Open…** PNG, JPEG, WebP and SVG images and `.limg` projects from one file picker, by drag and drop, or by pasting an image from the clipboard. In Chrome, Save writes back into the file you opened.
+- **SVG documents:** an SVG opens as **editable layers**. Each top-level group becomes a layer, keeping its name (its title, Inkscape label or id), opacity, blend mode and visibility. Rectangles and ellipses become shapes, paths and polygons become paths, lines and polylines become lines with their arrowheads, text becomes text, and embedded pictures become picture items. Gradients, transforms and the file's style sheet are kept. Parts no item can be, such as filters, masks and clips, are kept as pictures drawn exactly as the SVG draws them. Save writes back into the SVG, and **New image → File type → SVG** starts one.
 - **New image** with presets (HD, Full HD, 4K, app icon, social media sizes, A4 at 300 DPI…), aspect ratios (including the golden ratio), resolution in PPI, and a transparent or coloured background.
-- **Save** writes back to the open file. **Save As…** chooses the file, and its name decides the format: a **`.limg` project**, which keeps layers, objects, cut-outs and undo history editable, or a PNG, JPEG or WebP image. You're asked before layers are flattened into an image. Every edition saves the same way; only the dialog that picks the file differs (the browser's or VS Code's).
-- **Export…** saves an image copy without flattening the open project or changing its file.
-- **Copy** the image to the clipboard as PNG.
+- **Save** writes back to the open file. **Save As…** chooses the file, and its name decides the format: a **`.limg` project**, which keeps layers, objects, cut-outs and undo history editable; an **SVG**, which keeps layers as groups and shapes, paths, lines and text as vectors; or a PNG, JPEG or WebP image. You're asked before layers are flattened into an image. Every edition saves the same way; only the dialog that picks the file differs (the browser's or VS Code's).
+- **Export…** opens the Export dialog in every edition: choose PNG, JPEG, WebP or **SVG** and the size (25%–300%, with the pixels shown). JPEG and WebP have a quality slider; PNG and WebP can keep transparency or fill it with a background colour, and JPEG always fills it with the colour you choose; SVG can leave out the image layer. The dialog shows a preview and the estimated file size. The copy never flattens the open project or changes its file: PNG, JPEG, WebP or **SVG**. SVG keeps shapes, paths, arrows, text and gradients as vectors, with one group per layer (opacity and blend mode kept); the photo, brush strokes and other pixels are embedded as images. It is a plain, standard SVG. Keep `.limg` for editing later.
+- **Edit → Copy image** copies the image to the clipboard as PNG (`Ctrl/Cmd+C`).
 - **Session recovery:** after an accidental reload, the browser editions restore your work.
 
 ### Workspace
@@ -94,7 +103,7 @@ The extension never asks for permission to download files from arbitrary website
 
 ### VS Code extension extras
 
-- Opens PNG, JPEG and WebP files (**Open With… → Little Image Editor**), and `.limg` projects directly.
+- Opens PNG, JPEG, WebP and SVG files (**Open With… → Little Image Editor**), and `.limg` projects directly. An SVG opens as editable layers and saves back into the `.svg`. VS Code's text editor stays the default for SVG.
 - **New Image – Little Image Editor** in the Command Palette, or on a folder in the Explorer.
 - A compact layout for editor tabs: tools on the left, the active tool's settings in the top bar, zoom in the status bar, and panels that open from icons on the right and hide again, so the image gets the most room.
 - Uses VS Code's own menus, Save (`Ctrl/Cmd+S`), Save As and unsaved-changes marker.
@@ -115,7 +124,7 @@ See the [VS Code extension guide](vscode-extension/README.md) for details.
 | Line | `L` | Crop | `C` |
 | Rectangle | `R` | Zoom (`Alt/Option`-click zooms out) | `Z` |
 | Ellipse | `O` | Fill | `F` |
-| Elbow arrow | `K` | | |
+| Elbow arrow | `K` | Pen | `Y` |
 
 | Action | Shortcut |
 |---|---|
@@ -181,8 +190,9 @@ To check the connection, type `/mcp` in Claude Code, or open **MCP servers** fro
 | `describe_image` | List an image's layers and objects, with short ids. |
 | `draw` | Draw a whole picture in **one call and one undo step**, from a compact drawing script and/or a **Mermaid** flowchart, state, class or sequence diagram. |
 | `create_image` | Open a new, unsaved image. |
-| `add_layer`, `add_shape`, `add_line`, `add_text`, `remove_item`, `undo` | Small single changes. |
-| `export_image` | Save a full-size PNG into the workspace, e.g. `src/assets/icon.png`. |
+| `add_layer`, `add_shape`, `add_line`, `add_path`, `add_text`, `remove_item`, `undo` | Small single changes; `add_path` takes standard SVG path data. |
+| `place_image` | Place a PNG, JPEG, WebP or SVG file from the workspace on the image as one item. |
+| `export_image` | Save a full-size PNG into the workspace, e.g. `src/assets/icon.png`, or an SVG for a path ending in `.svg`. |
 
 **Diagrams:** for a request like *"Read this project and draw its architecture as a diagram"*, the assistant writes Mermaid: a flowchart, state, class or sequence diagram. The editor lays it out itself: boxes sized to their text, nested groups, labelled right-angled arrows, and connections routed around boxes. The result is editable layers, such as Groups, Connections and Nodes, or Frames, Lifelines, Messages, Notes and Participants for a sequence diagram.
 

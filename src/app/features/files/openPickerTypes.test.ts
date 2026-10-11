@@ -13,7 +13,7 @@ describe('the Open file picker', () => {
 	it('then offers images alone and projects alone, to filter by', () => {
 		const [, images, projects] = EDITOR_OPEN_PICKER_TYPES;
 		expect(images!.accept).not.toHaveProperty(PROJECT_MIME_TYPE);
-		expect(Object.keys(images!.accept)).toEqual(IMAGE_FORMATS.map(({ mimeType }) => mimeType));
+		expect(Object.keys(images!.accept)).toEqual([...IMAGE_FORMATS.map(({ mimeType }) => mimeType), 'image/svg+xml']);
 		expect(projects).toBe(PROJECT_PICKER_TYPE);
 	});
 });

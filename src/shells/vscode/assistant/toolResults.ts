@@ -40,6 +40,7 @@ export function describeResult(result: AssistantResult): string {
 	if ('itemId' in result) return `ok: item ${shortId(result.itemId)} on layer ${result.layerName} (${shortId(result.layerId)})`;
 	if ('layerId' in result) return `ok: layer ${result.layerName} (${shortId(result.layerId)})`;
 	if ('removed' in result) return `ok: removed ${shortId(result.removed)}`;
+	if ('svg' in result) return `ok: SVG ${result.svg.width}x${result.svg.height}`;
 	return result.undone ? 'ok: undone' : 'nothing to undo';
 }
 

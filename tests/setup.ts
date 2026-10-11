@@ -31,7 +31,7 @@ function contextFor(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
     globalCompositeOperation: "source-over", imageSmoothingEnabled: true, imageSmoothingQuality: "low",
     clearRect: vi.fn(() => { pixels = new Uint8ClampedArray(canvas.width * canvas.height * RGBA_CHANNEL_COUNT); }),
     fillRect: vi.fn(() => { pixels = new Uint8ClampedArray(canvas.width * canvas.height * RGBA_CHANNEL_COUNT).fill(OPAQUE_CHANNEL_VALUE); }),
-    drawImage: vi.fn(), beginPath: vi.fn(), moveTo: vi.fn(), lineTo: vi.fn(), quadraticCurveTo: vi.fn(), closePath: vi.fn(), stroke: vi.fn(), fill: vi.fn(), rect: vi.fn(), ellipse: vi.fn(), setLineDash: vi.fn(),
+    drawImage: vi.fn(), beginPath: vi.fn(), moveTo: vi.fn(), lineTo: vi.fn(), quadraticCurveTo: vi.fn(), bezierCurveTo: vi.fn(), arc: vi.fn(), closePath: vi.fn(), stroke: vi.fn(), fill: vi.fn(), rect: vi.fn(), strokeRect: vi.fn(), ellipse: vi.fn(), setLineDash: vi.fn(), createLinearGradient: vi.fn(() => ({ addColorStop: vi.fn() })), createRadialGradient: vi.fn(() => ({ addColorStop: vi.fn() })), createPattern: vi.fn(() => ({ setTransform: vi.fn() })), clip: vi.fn(),
     save: vi.fn(), restore: vi.fn(), translate: vi.fn(), rotate: vi.fn(), scale: vi.fn(),
     getImageData: vi.fn((x: number, y: number, width: number, height: number) => new TestImageData(pixels.slice(0, width * height * RGBA_CHANNEL_COUNT), width, height)),
     putImageData: vi.fn((image: ImageData) => { pixels = new Uint8ClampedArray(image.data); })
@@ -41,6 +41,9 @@ function contextFor(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
 }
 
 Object.defineProperty(globalThis, "ImageData", { value: TestImageData, configurable: true });
+/** jsdom has no Path2D; a path is only traced into it, so its calls do nothing. */
+class TestPath2D { moveTo(): void {} lineTo(): void {} bezierCurveTo(): void {} quadraticCurveTo(): void {} closePath(): void {} rect(): void {} }
+Object.defineProperty(globalThis, "Path2D", { value: TestPath2D, configurable: true });
 Object.defineProperty(HTMLCanvasElement.prototype, "getContext", { value: function () { return contextFor(this); }, configurable: true });
 Object.defineProperty(HTMLCanvasElement.prototype, "toBlob", { value: (callback: BlobCallback, type?: string) => { callback(new Blob(["image"], { type })); }, configurable: true });
 Object.defineProperty(HTMLDialogElement.prototype, "showModal", { value: function () { this.setAttribute("open", ""); }, configurable: true });

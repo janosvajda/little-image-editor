@@ -201,6 +201,7 @@ function fragmentPixel(fragment: RasterFragmentAnnotation, point: Point): number
 async function rectangle(page: Page, from: Point, to: Point): Promise<void> {
 	await selectTool(page, ShapeToolId.Rectangle);
 	await page.locator('#colorInput').fill(ColorPalette.Black);
-	await page.locator('#fillInput').check();
+	await page.locator('#fillColorInput').fill(ColorPalette.Black);
+	await page.getByRole('group', { name: 'Shape style' }).getByRole('button', { name: 'Fill', exact: true }).click();
 	await canvasDrag(page, from, to);
 }

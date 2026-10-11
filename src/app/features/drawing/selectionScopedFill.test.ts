@@ -52,6 +52,7 @@ beforeEach(() => {
 		({ left: 0, top: 0, right: Surface.width, bottom: Surface.height, x: 0, y: 0, ...Surface }) as DOMRect;
 	objects = new AnnotationDocument();
 	drawing = new DrawingController(model, undefined, objects);
+	document.querySelector<HTMLInputElement>('#fillColorInput')!.value = FillOptions.color;
 });
 
 describe('flood fill regions', () => {

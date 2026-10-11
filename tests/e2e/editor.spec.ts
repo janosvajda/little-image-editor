@@ -227,12 +227,11 @@ test("shows the correct contextual UI for every drawing tool", async ({ page }) 
   await page.locator("#quickNewButton").click();
   await page.locator("#createImageButton").click();
   const brush = page.locator(".palette-group-button").first();
-  const brushTrigger = page.locator(".palette-menu-trigger").first();
   const shape = page.locator(".palette-group-button").nth(1);
   const paintColour = page.locator("#colorInput").locator("..");
   const size = page.locator("#sizeInput").locator("..");
   const hardness = page.locator("#hardnessInput").locator("..");
-  const shapeFill = page.locator("#fillInput").locator("..");
+  const shapeFill = page.getByRole("group", { name: "Shape style" });
 
   for (const name of ["Pencil", "Brush", "Marker", "Highlighter", "Calligraphy ink", "Spray paint"]) {
     await brush.click({ button: "right" }); await page.getByRole("menu", { name: "Brush tools" }).getByText(name, { exact: true }).click();
@@ -245,28 +244,20 @@ test("shows the correct contextual UI for every drawing tool", async ({ page }) 
   }
 
   await page.locator('[data-tool="eraser"]').click();
-  await expect(paintColour).toBeHidden(); await expect(size).toBeVisible(); await expect(hardness).toBeVisible();
+  await expect(paintColour).toBeVisible(); await expect(size).toBeVisible(); await expect(hardness).toBeVisible();
   await page.locator('[data-tool="picker"]').click();
-  await expect(page.locator(".picker-tool-options")).toBeVisible(); await expect(paintColour).toBeHidden(); await expect(page.locator(".fill-tool-options")).toBeHidden();
-  const paintBeforePicking = await page.locator("#colorInput").inputValue();
-  const fillBeforePicking = await page.locator("#fillColorInput").inputValue();
+  await expect(page.locator(".picker-tool-options")).toBeVisible(); await expect(paintColour).toBeVisible(); await expect(page.locator(".fill-tool-options")).toBeHidden();
   const overlayBounds = await page.locator("#overlay").boundingBox();
+  // A click picks the line colour, an Alt/Option-click the fill colour.
   await page.locator("#overlay").dispatchEvent("pointerdown", { clientX: overlayBounds!.x + 2, clientY: overlayBounds!.y + 2, pointerId: 1 });
-  await expect(page.locator("#sampledColorInput")).toHaveValue("#ffffff");
-  await expect(page.locator("#colorInput")).toHaveValue(paintBeforePicking);
-  await expect(page.locator("#fillColorInput")).toHaveValue(fillBeforePicking);
+  await expect(page.locator("#colorInput")).toHaveValue("#ffffff");
   await page.locator("#colorInput").evaluate((input: HTMLInputElement) => { input.value = "#123456"; input.dispatchEvent(new Event("input", { bubbles: true })); });
-  await brushTrigger.click();
-  await page.getByRole("menu", { name: "Brush tools" }).getByRole("menuitem", { name: "Brush", exact: true }).click();
-  await page.locator('[data-tool="picker"]').click();
-  await expect(page.locator("#sampledColorInput")).toHaveValue("#ffffff");
+  await page.locator("#overlay").dispatchEvent("pointerdown", { clientX: overlayBounds!.x + 2, clientY: overlayBounds!.y + 2, pointerId: 1, altKey: true });
+  await expect(page.locator("#fillColorInput")).toHaveValue("#ffffff");
   await expect(page.locator("#colorInput")).toHaveValue("#123456");
-  await expect(page.locator("#fillColorInput")).toHaveValue("#000000");
-  await page.getByRole("button", { name: "Use for paint" }).click(); await expect(page.locator("#colorInput")).toHaveValue("#ffffff");
-  await page.getByRole("button", { name: "Use for fill" }).click(); await expect(page.locator("#fillColorInput")).toHaveValue("#ffffff");
   await page.locator('[data-panel="tools"] [data-tool="crop"]').click(); await expect(page.locator(".crop-tool-options")).toBeVisible();
   await page.locator('[data-tool="zoom"]').click(); await expect(page.locator(".zoom-tool-hint")).toBeVisible();
-  await page.locator('[data-tool="fill"]').click(); await expect(page.locator(".fill-tool-options")).toBeVisible(); await expect(paintColour).toBeHidden();
+  await page.locator('[data-tool="fill"]').click(); await expect(page.locator(".fill-tool-options")).toBeVisible(); await expect(paintColour).toBeVisible();
 });
 
 test("returns from Picker directly to the selected paint tool through the split-button main area", async ({ page }) => {
@@ -278,10 +269,6 @@ test("returns from Picker directly to the selected paint tool through the split-
   await page.locator("#createImageButton").click();
   await page.locator(".palette-menu-trigger").first().click();
   await page.getByRole("menu", { name: "Brush tools" }).getByRole("menuitem", { name: "Pencil", exact: true }).click();
-  await page.locator("#colorInput").evaluate((input: HTMLInputElement) => {
-    input.value = "#ff0000";
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-  });
   await page.locator('[data-tool="picker"]').click();
   const overlay = page.locator("#overlay");
   const bounds = await overlay.boundingBox();
@@ -294,6 +281,11 @@ test("returns from Picker directly to the selected paint tool through the split-
   await expect(page.locator('[data-tool="picker"]')).not.toHaveClass(/active/);
   await expect(page.getByRole("menu", { name: "Brush tools" })).toBeHidden();
   await expect(page.locator("#paintToolSelect")).toHaveValue("pencil");
+  // The Picker's click made the line colour the canvas's white; the stroke is drawn in red.
+  await page.locator("#colorInput").evaluate((input: HTMLInputElement) => {
+    input.value = "#ff0000";
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  });
 
   await overlay.evaluate((element) => {
     const canvas = element as HTMLCanvasElement;
@@ -619,7 +611,7 @@ test("audits adjustments, effects, transforms, history, file input, and sprite c
   await page.locator("#redoButton").click();
   await expect(page.locator("#dimensions")).toHaveText("20 × 10 px");
 
-  await expect(page.locator("#fileInput")).toHaveAttribute("accept", "image/png,image/jpeg,image/webp,.limg,application/vnd.little-image-editor.project+json");
+  await expect(page.locator("#fileInput")).toHaveAttribute("accept", "image/png,image/jpeg,image/webp,image/svg+xml,.svg,.limg,application/vnd.little-image-editor.project+json");
   await page.locator("#functionsButton").click();
   await expect(page.locator("#buildSpriteButton")).toBeDisabled();
   await expect(page.locator("#spriteInput")).toHaveAttribute("accept", "image/png,image/jpeg,image/webp");

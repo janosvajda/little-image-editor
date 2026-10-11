@@ -30,6 +30,7 @@ describe('retained fill drawing paths', () => {
 
 	it('creates a retained fill object with calculated run bounds', () => {
 		drawing.select(UtilityToolId.Fill);
+		document.querySelector<HTMLInputElement>('#fillColorInput')!.value = '#000000';
 		pointer(model.overlay, 'pointerdown', 1, 1);
 
 		expect(objects.selected).toMatchObject({

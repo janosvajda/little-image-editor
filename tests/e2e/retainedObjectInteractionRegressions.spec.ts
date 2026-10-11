@@ -45,7 +45,7 @@ test('select mode exposes stable 400% resize handles and edits the retained stro
 	await page.locator('#zoomSelect').selectOption('400');
 	const southEast = { x: 406, y: 306 };
 	await movePointer(page, southEast);
-	await expect(page.locator('#overlay')).toHaveCSS('cursor', 'nwse-resize');
+	await expect(page.locator('#overlay')).toHaveCSS('cursor', /resize-diagonal\.svg["']?\) 16 16, nwse-resize$/);
 	await drag(page, southEast, { x: 426, y: 326 });
 	await page.locator('#quickSaveButton').click();
 	const project = await savedProject(page);

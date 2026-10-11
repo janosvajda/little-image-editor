@@ -1,3 +1,8 @@
+import { FillRule, isPathContour } from '../../core/geometry/vectorPath';
+import { isFillPattern } from '../../core/geometry/fillPattern';
+import { isOptionalItemClip } from './itemClip';
+import { isOptionalItemEffects } from './itemEffects';
+import { isGradient } from '../../core/geometry/gradient';
 import { isLineEnd } from './lineEnd';
 import { PaintToolId, ShapeToolId } from '../../core/document/appTypes';
 import {
@@ -92,6 +97,8 @@ function isAnnotationObject(value: unknown): value is AnnotationObject {
 		!isOptionalObjectErasures(value.erasures) ||
 		!isOptionalPixelMasks(value.pixelCutouts) ||
 		!isOptionalPixelMasks(value.pixelClips) ||
+		!isOptionalItemEffects(value.effects) ||
+		!isOptionalItemClip(value.clip) ||
 		!(
 			value.erasureRevision === undefined ||
 			isFiniteNumber(value.erasureRevision)
@@ -121,6 +128,8 @@ function isAnnotationObject(value: unknown): value is AnnotationObject {
 				isOptionalLineEnd(value.tail) &&
 				isOptionalRotation(value.rotation)
 			);
+		case AnnotationObjectTypeId.Path:
+			return isPathAnnotation(value);
 		case AnnotationObjectTypeId.Step:
 			return (
 				isPoint(value.at) &&
@@ -161,6 +170,10 @@ function isAnnotationObject(value: unknown): value is AnnotationObject {
 				isFiniteNumber(value.opacity) &&
 				typeof value.fill === 'boolean' &&
 				isOptionalColor(value.fillColor) &&
+				isOptionalGradient(value.fillGradient) &&
+		(value.fillPattern === undefined || isFillPattern(value.fillPattern)) &&
+				(value.fillPattern === undefined || isFillPattern(value.fillPattern)) &&
+				isOptionalGradient(value.lineGradient) &&
 				isOptionalRotation(value.rotation)
 			);
 		case AnnotationObjectTypeId.Stroke:
@@ -331,6 +344,27 @@ function isFillRun(value: unknown): boolean {
 	);
 }
 
+/** A path: at least one contour of nodes, its line and fill, and its optional ends and fill rule. */
+function isPathAnnotation(value: Record<string, unknown>): boolean {
+	return (
+		Array.isArray(value.contours) &&
+		value.contours.length > 0 &&
+		value.contours.every(isPathContour) &&
+		isColor(value.color) &&
+		isFiniteNumber(value.width) &&
+		isFiniteNumber(value.opacity) &&
+		typeof value.fill === 'boolean' &&
+		isOptionalColor(value.fillColor) &&
+		isOptionalGradient(value.fillGradient) &&
+		isOptionalGradient(value.lineGradient) &&
+		(value.fillRule === undefined || Object.values(FillRule).some((rule) => rule === value.fillRule)) &&
+		Object.values(LineDash).some((dash) => dash === value.dash) &&
+		isOptionalLineEnd(value.head) &&
+		isOptionalLineEnd(value.tail) &&
+		isOptionalRotation(value.rotation)
+	);
+}
+
 function isPoint(value: unknown): boolean {
 	return isRecord(value) && isFiniteNumber(value.x) && isFiniteNumber(value.y);
 }
@@ -347,6 +381,10 @@ function isRect(value: unknown): boolean {
 
 function isColor(value: unknown): boolean {
 	return typeof value === 'string' && value.length > 0;
+}
+
+function isOptionalGradient(value: unknown): boolean {
+	return value === undefined || isGradient(value);
 }
 
 function isOptionalColor(value: unknown): boolean {

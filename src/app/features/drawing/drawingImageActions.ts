@@ -76,7 +76,7 @@ export class DrawingImageActions {
 			0,
 			Math.min(this.documentModel.height - 1, Math.floor(point.y)),
 		);
-		const pixel = this.documentModel.context.getImageData(x, y, 1, 1).data;
+		const pixel = this.documentModel.visiblePixel(x, y);
 		return `#${[pixel[0], pixel[1], pixel[2]].map((value) => value!.toString(HEX_RADIX).padStart(HEX_CHANNEL_WIDTH, '0')).join('')}`;
 	}
 

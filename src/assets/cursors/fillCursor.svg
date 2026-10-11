@@ -1,22 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
-  <!-- The precision hotspot remains at (26, 26); the halo keeps the tool visible over image pixels. -->
-  <defs>
-    <filter id="cursorHalo" x="-20%" y="-20%" width="140%" height="140%">
-      <feMorphology in="SourceAlpha" operator="dilate" radius="1" result="outline"/>
-      <feFlood flood-color="{{ColorPalette.White}}"/>
-      <feComposite in2="outline" operator="in"/>
-      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
-    </filter>
-  </defs>
-  <g filter="url(#cursorHalo)" stroke-linejoin="round" stroke-linecap="round">
-    <path d="m2 13 9-9 11 11-9 9Z" fill="{{ColorPalette.White}}" stroke="{{ColorPalette.MidnightBlue}}" stroke-width="1.5"/>
-    <path d="m2 13 11 11 9-9H4Z" fill="{{ColorPalette.PencilGold}}" stroke="{{ColorPalette.MidnightBlue}}" stroke-width="1.5"/>
-    <path d="m7 8 9 9M6 2l4 4" fill="none" stroke="{{ColorPalette.MidnightBlue}}" stroke-width="1.5"/>
-    <path d="M21 15s-3 4-3 6a3 3 0 0 0 6 0c0-2-3-6-3-6Z" fill="{{ColorPalette.LeafGreen}}" stroke="{{ColorPalette.White}}" stroke-width="1.2"/>
-  </g>
-  <g fill="none" stroke-linecap="square">
-    <path d="M26 19v5m0 4v4M19 26h5m4 0h4" stroke="{{ColorPalette.White}}" stroke-width="4"/>
-    <path d="M26 19v5m0 4v4M19 26h5m4 0h4" stroke="{{ColorPalette.MidnightBlue}}" stroke-width="2"/>
-  </g>
-  <rect x="25" y="25" width="2" height="2" fill="{{ColorPalette.PencilGold}}"/>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="#1b2634" stroke-width="0.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><!-- Adapted artwork: Lucide/Feather, ISC/MIT; Font Awesome highlighter, CC BY 4.0. Full source attribution in LICENSE.txt. --><defs>
+    <linearGradient id="ant-study-asset-fill-realistic-light-gold" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#ae730f"/><stop offset=".2" stop-color="#f5c13b"/><stop offset=".4" stop-color="#fff0ae"/><stop offset=".49" stop-color="#ffdf77"/><stop offset=".65" stop-color="#f6bd1c"/><stop offset="1" stop-color="#ba8210"/></linearGradient>
+    <linearGradient id="ant-study-asset-fill-realistic-light-green" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#255c2e"/><stop offset=".25" stop-color="#5eba3b"/><stop offset=".4" stop-color="#a2e277"/><stop offset=".6" stop-color="#70c344"/><stop offset="1" stop-color="#326631"/></linearGradient>
+    <linearGradient id="ant-study-asset-fill-realistic-light-paper" x2="0" y2="1"><stop stop-color="#fffef5"/><stop offset="1" stop-color="#e9ecdd"/></linearGradient>
+    <linearGradient id="ant-study-asset-fill-realistic-light-glass" x2="1" y2="1"><stop stop-color="#f8fffb"/><stop offset=".35" stop-color="#d2e5de"/><stop offset=".55" stop-color="#f4fff9"/><stop offset="1" stop-color="#8baa9e"/></linearGradient>
+    <linearGradient id="ant-study-asset-fill-realistic-light-metal" x2="1" y2="1"><stop stop-color="#54645f"/><stop offset=".3" stop-color="#eef3e9"/><stop offset=".45" stop-color="#fffef5"/><stop offset=".6" stop-color="#9daea7"/><stop offset="1" stop-color="#374740"/></linearGradient>
+    <filter id="ant-study-asset-fill-realistic-light-shadow" x="-25%" y="-25%" width="150%" height="155%"><feDropShadow dx="0" dy=".5" stdDeviation="0.45" flood-color="#101e18" flood-opacity="0.28"/></filter>
+    <filter id="ant-study-asset-fill-realistic-light-halo" x="-25%" y="-25%" width="150%" height="150%"><feMorphology in="SourceAlpha" operator="dilate" radius="0.75" result="expanded"/><feFlood flood-color="#eff3e7" result="rim"/><feComposite in="rim" in2="expanded" operator="in" result="outline"/><feMerge><feMergeNode in="outline"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  </defs><g filter="url(#ant-study-asset-fill-realistic-light-halo)"><g ><g transform="translate(1 1) scale(.7)"><path d="m8.5 4.5 2.148-2.148a1.205 1.205 0 0 1 1.704 0l7.296 7.296a1.205 1.205 0 0 1 0 1.704l-7.592 7.592a3.615 3.615 0 0 1-5.112 0l-3.888-3.888a3.615 3.615 0 0 1 0-5.112L5.67 7.33Z" fill="{{ColorPalette.White}}" stroke="{{ColorPalette.MidnightBlue}}" /><path d="M3 12h15l-6 6q-2 2-4 0z" fill="url(#ant-study-asset-fill-realistic-light-gold)" stroke="none"/><path d="M21.145 18.38A3.34 3.34 0 0 1 20 16.5a3.3 3.3 0 0 1-1.145 1.88c-.575.46-.855 1.02-.855 1.595A2 2 0 0 0 20 22a2 2 0 0 0 2-2.025c0-.58-.285-1.13-.855-1.595Z" fill="url(#ant-study-asset-fill-realistic-light-green)" /><path d="M11 7 6 2" fill="none" stroke="#1b2634"/><path d="M18.992 12H2.041" fill="none" stroke="#1b2634"/><path d="M21.145 18.38A3.34 3.34 0 0 1 20 16.5a3.3 3.3 0 0 1-1.145 1.88c-.575.46-.855 1.02-.855 1.595A2 2 0 0 0 20 22a2 2 0 0 0 2-2.025c0-.58-.285-1.13-.855-1.595" fill="none" stroke="#1b2634"/><path d="m8.5 4.5 2.148-2.148a1.205 1.205 0 0 1 1.704 0l7.296 7.296a1.205 1.205 0 0 1 0 1.704l-7.592 7.592a3.615 3.615 0 0 1-5.112 0l-3.888-3.888a3.615 3.615 0 0 1 0-5.112L5.67 7.33Z" fill="none" stroke="#1b2634"/></g><path d="M19.5 16v2m0 3v1.5M16 19.5h2m3 0h1.5" fill="none" stroke-width="1"/><circle cx="19.5" cy="19.5" r="0.55" fill="url(#ant-study-asset-fill-realistic-light-gold)" stroke="none"/></g></g></svg>

@@ -119,7 +119,7 @@ export interface PlatformDocumentHost {
 	 */
 	onCreate(listener: (fileName: string, image?: NewImageSpec) => void): void;
 	/** An assistant asks for an edit; the listener carries it out and reports the outcome. */
-	onCommand(listener: (command: AssistantCommand) => AssistantResult): void;
+	onCommand(listener: (command: AssistantCommand) => AssistantResult | Promise<AssistantResult>): void;
 	/**
 	 * Saving is requested by the host; the listener saves into the target, the
 	 * opened file or the one chosen by Save As, in the format its name says.

@@ -55,7 +55,7 @@ describe('exporting through a host-visible dialog', () => {
 		controller.open();
 		document.querySelector<HTMLButtonElement>('#confirmExportImageButton')!.click();
 		await vi.waitFor(() => expect(controller.dialog.open).toBe(false));
-		expect(files.exportImage).toHaveBeenCalledExactlyOnceWith(ImageMimeType.Png);
+		expect(files.exportImage).toHaveBeenCalledExactlyOnceWith(ImageMimeType.Png, { scale: 1 });
 		expect(model.snapshotSession()).toEqual(before);
 	});
 
@@ -69,7 +69,7 @@ describe('exporting through a host-visible dialog', () => {
 		expect(document.querySelector('#exportImageFormatHint')!.textContent).toContain('does not support transparency');
 		expect(document.querySelector('#confirmExportImageButton')!.textContent).toBe('Export JPEG…');
 		document.querySelector<HTMLButtonElement>('#confirmExportImageButton')!.click();
-		await vi.waitFor(() => expect(files.exportImage).toHaveBeenCalledWith(ImageMimeType.Jpeg));
+		await vi.waitFor(() => expect(files.exportImage).toHaveBeenCalledWith(ImageMimeType.Jpeg, { scale: 1, quality: 0.92, background: '#ffffff' }));
 	});
 
 	it('keeps failures visible and allows retry after a failed write', async () => {

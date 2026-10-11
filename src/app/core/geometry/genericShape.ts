@@ -4,6 +4,7 @@ import {
 	type ArrowAnnotation,
 	type ConnectorAnnotation,
 	type FillAnnotation,
+	type PathAnnotation,
 	type RasterFragmentAnnotation,
 	type RectAnnotation,
 	type ShapeAnnotation,
@@ -27,6 +28,7 @@ import type {
 	TransformableGeometry,
 } from './shapeTransformHelpers';
 import { TextShapeMetrics, textFrame } from './textShapeMetrics';
+import { mapPathPoints, pathBounds } from './vectorPath';
 
 const MINIMUM_STEP_SIZE = 12;
 
@@ -178,6 +180,25 @@ export class ConnectorShape extends GenericShape<ConnectorAnnotation> {
 	}
 }
 
+/**
+ * A path's frame is the exact box around its curves; resizing the frame
+ * stretches every node and handle with it, so the curves keep their shape.
+ */
+export class PathShape extends GenericShape<PathAnnotation> {
+	protected readRect(): CropRect {
+		return pathBounds(this.object.contours);
+	}
+	protected writeRect(rect: CropRect): void {
+		const current = this.readRect();
+		const place = (value: number, from: number, size: number, to: number, newSize: number) =>
+			size ? to + ((value - from) * newSize) / size : to + newSize / 2;
+		this.object.contours = mapPathPoints(this.object.contours, (point) => ({
+			x: place(point.x, current.x, current.width, rect.x, rect.width),
+			y: place(point.y, current.y, current.height, rect.y, rect.height),
+		}));
+	}
+}
+
 type ShapeRegistration = Readonly<{
 	supports(object: AnnotationObject): boolean;
 	create(object: AnnotationObject): GenericShape;
@@ -227,6 +248,7 @@ const DEFAULT_SHAPE_FACTORY = new GenericShapeFactory([
 		AnnotationObjectTypeId.Connector,
 		(object) => new ConnectorShape(object),
 	),
+	registration(AnnotationObjectTypeId.Path, (object) => new PathShape(object)),
 ]);
 
 export function genericShape(object: AnnotationObject): GenericShape {

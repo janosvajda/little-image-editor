@@ -1,3 +1,6 @@
+import { CropSelectionKind } from './cropSelectionTypes';
+import { EditorCursorVariant, presentEditorCursor } from '../../shared/style/editorCursors';
+import { ToolColorShortcut } from './toolColorsControl';
 import { ColorPickerGuard } from './colorPickerGuard';
 import {
 	PaintToolId,
@@ -8,6 +11,7 @@ import {
 import type { CanvasDocument } from '../../core/document/imageDocument';
 import { CoreLayerId } from '../../core/layers/layerTypes';
 import { acceptsTyping, element } from '../../shared/dom/domHelpers';
+import { KeyboardKey } from '../../shared/input/keyboardKeys';
 import type { AnnotationDocument } from '../annotations/annotationDocument';
 import { AnnotationObjectTypeId } from '../annotations/annotationTypes';
 import type { RasterSelection } from '../selection/rasterSelection';
@@ -21,6 +25,7 @@ import {
 	isShapeTool,
 	selectionPresentationFor,
 	toolEditsLayer,
+	isPathTool,
 } from './drawingToolBehavior';
 import { SelectionPresentation } from '../annotations/selectionOverlayRenderer';
 import { toolForShortcut } from './drawingToolCatalog';
@@ -79,6 +84,19 @@ export class DrawingController {
 		this.#controls.select(tool);
 	}
 
+	/** A shortcut key: D resets the colours, Shift+X swaps them, and any other tool key chooses its tool. */
+	handleShortcut(key: string, shift: boolean): boolean {
+		if (key === ToolColorShortcut.Reset && !shift) {
+			this.#controls.resetColors();
+			return true;
+		}
+		if (key === ToolColorShortcut.Swap && shift) {
+			this.#controls.swapColors();
+			return true;
+		}
+		return this.selectFromShortcut(key);
+	}
+
 	selectFromShortcut(key: string): boolean {
 		const tool = toolForShortcut(key);
 		if (!tool) return false;
@@ -122,8 +140,17 @@ export class DrawingController {
 		this.#controls.onSelection(listener);
 	}
 
+	/** Told when a path's points start or stop being edited. */
+	onPathPointEditingChange(listener: (editing: boolean) => void): void {
+		this.#router.onPathPointEditingChange(listener);
+	}
+
 	private activateTool(tool: Tool, clearSelection = true): void {
 		const previousTool = this.#activeTool;
+		// A path under way is kept, not lost, when another tool is chosen; its points are edited only with Select.
+		this.#router.finishPen();
+		if (tool !== UtilityToolId.Select) this.#router.stopEditingPathPoints();
+		this.#router.setGradientHandlesActive(tool === UtilityToolId.Select);
 		this.#activeTool = tool;
 		this.cancelGesture();
 		this.#selectionGesture?.clear();
@@ -182,6 +209,10 @@ export class DrawingController {
 		);
 		overlay.addEventListener('dblclick', (event) => {
 			event.preventDefault();
+			if (isPathTool(this.#controls.tool)) {
+				this.#router.finishPen();
+				return;
+			}
 			const targetId = this.#selectionGesture?.selectionTarget(
 				this.point(event),
 				event,
@@ -190,6 +221,7 @@ export class DrawingController {
 			if (target?.type === AnnotationObjectTypeId.Text)
 				this.#router.editText(target, event);
 			else if (targetId) this.editObject(targetId);
+			if (target?.type === AnnotationObjectTypeId.Path) this.#router.editPathPoints(target.id);
 		});
 		overlay.addEventListener('pointerleave', () => {
 			if (!this.#session) this.restoreDrawingCursor();
@@ -210,11 +242,28 @@ export class DrawingController {
 			return;
 		this.updateZoomCursor(event.altKey);
 		const point = this.point(event);
+		if (this.#router.editingPathPoints) {
+			const pointGesture = this.#router.beginPathPointEdit(point, this.visualScale(), event.altKey);
+			if (pointGesture) {
+				this.startSession(pointGesture, event);
+				return;
+			}
+			// A press that switched a node between corner and curve is used up; one elsewhere ended the editing.
+			if (this.#router.editingPathPoints) return;
+		}
+		const gradientDrag = this.#router.beginGradientDrag(point, this.visualScale());
+		if (gradientDrag) {
+			this.startSession(gradientDrag, event);
+			return;
+		}
 		const tool = this.#controls.tool;
 		if (isPaintTool(tool)) this.#selectionGesture?.begin(point, event);
 		else this.#selectionGesture?.clear();
 		const gesture = this.#router.begin(tool, point, event, this.visualScale());
-		if (!gesture) return;
+		if (gesture) this.startSession(gesture, event);
+	}
+
+	private startSession(gesture: DrawingGesture, event: PointerEvent): void {
 		this.#session = {
 			gesture,
 			scroll: gesture.locksScroll
@@ -239,12 +288,9 @@ export class DrawingController {
 		this.#selectionGesture?.move(event);
 		const gesture = this.#session?.gesture;
 		if (!gesture) {
+			if (isPathTool(this.#controls.tool)) this.#router.hoverPen(this.point(event));
 			if (this.shapes || this.#controls.tool === UtilityToolId.Crop)
-				this.documentModel.overlay.style.cursor = this.#router.cursor(
-					this.#controls.tool,
-					this.point(event),
-					this.visualScale(),
-				);
+				this.presentCursor(this.#router.cursor(this.#controls.tool, this.point(event), this.visualScale()));
 			return;
 		}
 		event.preventDefault();
@@ -271,6 +317,13 @@ export class DrawingController {
 
 	private onKeyDown(event: KeyboardEvent): void {
 		this.updateZoomCursor(event.altKey);
+		if (this.#router.penDrawing && !acceptsTyping(event.target) && (event.key === KeyboardKey.Enter || event.key === KeyboardKey.Escape)) {
+			event.preventDefault();
+			if (event.key === KeyboardKey.Enter) this.#router.finishPen();
+			else this.#router.cancelPen();
+			return;
+		}
+		if (this.#router.editingPathPoints && !acceptsTyping(event.target) && this.handlePathPointKey(event)) return;
 		if (
 			(event.key === 'Delete' || event.key === 'Backspace') &&
 			!acceptsTyping(event.target) &&
@@ -290,6 +343,14 @@ export class DrawingController {
 			event.preventDefault();
 			this.cancelCrop();
 		}
+	}
+
+	/** Delete removes the chosen node and Escape ends the editing; whether the key was used. */
+	private handlePathPointKey(event: KeyboardEvent): boolean {
+		if (event.key === KeyboardKey.Escape) this.#router.stopEditingPathPoints();
+		else if (!((event.key === KeyboardKey.Delete || event.key === KeyboardKey.Backspace) && this.#router.removeSelectedPathNode())) return false;
+		event.preventDefault();
+		return true;
 	}
 
 	private cancelCrop(): void {
@@ -322,15 +383,20 @@ export class DrawingController {
 
 	private updateZoomCursor(zoomOut: boolean): void {
 		if (this.#controls.tool === UtilityToolId.Zoom)
-			this.documentModel.overlay.style.cursor = zoomOut
-				? 'zoom-out'
-				: 'zoom-in';
+			this.presentCursor(zoomOut ? 'zoom-out' : 'zoom-in');
 	}
 
 	private restoreDrawingCursor(): void {
-		this.documentModel.overlay.style.cursor = drawingToolBehavior(
+		this.presentCursor(drawingToolBehavior(this.#controls.tool).cursor);
+	}
+
+	private presentCursor(state: string): void {
+		presentEditorCursor(
+			this.documentModel.overlay,
 			this.#controls.tool,
-		).cursor;
+			state,
+			this.#controls.cropSelectionKind === CropSelectionKind.Lasso ? EditorCursorVariant.Lasso : undefined,
+		);
 	}
 
 	private visualScale(): number {

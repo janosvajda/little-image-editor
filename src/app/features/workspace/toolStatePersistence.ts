@@ -2,8 +2,12 @@ import {
 	editorPlatform,
 	type KeyValueStorage,
 } from '../../platform/editorPlatform';
+import { ShapeStyle } from '../annotations/shapeStyle';
 
 const STORAGE_KEY = 'littleImageEditor.drawingPreferences';
+
+/** The Fill checkbox shapes were once drawn with, and the style control that replaced it. */
+const FillChoice = { Legacy: 'fillInput', Style: 'shapeStyleInput' } as const;
 
 export type PersistedValue = string | boolean;
 
@@ -129,7 +133,7 @@ function normalizeState(value: unknown): ToolPanelState | null {
 		return {
 			activeTool:
 				typeof candidate.activeTool === 'string' ? candidate.activeTool : '',
-			controls: candidate.controls as Record<string, PersistedValue>,
+			controls: withShapeStyle(candidate.controls as Record<string, PersistedValue>),
 		};
 	}
 	// One-time migration from the original explicitly named preference record.
@@ -141,7 +145,7 @@ function normalizeState(value: unknown): ToolPanelState | null {
 		size: 'sizeInput',
 		opacity: 'opacityInput',
 		hardness: 'hardnessInput',
-		fill: 'fillInput',
+		fill: FillChoice.Legacy,
 	} as const;
 	for (const [oldName, controlId] of Object.entries(legacyControls)) {
 		const controlValue = candidate[oldName];
@@ -150,6 +154,18 @@ function normalizeState(value: unknown): ToolPanelState | null {
 	}
 	return {
 		activeTool: typeof candidate.tool === 'string' ? candidate.tool : '',
-		controls,
+		controls: withShapeStyle(controls),
 	};
+}
+
+/**
+ * Preferences saved with the Fill checkbox keep their choice as a shape style:
+ * a checked box filled shapes in their colour without an outline.
+ */
+function withShapeStyle(
+	controls: Readonly<Record<string, PersistedValue>>,
+): Record<string, PersistedValue> {
+	const { [FillChoice.Legacy]: filled, ...rest } = controls;
+	if (typeof filled !== 'boolean' || FillChoice.Style in rest) return { ...rest };
+	return { ...rest, [FillChoice.Style]: filled ? ShapeStyle.Fill : ShapeStyle.Outline };
 }

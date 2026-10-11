@@ -1,4 +1,5 @@
 import { LineEnd } from '../annotations/lineEnd';
+import { parsePathData } from '../../core/geometry/vectorPath';
 import { ShapeToolId } from '../../core/document/appTypes';
 import type { CanvasDocument } from '../../core/document/imageDocument';
 import { normalizedRect, rectOrientation } from '../../core/geometry/geometryHelpers';
@@ -9,6 +10,7 @@ import {
 	AnnotationObjectTypeId,
 	type ContentLayer,
 	LineDash,
+	type PathAnnotation,
 } from '../annotations/annotationTypes';
 import {
 	type AssistantCommand,
@@ -17,8 +19,14 @@ import {
 	type DescribedItem,
 	type DocumentDescription,
 	type DrawingCommand,
+	type ImmediateCommand,
+	type PlaceImageCommand,
 	SHORT_ID_LENGTH,
 } from './assistantCommandTypes';
+import { base64ToBytes } from '../../shared/image/pixelDataCodec';
+import { fileTypeOfName } from '../files/openFileTypes';
+import { type ImagePlacement, placedImageItem } from '../files/placedImage';
+import { svgDocument } from '../files/svgExport';
 
 const NO_IMAGE_MESSAGE = 'No image is open in the editor; create or open one first.';
 const NO_ITEM_LAYER_MESSAGE = 'The item was not added to a layer.';
@@ -35,7 +43,33 @@ export class AssistantCommandRunner {
 		private readonly history: Pick<EditorHistory, 'undo' | 'canUndo'>,
 	) {}
 
-	run(command: AssistantCommand): AssistantResult {
+	/** Carries out any command: a placed picture once it is decoded, everything else at once. */
+	handle(command: AssistantCommand): AssistantResult | Promise<AssistantResult> {
+		return command.kind === AssistantCommandKind.PlaceImage ? this.place(command) : this.run(command);
+	}
+
+	/** Places a picture an assistant sent, its bytes in base64, on the named layer or the active one. */
+	place(command: PlaceImageCommand): Promise<AssistantResult> {
+		const file = new File([new Uint8Array(base64ToBytes(command.contents))], command.fileName, { type: fileTypeOfName(command.fileName) });
+		return this.placeFile(
+			file,
+			{
+				...(command.at ? { at: command.at } : {}),
+				...(command.width ? { width: command.width } : {}),
+				...(command.height ? { height: command.height } : {}),
+			},
+			command.layer,
+		);
+	}
+
+	/** Places a picture file on the image as a pixel item: Place image… and assistants both come here. */
+	async placeFile(file: File, placement: ImagePlacement = {}, layer?: string): Promise<AssistantResult> {
+		if (!this.documentModel.hasImage) throw new Error(NO_IMAGE_MESSAGE);
+		const item = await placedImageItem(file, this.documentModel, placement);
+		return this.addItem(layer, item);
+	}
+
+	run(command: ImmediateCommand): AssistantResult {
 		if (!this.documentModel.hasImage) throw new Error(NO_IMAGE_MESSAGE);
 		switch (command.kind) {
 			case AssistantCommandKind.Describe:
@@ -45,6 +79,8 @@ export class AssistantCommandRunner {
 				this.objects.remove(item.id);
 				return { removed: item.id };
 			}
+			case AssistantCommandKind.ExportSvg:
+				return { svg: { markup: svgDocument(this.documentModel, this.objects.state), width: this.documentModel.width, height: this.documentModel.height } };
 			case AssistantCommandKind.Undo: {
 				const undone = this.history.canUndo;
 				this.history.undo();
@@ -127,9 +163,12 @@ export class AssistantCommandRunner {
 					opacity: command.opacity,
 					fill: command.fill,
 					...(command.fill && command.fillColor ? { fillColor: command.fillColor } : {}),
+					...(command.fill && command.fillGradient ? { fillGradient: command.fillGradient } : {}),
 				});
 			case AssistantCommandKind.AddLine:
 				return this.addLine(command);
+			case AssistantCommandKind.AddPath:
+				return this.addItem(command.layer, pathItem(command));
 			case AssistantCommandKind.AddText:
 				return this.addItem(command.layer, {
 					id: crypto.randomUUID(),
@@ -209,5 +248,23 @@ function describeItem(item: AnnotationObject): DescribedItem {
 		...(item.type === AnnotationObjectTypeId.Text ? { text: item.text } : {}),
 		...('color' in item ? { color: item.color } : {}),
 		bounds: annotationBounds(item),
+	};
+}
+
+/** A path item from SVG path data; data that does not read as a path is refused with what is wrong. */
+function pathItem(command: Extract<DrawingCommand, { kind: typeof AssistantCommandKind.AddPath }>): PathAnnotation {
+	return {
+		id: crypto.randomUUID(),
+		type: AnnotationObjectTypeId.Path,
+		contours: parsePathData(command.d),
+		color: command.color,
+		width: command.width,
+		opacity: command.opacity,
+		fill: Boolean(command.fill || command.fillColor || command.fillGradient),
+		...(command.fillColor ? { fillColor: command.fillColor } : {}),
+		...(command.fillGradient ? { fillGradient: command.fillGradient } : {}),
+		dash: command.dashed ? LineDash.Dashed : LineDash.Solid,
+		...(command.head && command.head !== LineEnd.None ? { head: command.head } : {}),
+		...(command.tail && command.tail !== LineEnd.None ? { tail: command.tail } : {}),
 	};
 }

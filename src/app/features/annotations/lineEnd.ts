@@ -24,6 +24,9 @@ export type LineEnds = Readonly<{ head: LineEnd; tail: LineEnd }>;
 /** A plain arrow: an arrowhead at the last point only. */
 export const ARROW_ENDS: LineEnds = { head: LineEnd.Arrow, tail: LineEnd.None };
 
+/** A plain line, with nothing at either end. */
+export const PLAIN_ENDS: LineEnds = { head: LineEnd.None, tail: LineEnd.None };
+
 /** How each end is named where people choose one. */
 export const LINE_END_LABELS: Readonly<Record<LineEnd, string>> = {
 	[LineEnd.None]: 'None',

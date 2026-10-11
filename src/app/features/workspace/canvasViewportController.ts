@@ -29,6 +29,13 @@ const ViewportConfiguration = {
 	RulerTickSpacing: 72,
 } as const;
 
+const ViewportControlGroup = { Zoom: 'zoom', Rulers: 'rulers' } as const;
+type ViewportControlGroup = (typeof ViewportControlGroup)[keyof typeof ViewportControlGroup];
+const CONTROL_GROUP_LABELS: Readonly<Record<ViewportControlGroup, string>> = {
+	[ViewportControlGroup.Zoom]: 'Zoom',
+	[ViewportControlGroup.Rulers]: 'Rulers',
+};
+
 const ZOOM_LEVELS = [
 	ViewportConfiguration.Zoom10,
 	ViewportConfiguration.Zoom25,
@@ -243,16 +250,24 @@ export class CanvasViewportController {
 		this.#rulerVisible.checked = true;
 		this.#rulerVisible.hidden = true;
 		this.#controls.append(
-			this.controlButton(EditorIconId.Minus, 'Zoom out', () =>
-				this.stepZoom(ZoomDirection.Out),
+			viewControlGroup(
+				ViewportControlGroup.Zoom,
+				this.controlButton(EditorIconId.Minus, 'Zoom out', () => this.stepZoom(ZoomDirection.Out)),
+				this.#zoomSelect,
+				this.controlButton(EditorIconId.Plus, 'Zoom in', () => this.stepZoom(ZoomDirection.In)),
 			),
-			this.#zoomSelect,
-			this.controlButton(EditorIconId.Plus, 'Zoom in', () => this.stepZoom(ZoomDirection.In)),
-			this.#rulerButton,
-			this.#unitSelect,
+			viewControlGroup(
+				ViewportControlGroup.Rulers,
+				this.#rulerButton,
+				this.#unitSelect,
+			),
 			this.#rulerVisible,
 		);
-		element('.toolbar').insertBefore(this.#controls, element('#focusButton'));
+		const toolbar = element('.toolbar');
+		toolbar.insertBefore(
+			this.#controls,
+			toolbar.querySelector('.toolbar-picker') ?? element('#focusButton'),
+		);
 	}
 
 	private controlButton(
@@ -442,4 +457,15 @@ export class CanvasViewportController {
 			`calc(${position}px - var(--ruler-scroll, 0px))`;
 		return tick;
 	}
+}
+
+/** Visual groups share the existing persisted viewport controls and their listeners. */
+function viewControlGroup(kind: ViewportControlGroup, ...controls: HTMLElement[]): HTMLElement {
+	const group = document.createElement('div');
+	group.className = 'viewport-control-group';
+	group.dataset.viewportControlGroup = kind;
+	group.setAttribute('role', 'group');
+	group.setAttribute('aria-label', CONTROL_GROUP_LABELS[kind]);
+	group.append(...controls);
+	return group;
 }

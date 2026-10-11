@@ -1,5 +1,6 @@
 import {
 	ConnectorToolId,
+	PathToolId,
 	MarkupToolId,
 	PaintToolId,
 	ShapeToolId,
@@ -112,6 +113,8 @@ export const DRAWING_TOOL_DOCUMENT_CONTRACT = {
 	[ShapeToolId.Diamond]: editable(EditableObjectKind.Shape),
 	[ShapeToolId.Star]: editable(EditableObjectKind.Shape),
 	[ConnectorToolId.ElbowArrow]: editable(EditableObjectKind.Shape),
+	[PathToolId.Pen]: editable(EditableObjectKind.Shape),
+	[PathToolId.Polyline]: editable(EditableObjectKind.Shape),
 	[MarkupToolId.Number]: editable(EditableObjectKind.Annotation),
 	[MarkupToolId.Highlight]: editable(EditableObjectKind.Annotation),
 	[MarkupToolId.Text]: editable(EditableObjectKind.Annotation),
