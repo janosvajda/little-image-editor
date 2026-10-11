@@ -1,3 +1,4 @@
+import { presentEditorIcons } from '../../shared/style/editorIcons';
 import {
 	captureControlState,
 	restoreControlState,
@@ -51,6 +52,7 @@ export function createToolButton<TTool extends string>(
 	button.title = tool.title;
 	button.setAttribute('aria-label', tool.label);
 	button.innerHTML = `<span>${tool.icon}</span><small class="tool-label">${tool.label}</small>`;
+	presentEditorIcons(button);
 	return button;
 }
 
@@ -198,6 +200,7 @@ export class GenericToolbar<TTool extends string> {
 			if (definition) {
 				group.select.value = definition.id;
 				group.icon.innerHTML = definition.icon;
+				presentEditorIcons(group.icon);
 			}
 		});
 		this.#buttonTools.showActiveTool(this.#activeTool);

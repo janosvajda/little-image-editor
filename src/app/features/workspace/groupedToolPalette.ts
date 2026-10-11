@@ -1,3 +1,4 @@
+import { presentEditorIcons } from '../../shared/style/editorIcons';
 import type { ToolDefinition } from '../drawing/drawingToolCatalog';
 
 export interface ToolPaletteGroup<TTool extends string> {
@@ -41,6 +42,7 @@ export class GroupedToolPalette<TTool extends string> {
 				group.tools[0]!;
 			button.querySelector<HTMLElement>('.palette-icon')!.innerHTML =
 				selected.icon;
+			presentEditorIcons(button);
 			button.querySelector<HTMLElement>('.palette-name')!.textContent =
 				selected.label;
 			button.classList.toggle(
@@ -116,6 +118,7 @@ export class GroupedToolPalette<TTool extends string> {
 				option.title = tool.title;
 				option.setAttribute('aria-label', tool.label);
 				option.innerHTML = `<span>${tool.icon}</span><small>${tool.label}</small>`;
+				presentEditorIcons(option);
 				option.addEventListener('click', (event) => {
 					event.stopPropagation();
 					group.select.value = tool.id;

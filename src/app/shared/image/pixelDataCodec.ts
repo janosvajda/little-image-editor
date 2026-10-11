@@ -164,7 +164,8 @@ function bytesToBase64(bytes: Uint8Array | Uint8ClampedArray): string {
 	return btoa(binary);
 }
 
-function base64ToBytes(encoded: string): Uint8ClampedArray {
+/** Bytes written in base64, as files and pixels are carried in text. */
+export function base64ToBytes(encoded: string): Uint8ClampedArray {
 	const binary = atob(encoded);
 	const bytes = new Uint8ClampedArray(binary.length);
 	for (let index = 0; index < binary.length; index += 1)

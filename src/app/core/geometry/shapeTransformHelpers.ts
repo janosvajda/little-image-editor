@@ -188,6 +188,11 @@ export function hitShapeHandle(
 		: null;
 }
 
+/** A point in a rotated shape's own, unrotated frame, where its points are stored. */
+export function pointInShapeFrame(shape: TransformableGeometry, point: Point): Point {
+	return rotatePoint(point, shapeCenter(shape), -radians(shape.rotation));
+}
+
 export function containsTransformedPoint(
 	shape: TransformableGeometry,
 	point: Point,

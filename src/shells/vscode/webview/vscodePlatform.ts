@@ -117,15 +117,18 @@ function pickerFilters(types: readonly PickerFileType[]) {
 const NO_PICTURE_MESSAGE = 'The editor cannot show its image yet.';
 const NO_COMMANDS_MESSAGE = 'The editor cannot take commands yet.';
 
+/** Something that carries out a command, at once or once what it waits on is ready. */
+type CommandListener = (command: AssistantCommand) => AssistantResult | Promise<AssistantResult>;
+
 /** Carries out a command and reports its result, or why it failed. */
-function commandOutcome(
+async function commandOutcome(
 	requestId: number,
-	listener: ((command: AssistantCommand) => AssistantResult) | null,
+	listener: CommandListener | null,
 	command: AssistantCommand,
-): WebviewMessage {
+): Promise<WebviewMessage> {
 	try {
 		if (!listener) throw new Error(NO_COMMANDS_MESSAGE);
-		return { type: WebviewMessageType.CommandDone, requestId, result: listener(command) };
+		return { type: WebviewMessageType.CommandDone, requestId, result: await listener(command) };
 	} catch (error) {
 		return {
 			type: WebviewMessageType.CommandDone,
@@ -163,7 +166,7 @@ export function createVsCodePlatform(api: VsCodeWebviewApi): EditorPlatform {
 	const channel = new HostChannel(api);
 	const openListeners = new Set<(target: OpenTarget) => void>();
 	const createListeners = new Set<(fileName: string, image?: NewImageSpec) => void>();
-	let commandListener: ((command: AssistantCommand) => AssistantResult) | null = null;
+	let commandListener: CommandListener | null = null;
 	let saveListener: ((target: SaveTarget) => Promise<void>) | null = null;
 	let pictureListener: ((maxSize: number) => Promise<ImagePicture>) | null = null;
 	/** The name of the file the editor shows, saved into when the host names no other. */
@@ -188,7 +191,7 @@ export function createVsCodePlatform(api: VsCodeWebviewApi): EditorPlatform {
 			return;
 		}
 		if (message.type === HostMessageType.Command) {
-			api.postMessage(commandOutcome(message.requestId, commandListener, message.command));
+			void commandOutcome(message.requestId, commandListener, message.command).then((outcome) => api.postMessage(outcome));
 			return;
 		}
 		if (message.type === HostMessageType.View) {

@@ -62,6 +62,8 @@ export class WorkspaceUi {
 			this.toolbarPanels,
 			(key, visible) => this.setPanelVisible(key, visible),
 		);
+		// Fullscreen finishes the shared action row, immediately after the toolbar picker.
+		element<HTMLElement>('.toolbar').append(element('#focusButton'));
 		this.initializeTheme();
 		this.bindViewEvents();
 	}

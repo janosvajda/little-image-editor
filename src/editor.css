@@ -323,7 +323,7 @@ button:disabled {
     justify-content: space-between;
     padding: 0 6px 0 11px;
     border-bottom: 1px solid var(--border);
-    cursor: grab;
+    cursor: url("assets/cursors/grab.svg") 16 16, grab;
     font-size: 11px;
     font-weight: 750;
     text-transform: uppercase;
@@ -1515,6 +1515,18 @@ html[data-theme=dark] .transparency-warning strong {
     margin-right: 3px
 }
 
+.viewport-control-group {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.viewport-control-group + .viewport-control-group {
+    margin-left: 7px;
+    padding-left: 7px;
+    border-left: 1px solid var(--border);
+}
+
 .viewport-controls select {
     height: 28px;
     padding: 3px 5px;
@@ -1540,8 +1552,7 @@ html[data-theme=dark] .transparency-warning strong {
         width: 55px
     }
 
-    html:not([data-host-provides~='application-menus']) .viewport-controls .icon-button:first-child,
-    html:not([data-host-provides~='application-menus']) .viewport-controls .icon-button:nth-of-type(2) {
+    html:not([data-host-provides~='application-menus']) .viewport-controls [data-viewport-control-group='zoom'] .icon-button {
         display: none
     }
 }
@@ -1580,8 +1591,8 @@ body.focus-mode .canvas-ruler-layer {
     z-index: 3
 }
 
-/* Docked, the unit menu sits in the status bar, so the corner also switches to the next unit. */
-html[data-workspace-layout='docked'] .canvas-ruler-layer .ruler-corner {
+/* In every edition, a press on the rulers' corner switches them to the next unit, as the unit menu does. */
+.canvas-ruler-layer .ruler-corner {
     pointer-events: auto;
     cursor: pointer
 }
@@ -1792,14 +1803,14 @@ html[data-workspace-layout='docked'] .canvas-ruler-layer .ruler-corner {
 }
 
 .layer-drag-handle {
-	cursor: grab;
+	cursor: url("assets/cursors/grab.svg") 16 16, grab;
 	touch-action: none;
 	user-select: none;
 }
 
 .layer-drag-handle:active,
 .layer-drag-handle.dragging {
-	cursor: grabbing;
+	cursor: url("assets/cursors/grab.svg") 16 16, grabbing;
 }
 
 .layer-drag-preview {
@@ -1904,13 +1915,230 @@ html[data-workspace-layout='docked'] .canvas-ruler-layer .ruler-corner {
 	grid-column: 1 / -1;
 }
 
-/* Fill: its checkbox, then the fill colour on the same row. */
-.selected-object-options > label.check {
-	grid-template-columns: 1fr auto auto;
+/* Fill: its checkbox, then its style and colours on the same row. */
+.selected-object-options > .fill-group {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+/* An item without a fill shows none of the group. */
+.selected-object-options > .fill-group:not(:has(> :not(.hidden))) {
+	display: none;
+}
+
+.selected-object-options > .fill-group > label {
+	flex: 1;
+	display: flex;
+	align-items: center;
+	gap: 8px;
 }
 
 .fill-color-option {
 	display: inline-flex;
+}
+
+/* The two colours every tool paints with, line and fill, with swap and reset. */
+.tool-colors {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	margin: 5px 0;
+}
+
+/* Each swatch has its word beside it, so both colours and their buttons fit on one row; the row, not each swatch, keeps the panel's spacing. */
+.panel .tool-colors > label {
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	margin: 0;
+}
+
+.tool-colors input[type='color'] {
+	width: 30px;
+	height: 22px;
+	padding: 1px;
+}
+
+.tool-colors .tool-colors-action:first-of-type {
+	margin-left: auto;
+}
+
+/* A selected item's own section starts with what it is, set apart from the tools' colours above. */
+.selected-object-title {
+	margin: 4px 0 0;
+	padding-top: 10px;
+	border-top: 1px solid var(--border);
+}
+
+/* In a bar, the title is a word before the item's controls, set apart by a line. */
+.dock-options-bar .selected-object-title {
+	margin: 0;
+	padding: 0 10px 0 0;
+	border-top: 0;
+	border-right: 1px solid var(--border);
+	white-space: nowrap;
+}
+
+/* An item that could be filled but is not: its fill swatch shows No fill, crossed out, as painting programs show it. */
+.fill-color-option.no-fill {
+	position: relative;
+}
+
+.fill-color-option.no-fill::after {
+	content: '';
+	position: absolute;
+	inset: 3px;
+	border-radius: 2px;
+	background: linear-gradient(to top right, var(--color-transparent) calc(50% - 1px), var(--color-rose) 50%, var(--color-transparent) calc(50% + 1px)), var(--color-white);
+	pointer-events: none;
+}
+
+.dock-options-bar .tool-colors .tool-colors-action:first-of-type {
+	margin-left: 0;
+}
+
+.tool-colors .tool-colors-action {
+	width: 22px;
+	height: 22px;
+	padding: 3px;
+}
+
+.tool-colors .tool-colors-action svg {
+	width: 16px;
+	height: 16px;
+}
+
+/* A shape's style: outline, fill, or both, as one row of buttons. */
+.shape-style {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.shape-style-label {
+	margin-right: auto;
+}
+
+.shape-style-button {
+	display: inline-flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 2px;
+	padding: 4px 6px;
+	font-size: 10px;
+	color: var(--text);
+	background: var(--surface2);
+	border: 1px solid var(--border);
+	border-radius: 7px;
+}
+
+.shape-style-button svg {
+	width: 18px;
+	height: 18px;
+}
+
+.shape-style-button.active {
+	border-color: var(--accent);
+	background: color-mix(in srgb, var(--accent) 12%, var(--surface2));
+}
+
+/* In a bar, the style buttons are pictures, each named by its tooltip. */
+.dock-options-bar .shape-style-button {
+	flex-direction: row;
+	padding: 2px 5px;
+}
+
+.dock-options-bar .shape-style-button span,
+.dock-options-bar .shape-style-label {
+	display: none;
+}
+
+.fill-group-label {
+	margin-right: auto;
+}
+
+/* Effects open from one button into a small panel, so the bar stays short. */
+.object-effects {
+	position: relative;
+}
+
+.object-effects-button,
+.object-action-button {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 4px 8px;
+	color: var(--text);
+	background: var(--surface2);
+	border: 1px solid var(--border);
+	border-radius: 7px;
+	cursor: pointer;
+	list-style: none;
+	white-space: nowrap;
+}
+
+.object-effects-button::-webkit-details-marker {
+	display: none;
+}
+
+.object-effects-button svg,
+.object-action-button svg {
+	width: 18px;
+	height: 18px;
+}
+
+/* An item with effects shows it on the button. */
+.object-effects-button.active,
+.object-effects[open] > .object-effects-button {
+	border-color: var(--accent);
+}
+
+/* In a panel, the effects open below their button; in a bar, they drop down over the picture. */
+.object-effects-panel {
+	display: grid;
+	gap: 10px;
+	margin-top: 10px;
+	padding: 12px;
+	color: var(--text);
+	background: var(--surface2);
+	border: 1px solid var(--border);
+	border-radius: 8px;
+}
+
+/* Fixed, so the bar's own clipping cannot cut it off; it is placed under its button as it opens. */
+.dock-options-bar .object-effects-panel {
+	position: fixed;
+	z-index: 3000;
+	width: 220px;
+	margin: 0;
+	background: var(--surface);
+	box-shadow: 0 12px 35px var(--shadow);
+}
+
+.object-effects-panel > label {
+	display: grid;
+	grid-template-columns: 1fr auto;
+	align-items: center;
+	gap: 6px;
+}
+
+.object-effects-panel > label > input[type='range'] {
+	grid-column: 1 / -1;
+}
+
+.object-effects-panel .shadow-group,
+.object-clip-actions {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.object-effects-panel .shadow-group > label {
+	flex: 1;
+	display: flex;
+	align-items: center;
+	gap: 8px;
 }
 
 /* Selected-object properties replace the tool settings, except those that stay with the tool. */
@@ -2016,6 +2244,30 @@ html[data-document-owner='host'] .export-action {
 
 .export-image-content p {
     margin: 0
+}
+
+/* A setting's slider keeps its value beside it, at one width while it changes. */
+.export-image-content .export-range {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 140px
+}
+
+.export-image-content .export-range output {
+    min-width: 4ch;
+    text-align: right;
+    font-variant-numeric: tabular-nums
+}
+
+.export-image-content input[type=color] {
+    width: 40px;
+    height: 26px;
+    padding: 1px
+}
+
+#exportImageEstimate:empty {
+    display: none
 }
 
 #exportImageError:empty {
@@ -2252,13 +2504,6 @@ html[data-workspace-layout='docked'] .dock-options-bar .tool-options input[type=
 /* The row has room for controls only; each tool's button already explains it in its tooltip. */
 html[data-workspace-layout='docked'] .dock-options-bar .tool-hint {
     display: none
-}
-
-/* A sampled colour's code keeps one width, so the buttons after it stay still. */
-.dock-options-bar .sampled-color code {
-    min-width: 7ch;
-    font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-    text-align: center
 }
 
 /* Zoom and rulers in the status bar */

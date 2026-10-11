@@ -1,4 +1,5 @@
 import type { LineEnd } from '../annotations/lineEnd';
+import type { Gradient } from '../../core/geometry/gradient';
 import { type CropRect, type Point, type ShapeTool, ShapeToolId } from '../../core/document/appTypes';
 import { ColorPalette } from '../../core/document/colorPalette';
 
@@ -16,6 +17,12 @@ export const AssistantCommandKind = {
 	AddShape: 'addShape',
 	AddLine: 'addLine',
 	AddText: 'addText',
+	/** A vector path from SVG path data. */
+	AddPath: 'addPath',
+	/** A picture file placed on the image as a pixel item. */
+	PlaceImage: 'placeImage',
+	/** The visible image as an SVG document. */
+	ExportSvg: 'exportSvg',
 	RemoveItem: 'removeItem',
 	Undo: 'undo',
 	/** Several drawing commands as one undo step; nothing changes if one fails. */
@@ -72,7 +79,27 @@ export type AssistantCommand =
 	| Readonly<{ kind: typeof AssistantCommandKind.Describe }>
 	| Readonly<{ kind: typeof AssistantCommandKind.RemoveItem; item: string }>
 	| Readonly<{ kind: typeof AssistantCommandKind.Undo }>
-	| Readonly<{ kind: typeof AssistantCommandKind.Batch; commands: readonly DrawingCommand[] }>;
+	| Readonly<{ kind: typeof AssistantCommandKind.ExportSvg }>
+	| Readonly<{ kind: typeof AssistantCommandKind.Batch; commands: readonly DrawingCommand[] }>
+	| PlaceImageCommand;
+
+/** Commands carried out at once, without waiting on the browser. */
+export type ImmediateCommand = Exclude<AssistantCommand, PlaceImageCommand>;
+
+/** A picture placed on the image; decoding it waits on the browser, so it runs on its own, not in a batch. */
+export type PlaceImageCommand = LayerTarget &
+	Readonly<{
+		kind: typeof AssistantCommandKind.PlaceImage;
+		/** The picture's file name, whose extension says its format. */
+		fileName: string;
+		/** The file's bytes, in base64. */
+		contents: string;
+		/** Its top left corner; centred when left out. */
+		at?: Point;
+		/** Its size; fitted inside the image when left out, its height following its width when only that is given. */
+		width?: number;
+		height?: number;
+	}>;
 
 /** The commands that add to an image, which a batch is made of. */
 export type DrawingCommand =
@@ -87,6 +114,8 @@ export type DrawingCommand =
 				fill: boolean;
 				/** A filled shape's own fill colour. */
 				fillColor?: string;
+				/** A gradient a filled shape is filled with instead. */
+				fillGradient?: Gradient;
 				/** Outline width in pixels. */
 				strokeWidth: number;
 				/** From 0 to 1. */
@@ -122,6 +151,22 @@ export type DrawingCommand =
 				color: string;
 				/** Font size in pixels. */
 				size: number;
+			}>)
+	| (LayerTarget &
+			Readonly<{
+				kind: typeof AssistantCommandKind.AddPath;
+				/** SVG path data, such as "M10 10 C 40 0 60 0 90 10 Z". */
+				d: string;
+				color: string;
+				width: number;
+				opacity: number;
+				/** A filled path is filled with `fillColor` under its line, or with its colour alone. */
+				fill?: boolean;
+				fillColor?: string;
+				fillGradient?: Gradient;
+				dashed?: boolean;
+				head?: LineEnd;
+				tail?: LineEnd;
 			}>);
 
 export interface DescribedItem {
@@ -158,4 +203,5 @@ export type AssistantResult =
 	| Readonly<{ itemId: string; layerId: string; layerName: string }>
 	| Readonly<{ removed: string }>
 	| Readonly<{ undone: boolean }>
+	| Readonly<{ svg: { readonly markup: string; readonly width: number; readonly height: number } }>
 	| Readonly<{ batch: { readonly layers: readonly string[]; readonly items: number } }>;

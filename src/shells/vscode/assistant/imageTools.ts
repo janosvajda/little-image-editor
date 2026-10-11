@@ -3,7 +3,8 @@ import { z } from 'zod';
 import { ImageMimeType } from '../../../app/core/document/appTypes';
 import { registerEditingTools } from './editingTools';
 import { registerExportTools } from './exportTools';
-import { canEdit, canExport, type OpenImages } from './openImages';
+import { registerPlaceTools } from './placeTools';
+import { canEdit, canExport, canPlace, type OpenImages } from './openImages';
 import { textResult } from './toolResults';
 
 export const ImageTool = {
@@ -95,6 +96,7 @@ export function createImageToolServer(
 	);
 	if (canEdit(images)) registerEditingTools(server, images);
 	if (canExport(images)) registerExportTools(server, images);
+	if (canPlace(images)) registerPlaceTools(server, images);
 	return server;
 }
 

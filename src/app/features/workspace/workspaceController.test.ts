@@ -15,7 +15,9 @@ describe("WorkspaceUi", () => {
   it("shows only Tools and Effects initially and persists toolbar visibility", async () => {
     new WorkspaceUi([]);
     expect(document.querySelector(".toolbar #toolbarPickerButton")).not.toBeNull();
-    expect(document.querySelector(".toolbar")!.lastElementChild?.querySelector("#toolbarPickerButton")).not.toBeNull();
+    const lastAction = document.querySelector(".toolbar")!.lastElementChild;
+    expect(lastAction?.id).toBe("focusButton");
+    expect(lastAction?.previousElementSibling?.querySelector("#toolbarPickerButton")).not.toBeNull();
     expect(document.querySelector("#toolbarPickerButton span")!.textContent).toBe("Toolbars");
     expect(document.querySelector("#viewMenu .toolbar-visibility")).toBeNull();
     const tools = document.querySelector<HTMLElement>('[data-panel="tools"]')!;

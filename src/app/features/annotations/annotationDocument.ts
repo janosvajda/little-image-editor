@@ -7,8 +7,10 @@ import {
 	type AnnotationStateInput,
 	type ContentLayer,
 	type LinkedHistoryDomain,
+	type PathAnnotation,
 	type RasterFragmentAnnotation,
 } from './annotationTypes';
+import { flattenContour, pathContains } from '../../core/geometry/vectorPath';
 import {
 	enclosingBounds,
 	orientedBounds,
@@ -1194,7 +1196,19 @@ function containsPoint(object: AnnotationObject, point: Point): boolean {
 					distanceToSegment(point, object.points[index]!, end) <=
 					Math.max(ARROW_HIT_MINIMUM, object.width * ARROW_HIT_WIDTH_FACTOR),
 			);
+	if (object.type === AnnotationObjectTypeId.Path && !object.rotation) return pathHit(object, point);
 	return genericShape(object).contains(point);
+}
+
+/** A path is hit along its line, and inside its fill where it is filled. */
+function pathHit(object: PathAnnotation, point: Point): boolean {
+	if (object.fill && pathContains(object.contours.filter(({ closed }) => closed), point, object.fillRule)) return true;
+	const tolerance = Math.max(ARROW_HIT_MINIMUM, object.width * ARROW_HIT_WIDTH_FACTOR);
+	return object.contours.some((contour) => {
+		const line = flattenContour(contour);
+		if (contour.closed && line.length) line.push(line[0]!);
+		return line.slice(1).some((end, index) => distanceToSegment(point, line[index]!, end) <= tolerance);
+	});
 }
 
 function strokeHitTolerance(object: AnnotationObject): number {

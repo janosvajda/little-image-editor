@@ -1,4 +1,4 @@
-import type { Point } from '../../core/document/appTypes';
+import type { CropRect, Point } from '../../core/document/appTypes';
 import { PaintToolId } from '../../core/document/appTypes';
 import {
 	AnnotationObjectTypeId,
@@ -8,8 +8,11 @@ import {
 	LineDash,
 	type AnnotationState,
 	type AnnotationStateInput,
+	type ItemClip,
+	type ItemEffects,
 	type ObjectErasurePath,
 	type ObjectPixelMask,
+	type PathAnnotation,
 	type RectAnnotation,
 	type StrokeAnnotation,
 } from './annotationTypes';
@@ -32,9 +35,15 @@ import {
 } from './objectErasures';
 import { decodePixelBytes } from '../../shared/image/pixelDataCodec';
 import { compositeLayers } from '../layers/layerCompositing';
-import { drawLineEnd, fillArrowHead, lineEndInset } from './arrowHead';
+import { drawLineEnd, fillArrowHead, lineEndInset, pathEnds, trimmedPath } from './arrowHead';
 import { withContentLayers } from './contentLayerStructure';
 import { EditorLimit } from '../../core/document/editorLimits';
+import { FillRule, type PathContour, type PathNode, pathBounds, tracePath } from '../../core/geometry/vectorPath';
+import { type Gradient, GradientKind, inFrame } from '../../core/geometry/gradient';
+import { LineEnd } from './lineEnd';
+import { clipContours } from './itemClip';
+import { effectFilter, hasVisibleEffects } from './itemEffects';
+import { patternPaint } from './patternPaint';
 
 const AnnotationRendering = {
 	/** A connector's dashes and the gaps between them, in line widths. */
@@ -70,8 +79,15 @@ const AnnotationRendering = {
 	RandomIncrement: 1_013_904_223,
 } as const;
 
+/** A handle's dot is half as wide as a node's square. */
+const HANDLE_DOT_DIVISOR = 2;
+/** A square's side is twice its half. */
+const HALF_SIDE = 2;
 const erasedObjectCanvas = document.createElement('canvas');
 const erasedObjectContext = erasedObjectCanvas.getContext('2d')!;
+/** Where an item with effects is drawn before its effects are applied. */
+const effectCanvas = document.createElement('canvas');
+const effectContext = effectCanvas.getContext('2d')!;
 const rasterFragmentCache = new Map<
 	string,
 	Readonly<{ encodedPixels: string; canvas: HTMLCanvasElement }>
@@ -109,6 +125,49 @@ export function renderContentLayers(
 }
 
 export function renderAnnotationObject(
+	context: CanvasRenderingContext2D,
+	baseCanvas: HTMLCanvasElement,
+	object: AnnotationObject,
+): void {
+	if (hasVisibleEffects(object.effects)) {
+		renderWithEffects(context, baseCanvas, object, object.effects);
+		return;
+	}
+	if (object.clip) {
+		renderClipped(context, baseCanvas, object, object.clip);
+		return;
+	}
+	renderUnaffected(context, baseCanvas, object);
+}
+
+/**
+ * An item with effects is drawn whole on its own first, then onto the
+ * picture through its effects, so a filled and outlined shape, for example,
+ * casts one shadow rather than one for each part.
+ */
+function renderWithEffects(context: CanvasRenderingContext2D, baseCanvas: HTMLCanvasElement, object: AnnotationObject, effects: ItemEffects): void {
+	if (effectCanvas.width !== context.canvas.width || effectCanvas.height !== context.canvas.height) {
+		effectCanvas.width = context.canvas.width;
+		effectCanvas.height = context.canvas.height;
+	} else effectContext.clearRect(0, 0, effectCanvas.width, effectCanvas.height);
+	renderAnnotationObject(effectContext, baseCanvas, { ...object, effects: undefined });
+	context.save();
+	context.filter = effectFilter(effects);
+	context.drawImage(effectCanvas, 0, 0);
+	context.restore();
+}
+
+/** An item drawn only inside its clip's outline. */
+function renderClipped(context: CanvasRenderingContext2D, baseCanvas: HTMLCanvasElement, object: AnnotationObject, clip: ItemClip): void {
+	context.save();
+	context.beginPath();
+	tracePath(context, clipContours(object, clip));
+	context.clip(clip.fillRule ?? FillRule.NonZero);
+	renderAnnotationObject(context, baseCanvas, { ...object, clip: undefined });
+	context.restore();
+}
+
+function renderUnaffected(
 	context: CanvasRenderingContext2D,
 	baseCanvas: HTMLCanvasElement,
 	object: AnnotationObject,
@@ -212,8 +271,9 @@ function renderAnnotationObjectContent(
 		withShapeTransform(context, geometry, () => drawText(context, object));
 	else if (object.type === AnnotationObjectTypeId.Shape)
 		withShapeTransform(context, object, () => {
-			context.strokeStyle = object.color;
-			context.fillStyle = object.fillColor ?? object.color;
+			if (!object.fill && !hasLine(object)) return;
+			context.strokeStyle = paintOf(context, object.lineGradient, object.rect) ?? object.color;
+			context.fillStyle = fillPaint(context, object, object.rect);
 			context.lineWidth = object.width;
 			context.globalAlpha = object.opacity;
 			const endpoints = rectEndpoints(object.rect, object);
@@ -223,7 +283,7 @@ function renderAnnotationObjectContent(
 				endpoints.from,
 				endpoints.to,
 				object.fill,
-				object.fillColor !== undefined,
+				hasOwnFill(object) && hasLine(object),
 			);
 		});
 	else if (object.type === AnnotationObjectTypeId.Stroke)
@@ -274,6 +334,8 @@ function renderAnnotationObjectContent(
 		});
 	else if (object.type === AnnotationObjectTypeId.Connector)
 		withShapeTransform(context, geometry, () => drawConnector(context, object));
+	else if (object.type === AnnotationObjectTypeId.Path)
+		withShapeTransform(context, geometry, () => drawPath(context, object));
 	else if (object.type === AnnotationObjectTypeId.Highlight)
 		withShapeTransform(context, object, () => {
 			context.globalAlpha = object.opacity;
@@ -647,19 +709,63 @@ function drawConnector(context: CanvasRenderingContext2D, object: ConnectorAnnot
 	if (second) drawLineEnd(context, second, start!, object.width, tail);
 }
 
-/** A path with its ends pulled back along their pieces, so a hollow end is not crossed by its line. */
-function trimmedPath(points: readonly Point[], start: number, end: number): Point[] {
-	const path = [...points];
-	path[0] = pulledBack(path[0]!, path[1]!, start);
-	path[path.length - 1] = pulledBack(path.at(-1)!, path.at(-2)!, end);
-	return path;
+/** A vector path: its closed contours filled by its fill rule, then its line, dashed when asked, with its ends. */
+function drawPath(context: CanvasRenderingContext2D, object: PathAnnotation): void {
+	// Traced into the context itself, so anything that records its calls, such as SVG export, sees the path.
+	context.beginPath();
+	tracePath(context, object.contours);
+	context.globalAlpha = object.opacity;
+	const frame = pathBounds(object.contours);
+	if (object.fill && object.contours.some(({ closed }) => closed)) {
+		context.fillStyle = fillPaint(context, object, frame);
+		context.fill(object.fillRule ?? FillRule.NonZero);
+		// A path filled before fill colours is only its fill, as a filled shape is.
+		if (!hasOwnFill(object)) return;
+	}
+	if (!hasLine(object)) return;
+	context.strokeStyle = paintOf(context, object.lineGradient, frame) ?? object.color;
+	context.fillStyle = object.color;
+	context.lineWidth = object.width;
+	context.setLineDash(
+		object.dash === LineDash.Dashed
+			? [object.width * AnnotationRendering.DashPerWidth, object.width * AnnotationRendering.DashGapPerWidth]
+			: [],
+	);
+	context.stroke();
+	context.setLineDash([]);
+	const ends = pathEnds(object.contours);
+	if (!ends) return;
+	drawLineEnd(context, ends.headFrom, ends.head, object.width, object.head ?? LineEnd.None);
+	drawLineEnd(context, ends.tailFrom, ends.tail, object.width, object.tail ?? LineEnd.None);
 }
 
-/** A point moved `distance` towards another, unless that would pass it. */
-function pulledBack(tip: Point, towards: Point, distance: number): Point {
-	const length = Math.hypot(towards.x - tip.x, towards.y - tip.y);
-	if (!distance || length <= distance) return tip;
-	return { x: tip.x + ((towards.x - tip.x) * distance) / length, y: tip.y + ((towards.y - tip.y) * distance) / length };
+/** A gradient laid over an item's frame, ready to paint with; none when the item has no gradient there. */
+function paintOf(context: CanvasRenderingContext2D, gradient: Gradient | undefined, frame: CropRect): CanvasGradient | undefined {
+	if (!gradient) return undefined;
+	const start = inFrame(frame, gradient.start);
+	const end = inFrame(frame, gradient.end);
+	const paint =
+		gradient.kind === GradientKind.Linear
+			? context.createLinearGradient(start.x, start.y, end.x, end.y)
+			: context.createRadialGradient(start.x, start.y, 0, start.x, start.y, Math.hypot(end.x - start.x, end.y - start.y));
+	for (const { offset, color } of gradient.stops) paint.addColorStop(offset, color);
+	return paint;
+}
+
+/** Whether an item has a line to draw: a width of none means only its fill shows, as an SVG shape without a stroke. */
+function hasLine(object: Pick<PathAnnotation, 'width'>): boolean {
+	return object.width > 0;
+}
+
+/** Whether a filled item has a fill of its own under its line, a colour or a gradient, rather than being all one colour. */
+function hasOwnFill(object: Pick<PathAnnotation, 'fillColor' | 'fillGradient' | 'fillPattern'>): boolean {
+	return object.fillColor !== undefined || object.fillGradient !== undefined || object.fillPattern !== undefined;
+}
+
+/** What a filled item's inside is painted with: its pattern, its gradient, its own fill colour, or its colour. */
+function fillPaint(context: CanvasRenderingContext2D, object: Pick<PathAnnotation, 'color' | 'fillColor' | 'fillGradient' | 'fillPattern'>, frame: CropRect): string | CanvasGradient | CanvasPattern {
+	const pattern = object.fillPattern ? patternPaint(context, object.fillPattern, frame) : null;
+	return pattern ?? paintOf(context, object.fillGradient, frame) ?? object.fillColor ?? object.color;
 }
 
 function drawStep(
@@ -735,6 +841,70 @@ function drawBlur(
 		object.rect.height + spread * AnnotationRendering.BlurSpreadFactor,
 	);
 	context.restore();
+}
+
+/** Nodes drawn while a path is drawn or edited: squares on its points, dots on its handles, lines to them. */
+export interface PathNodeMarks {
+	/** The node drawn as chosen, which a key acts on. */
+	readonly selected?: Readonly<{ contour: number; node: number }> | null;
+	/** Whether handles are shown, as they are while points are edited. */
+	readonly handles: boolean;
+}
+
+export function renderPathNodes(context: CanvasRenderingContext2D, contours: readonly PathContour[], marks: PathNodeMarks): void {
+	const visualScale = canvasVisualScale(context.canvas);
+	const half = AnnotationRendering.ResizeHandleHalfSize * visualScale;
+	context.save();
+	context.setLineDash([]);
+	context.lineWidth = AnnotationRendering.SelectionLineWidth * visualScale;
+	context.strokeStyle = ColorPalette.RoyalBlue;
+	contours.forEach((contour, contourIndex) =>
+		contour.nodes.forEach((node, nodeIndex) => {
+			if (marks.handles) drawNodeHandles(context, node, half);
+			const chosen = marks.selected?.contour === contourIndex && marks.selected.node === nodeIndex;
+			context.fillStyle = chosen ? ColorPalette.RoyalBlue : ColorPalette.White;
+			context.fillRect(node.point.x - half, node.point.y - half, half * HALF_SIDE, half * HALF_SIDE);
+			context.strokeRect(node.point.x - half, node.point.y - half, half * HALF_SIDE, half * HALF_SIDE);
+		}),
+	);
+	context.restore();
+}
+
+/** A gradient's two points, in the selection style: a line between them, a ring at the start and a square at the end. */
+export function renderGradientHandles(context: CanvasRenderingContext2D, start: Point, end: Point): void {
+	const visualScale = canvasVisualScale(context.canvas);
+	const half = AnnotationRendering.ResizeHandleHalfSize * visualScale;
+	context.save();
+	context.setLineDash([]);
+	context.lineWidth = AnnotationRendering.SelectionLineWidth * visualScale;
+	context.strokeStyle = ColorPalette.RoyalBlue;
+	context.fillStyle = ColorPalette.White;
+	context.beginPath();
+	context.moveTo(start.x, start.y);
+	context.lineTo(end.x, end.y);
+	context.stroke();
+	context.beginPath();
+	context.arc(start.x, start.y, half, 0, AnnotationRendering.FullCircleRadians);
+	context.fill();
+	context.stroke();
+	context.fillRect(end.x - half, end.y - half, half * HALF_SIDE, half * HALF_SIDE);
+	context.strokeRect(end.x - half, end.y - half, half * HALF_SIDE, half * HALF_SIDE);
+	context.restore();
+}
+
+/** A node's handles: a line from the node to each, and a dot on it. */
+function drawNodeHandles(context: CanvasRenderingContext2D, node: PathNode, half: number): void {
+	for (const handle of [node.in, node.out]) {
+		if (!handle) continue;
+		context.beginPath();
+		context.moveTo(node.point.x, node.point.y);
+		context.lineTo(handle.x, handle.y);
+		context.stroke();
+		context.fillStyle = ColorPalette.RoyalBlue;
+		context.beginPath();
+		context.arc(handle.x, handle.y, half / HANDLE_DOT_DIVISOR, 0, AnnotationRendering.FullCircleRadians);
+		context.fill();
+	}
 }
 
 export function renderAnnotationSelection(

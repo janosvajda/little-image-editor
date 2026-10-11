@@ -79,8 +79,8 @@ test("all drawing, adjustment, effect, transform, and annotation controls remain
   await setRange(page, "#hardnessInput", "47");
   await expect(page.locator("#hardnessValue")).toHaveText("47%");
   await choosePaletteTool(page, "shape tools", "Shape tools", "Rectangle");
-  await page.locator("#fillInput").check();
-  await expect(page.locator("#fillInput")).toBeChecked();
+  await page.getByRole("group", { name: "Shape style" }).getByRole("button", { name: "Fill", exact: true }).click();
+  await expect(page.getByRole("group", { name: "Shape style" }).getByRole("button", { name: "Fill", exact: true })).toHaveAttribute("aria-pressed", "true");
 
   for (const [selector, label] of [["#brightnessInput", "#brightnessValue"], ["#contrastInput", "#contrastValue"], ["#saturationInput", "#saturationValue"]] as const) {
     await setRange(page, selector, "-25", true);

@@ -1,34 +1,81 @@
 import { randomUUID } from 'node:crypto';
 import { link, mkdir, realpath, rename, unlink, writeFile } from 'node:fs/promises';
-import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { ImageMimeType } from '../../../app/core/document/appTypes';
 import { ImageExtension } from '../../../app/core/document/imageFormats';
 import { hasValidExtension } from '../../../app/features/files/fileNameHelpers';
+import { isSvgFileName, SVG_EXTENSION } from '../../../app/core/document/svgFormat';
 import type { ImageExportRequest, ImageExportResult, OpenImageView } from '../assistant/openImages';
+import { containsPath, type ExportWorkspace, existingParent, hasCode, WorkspacePaths } from './workspacePaths';
 
-export interface ExportWorkspace {
-	readonly name: string;
-	readonly path: string;
-}
+export type { ExportWorkspace } from './workspacePaths';
 
 const OUTSIDE_WORKSPACE_MESSAGE = 'Export the PNG inside an open workspace folder.';
+const NO_WORKSPACE_MESSAGE = 'Open a local workspace folder before exporting an image.';
 const PNG_EXTENSION = `.${ImageExtension.Png}`;
 const FileErrorCode = { Missing: 'ENOENT', Exists: 'EEXIST' } as const;
 
+/** The image as SVG, with its size. */
+export interface VectorPicture {
+	readonly markup: string;
+	readonly width: number;
+	readonly height: number;
+}
+
+/** The path asked for in the workspace, and the real path written after following folders. */
+interface SafeTarget {
+	readonly destination: string;
+	readonly real: string;
+}
+
 /** Exports copies at original size, without touching a document or following paths outside its workspace. */
 export class WorkspaceImageExporter {
-	constructor(private readonly workspaces: readonly ExportWorkspace[]) {}
+	readonly #paths: WorkspacePaths;
 
+	constructor(workspaces: readonly ExportWorkspace[]) {
+		this.#paths = new WorkspacePaths(workspaces, { noWorkspace: NO_WORKSPACE_MESSAGE, outside: OUTSIDE_WORKSPACE_MESSAGE });
+	}
+
+	/**
+	 * Writes a PNG, or an SVG for a path ending in .svg when the image can be
+	 * written as one, without saving the document.
+	 */
 	async export(
 		request: ImageExportRequest,
 		sourcePath: string | undefined,
 		picture: () => Promise<OpenImageView>,
+		vector?: () => Promise<VectorPicture>,
 	): Promise<ImageExportResult> {
 		const path = request.path.trim();
 		if (!path || path.includes('\0')) throw new Error('Choose a PNG file path.');
-		if (!hasValidExtension(path, ImageMimeType.Png))
+		const svg = vector !== undefined && isSvgFileName(path);
+		if (!svg && !hasValidExtension(path, ImageMimeType.Png))
 			throw new Error(`PNG exports must use the ${PNG_EXTENSION} extension.`);
-		const workspace = this.workspaceFor({ ...request, path }, sourcePath);
+		const target = await this.safeTarget({ ...request, path }, sourcePath);
+		if (svg) return this.writeSvg(target, request, await vector());
+		const view = await picture();
+		if (view.width !== view.imageWidth || view.height !== view.imageHeight)
+			throw new Error('The export must use the original image size.');
+		await writeCopy(target.real, view.png, request.overwrite);
+		return {
+			path: target.destination,
+			format: ImageExtension.Png,
+			width: view.width,
+			height: view.height,
+			bytesWritten: view.png.byteLength,
+		};
+	}
+
+	private async writeSvg(target: SafeTarget, request: ImageExportRequest, picture: VectorPicture): Promise<ImageExportResult> {
+		const contents = new TextEncoder().encode(picture.markup);
+		await writeCopy(target.real, contents, request.overwrite);
+		return { path: target.destination, format: SVG_EXTENSION, width: picture.width, height: picture.height, bytesWritten: contents.byteLength };
+	}
+
+	/** Where to write inside the workspace, with any missing folders made, never through a link leading outside. */
+	private async safeTarget(request: ImageExportRequest, sourcePath: string | undefined): Promise<SafeTarget> {
+		const path = request.path.trim();
+		const workspace = this.#paths.workspaceFor({ ...request, path }, sourcePath);
 		const destination = resolve(workspace.path, path);
 		if (!containsPath(workspace.path, destination)) throw new Error(OUTSIDE_WORKSPACE_MESSAGE);
 
@@ -40,54 +87,7 @@ export class WorkspaceImageExporter {
 		await mkdir(parent, { recursive: true });
 		const realParent = await realpath(parent);
 		if (!containsPath(root, realParent)) throw new Error(OUTSIDE_WORKSPACE_MESSAGE);
-		const target = join(realParent, basename(destination));
-		const view = await picture();
-		if (view.width !== view.imageWidth || view.height !== view.imageHeight)
-			throw new Error('The export must use the original image size.');
-		await writeCopy(target, view.png, request.overwrite);
-		return {
-			path: destination,
-			format: ImageExtension.Png,
-			width: view.width,
-			height: view.height,
-			bytesWritten: view.png.byteLength,
-		};
-	}
-
-	private workspaceFor(request: ImageExportRequest, sourcePath: string | undefined): ExportWorkspace {
-		if (!this.workspaces.length) throw new Error('Open a local workspace folder before exporting an image.');
-		const selected = request.workspace
-			? this.workspaces.filter(({ name, path }) => name === request.workspace || path === request.workspace)
-			: this.workspaces;
-		if (!selected.length) throw new Error(`No workspace folder is called ${request.workspace}.`);
-		if (isAbsolute(request.path)) {
-			const match = mostSpecificWorkspace(selected, request.path);
-			if (!match) throw new Error(OUTSIDE_WORKSPACE_MESSAGE);
-			return match;
-		}
-		if (selected.length === 1) return selected[0]!;
-		const match = sourcePath && mostSpecificWorkspace(selected, sourcePath);
-		if (match) return match;
-		throw new Error(`Choose a workspace folder with workspace: ${selected.map(({ name }) => name).join(', ')}.`);
-	}
-}
-
-function containsPath(root: string, path: string): boolean {
-	const remainder = relative(resolve(root), resolve(path));
-	return remainder !== '..' && !remainder.startsWith(`..${sep}`) && !isAbsolute(remainder);
-}
-
-function mostSpecificWorkspace(workspaces: readonly ExportWorkspace[], path: string): ExportWorkspace | undefined {
-	return workspaces.filter((workspace) => containsPath(workspace.path, path))
-		.sort((left, right) => right.path.length - left.path.length)[0];
-}
-
-async function existingParent(path: string): Promise<string> {
-	try {
-		return await realpath(path);
-	} catch (error) {
-		if (!hasCode(error, FileErrorCode.Missing) || dirname(path) === path) throw error;
-		return existingParent(dirname(path));
+		return { destination, real: join(realParent, basename(destination)) };
 	}
 }
 
@@ -107,8 +107,4 @@ async function writeCopy(target: string, contents: Uint8Array, overwrite: boolea
 			if (!hasCode(error, FileErrorCode.Missing)) throw error;
 		});
 	}
-}
-
-function hasCode(error: unknown, code: string): boolean {
-	return typeof error === 'object' && error !== null && 'code' in error && error.code === code;
 }

@@ -1,6 +1,7 @@
 import {
 	copyCanvas,
 	encodeCanvas,
+	type ImageEncoding,
 	hasTransparency,
 } from '../../features/files/canvasHelpers';
 import { canvasContext } from '../../shared/dom/domHelpers';
@@ -19,6 +20,8 @@ import type {
 import { DEFAULT_DOCUMENT_NAME, DocumentType } from './appTypes';
 import { DEFAULT_IMAGE_FORMAT } from './imageFormats';
 import { PIXELS_PER_INCH } from './measurementUnits';
+import { decodedPicture } from './pictureDecoding';
+import { isSvgFile } from './svgFormat';
 import { EditorLimit } from './editorLimits';
 import { ColorPalette } from './colorPalette';
 import type { SaveTarget } from '../../platform/editorPlatform';
@@ -244,15 +247,17 @@ export class CanvasDocument implements HistoryParticipant {
 	}
 
 	async load(file: File): Promise<void> {
-		if (!file.type.startsWith('image/')) return;
-		const bitmap = await createImageBitmap(file);
-		this.setSize(bitmap.width, bitmap.height);
+		if (!file.type.startsWith('image/') && !isSvgFile(file)) return;
+		const picture = await decodedPicture(file);
+		this.setSize(picture.width, picture.height);
 		this.context.clearRect(0, 0, this.width, this.height);
-		this.context.drawImage(bitmap, 0, 0);
+		this.context.drawImage(picture.source, 0, 0, picture.width, picture.height);
 		this.resolution = PIXELS_PER_INCH;
 		this.documentType = DocumentType.Image;
 		this.#opaqueBackgroundColor = ColorPalette.White;
-		bitmap.close();
+		// An SVG is opened as a picture; it is saved as an image or a project, so it starts as the default image format.
+		if (picture.vector) this.savedType = DEFAULT_IMAGE_FORMAT.mimeType;
+		picture.release();
 		this.activate(file.name.replace(/\.[^.]+$/, '') || 'little-image');
 	}
 
@@ -431,13 +436,19 @@ export class CanvasDocument implements HistoryParticipant {
 		return composite;
 	}
 
-	toBlob(type: ImageFormat): Promise<Blob> {
+	/** A pixel as it shows: the image with every layer drawn over it, as painting programs sample colours. */
+	visiblePixel(x: number, y: number): Uint8ClampedArray {
+		const source = this.#compositeRenderers.size === 0 ? this.context : this.compositeCanvas().getContext('2d')!;
+		return source.getImageData(x, y, 1, 1).data;
+	}
+
+	toBlob(type: ImageFormat, encoding?: ImageEncoding): Promise<Blob> {
 		if (
 			this.layers.isVisible(CoreLayerId.Image) &&
 			this.#compositeRenderers.size === 0
 		)
-			return encodeCanvas(this.canvas, type);
-		return encodeCanvas(this.compositeCanvas(), type);
+			return encodeCanvas(this.canvas, type, encoding);
+		return encodeCanvas(this.compositeCanvas(), type, encoding);
 	}
 
 	private copyCanvas(): HTMLCanvasElement {

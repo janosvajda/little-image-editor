@@ -10,7 +10,7 @@ test('a moved crop fragment does not block cropping another retained layer', asy
 	const bounds = await overlay.boundingBox();
 	if (!bounds) throw new Error('Canvas overlay is not visible.');
 	await page.getByRole('button', { name: 'Shape tools: Rectangle' }).click();
-	await page.locator('#fillInput').check();
+	await page.getByRole('group', { name: 'Shape style' }).getByRole('button', { name: 'Fill', exact: true }).click();
 
 	await drag(overlay, bounds.x + 100, bounds.y + 100, bounds.x + 200, bounds.y + 200, 1);
 	await drag(overlay, bounds.x + 300, bounds.y + 100, bounds.x + 400, bounds.y + 200, 2);

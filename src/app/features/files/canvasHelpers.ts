@@ -2,6 +2,7 @@ import type { ImageFormat } from '../../core/document/appTypes';
 import { ColorPalette } from '../../core/document/colorPalette';
 import { imageFormat } from '../../core/document/imageFormats';
 import { canvasContext } from '../../shared/dom/domHelpers';
+import { MAX_CANVAS_DIMENSION } from '../../core/geometry/geometryHelpers';
 
 const PIXEL_CHANNEL_COUNT = 4;
 const ALPHA_CHANNEL_OFFSET = 3;
@@ -48,26 +49,51 @@ export function hasTransparency(
 	return false;
 }
 
+/**
+ * How an image is written: its size as a share of the original, the quality
+ * a lossy format compresses to, and a colour shown behind transparent pixels.
+ * A format without transparency is written over white when none is given.
+ */
+export interface ImageEncoding {
+	readonly scale?: number;
+	/** From 0 to 1, for JPEG and WebP. */
+	readonly quality?: number;
+	readonly background?: string;
+}
+
+/** The size of an image written at a scale: whole pixels, at least one, and no larger than a canvas can be. */
+export function encodedSize(width: number, height: number, scale = 1): { width: number; height: number } {
+	const fit = Math.min(scale, MAX_CANVAS_DIMENSION / Math.max(width, height));
+	return { width: Math.max(1, Math.round(width * fit)), height: Math.max(1, Math.round(height * fit)) };
+}
+
 export function encodeCanvas(
 	source: HTMLCanvasElement,
 	type: ImageFormat,
+	encoding: ImageEncoding = {},
 ): Promise<Blob> {
 	const format = imageFormat(type);
 	const output = document.createElement('canvas');
-	output.width = source.width;
-	output.height = source.height;
+	const size = encodedSize(source.width, source.height, encoding.scale);
+	output.width = size.width;
+	output.height = size.height;
 	const context = canvasContext(output);
-	if (!format.supportsTransparency) {
-		context.fillStyle = ColorPalette.White;
+	const background = encoding.background ?? (format.supportsTransparency ? undefined : ColorPalette.White);
+	if (background !== undefined) {
+		context.fillStyle = background;
 		context.fillRect(0, 0, output.width, output.height);
 	}
-	context.drawImage(source, 0, 0);
+	context.imageSmoothingQuality = SMOOTHING_QUALITY;
+	context.drawImage(source, 0, 0, output.width, output.height);
 	return new Promise((resolve, reject) => {
 		output.toBlob(
 			(blob) =>
 				blob ? resolve(blob) : reject(new Error('Image encoding failed')),
 			format.mimeType,
-			format.quality,
+			encoding.quality ?? format.quality,
 		);
 	});
 }
+
+/** A resized copy is smoothed as finely as the browser can. */
+const SMOOTHING_QUALITY: ImageSmoothingQuality = 'high';

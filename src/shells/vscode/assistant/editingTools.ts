@@ -9,6 +9,7 @@ import {
 } from '../../../app/features/assistant/assistantCommandTypes';
 import { type DrawScript, parseDrawScript } from '../../../app/features/assistant/drawScript';
 import { LineEnd } from '../../../app/features/annotations/lineEnd';
+import { GradientKind, gradientOf, MINIMUM_GRADIENT_STOPS } from '../../../app/core/geometry/gradient';
 import { DIAGRAM_IMAGE_NAME, type DiagramDrawing, diagramImageSpec, drawMermaidDiagram } from '../../../app/features/diagrams/diagramDrawing';
 import type { EditableImages } from './openImages';
 import { describeResult, jsonOutcome, outcome } from './toolResults';
@@ -20,6 +21,7 @@ export const EditingTool = {
 	AddShape: 'add_shape',
 	AddLine: 'add_line',
 	AddText: 'add_text',
+	AddPath: 'add_path',
 	RemoveItem: 'remove_item',
 	Undo: 'undo',
 	Draw: 'draw',
@@ -43,9 +45,10 @@ layer Apple                       (new layer; following items go on it)
 use Circles                       (draw on an existing layer)
 circle 40,40 110 #3a86ff          (diameter)
 ellipse 150,215 125x195 #d62828 rotate 20 opacity 0.8
-rect 10,10 80x40 #222222 outline 3   (also roundrect triangle diamond star; outline = not filled; fill #ffffff = filled under the outline)
+rect 10,10 80x40 #222222 outline 3   (also roundrect triangle diamond star; outline = not filled; fill #ffffff = filled under the outline; fill linear(90deg,#ffcc00,#ff6600) or radial(#ffffff,#000000) = gradient)
 arrow 10,10 200,120 #000000 width 6  (also line; extra points are bends: arrow 10,10 100,10 100,80 #000000; dashed; head/tail triangle|diamond|filledDiamond|openArrow|circle|cross)
 text 20,60 #000000 size 48 "Hello"   (x,y = left end of the baseline)
+path "M10 10 C40 0 60 0 90 10Z" #333333 width 2 fill #ffcc00   (SVG path data; dashed, head/tail as for lines)
 // comment`;
 
 const hexColor = z.string().regex(/^#[0-9a-fA-F]{6}$/).describe('#rrggbb');
@@ -53,6 +56,14 @@ const imageChoice = z.string().optional().describe('Image id or name; default: a
 const layerChoice = z.string().optional().describe('Layer id or name; default: active layer.');
 const opacity = z.number().min(0).max(1).default(DrawingDefault.Opacity);
 const lineEnd = z.enum(Object.values(LineEnd) as [LineEnd, ...LineEnd[]]).optional();
+const fillGradient = z
+	.object({
+		kind: z.enum(Object.values(GradientKind) as [GradientKind, ...GradientKind[]]),
+		colors: z.array(hexColor).min(MINIMUM_GRADIENT_STOPS),
+		angle: z.number().optional().describe('Linear only: degrees clockwise from left-to-right.'),
+	})
+	.optional()
+	.describe('Fills with a gradient instead of one colour.');
 
 /** Tools that draw in the editor; every change is an undo step and saves with the document. */
 export function registerEditingTools(server: McpServer, images: EditableImages): void {
@@ -106,12 +117,13 @@ export function registerEditingTools(server: McpServer, images: EditableImages):
 				color: hexColor,
 				fill: z.boolean().default(true),
 				fill_color: hexColor.optional().describe('Fill under an outline in color.'),
+				fill_gradient: fillGradient,
 				stroke_width: z.number().positive().max(MAX_STROKE_WIDTH).default(DrawingDefault.StrokeWidth),
 				opacity,
 				rotation: z.number().default(0).describe('Degrees clockwise.'),
 			},
 		},
-		({ image, layer, shape, x, y, width, height, color, fill, fill_color, stroke_width, opacity, rotation }) =>
+		({ image, layer, shape, x, y, width, height, color, fill, fill_color, fill_gradient, stroke_width, opacity, rotation }) =>
 			run(image, {
 				kind: AssistantCommandKind.AddShape,
 				...(layer ? { layer } : {}),
@@ -120,6 +132,7 @@ export function registerEditingTools(server: McpServer, images: EditableImages):
 				color,
 				fill,
 				...(fill && fill_color ? { fillColor: fill_color } : {}),
+				...(fill && fill_gradient ? { fillGradient: gradientOf(fill_gradient.kind, fill_gradient.colors, fill_gradient.angle) } : {}),
 				strokeWidth: stroke_width,
 				opacity,
 				rotation,
@@ -184,6 +197,39 @@ export function registerEditingTools(server: McpServer, images: EditableImages):
 				text,
 				color,
 				size,
+			}),
+	);
+	server.registerTool(
+		EditingTool.AddPath,
+		{
+			description: 'Draws one vector path from SVG path data (M L H V C S Q T A Z, relative or absolute); it stays one editable item.',
+			inputSchema: {
+				image: imageChoice,
+				layer: layerChoice,
+				d: z.string().min(1).describe('SVG path data.'),
+				color: hexColor,
+				width: z.number().positive().max(MAX_STROKE_WIDTH).default(DrawingDefault.StrokeWidth),
+				fill_color: hexColor.optional().describe('Fills closed parts under the line.'),
+				fill_gradient: fillGradient,
+				opacity,
+				dashed: z.boolean().optional(),
+				head: lineEnd,
+				tail: lineEnd,
+			},
+		},
+		({ image, layer, d, color, width, fill_color, fill_gradient, opacity, dashed, head, tail }) =>
+			run(image, {
+				kind: AssistantCommandKind.AddPath,
+				...(layer ? { layer } : {}),
+				d,
+				color,
+				width,
+				opacity,
+				...(fill_color ? { fillColor: fill_color } : {}),
+				...(fill_gradient ? { fillGradient: gradientOf(fill_gradient.kind, fill_gradient.colors, fill_gradient.angle) } : {}),
+				...(dashed ? { dashed } : {}),
+				...(head ? { head } : {}),
+				...(tail ? { tail } : {}),
 			}),
 	);
 	server.registerTool(

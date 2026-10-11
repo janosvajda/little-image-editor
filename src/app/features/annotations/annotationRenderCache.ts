@@ -1,6 +1,8 @@
 import type { AnnotationRenderState } from './annotationDocument';
 import { annotationBounds } from './annotationDocument';
+import { effectMargin } from './itemEffects';
 import { lineEndLength } from './arrowHead';
+import { LineEnd } from './lineEnd';
 import { PaintToolId } from '../../core/document/appTypes';
 import { ShapeHandleMetrics } from '../../core/geometry/shapeTransformHelpers';
 import {
@@ -658,6 +660,13 @@ function isTransformedStroke(
 	);
 }
 
+/** The ends an item draws past its own lines, such as arrowheads. */
+function lineEndsOf(object: AnnotationObject): LineEnd[] {
+	if (object.type === AnnotationObjectTypeId.Connector) return Object.values(connectorEnds(object));
+	if (object.type === AnnotationObjectTypeId.Path) return [object.head ?? LineEnd.None, object.tail ?? LineEnd.None];
+	return [];
+}
+
 function visualBounds(
 	object: AnnotationObject,
 	canvasWidth: number,
@@ -673,16 +682,13 @@ function visualBounds(
 			? object.blur * AnnotationCacheGeometry.BlurPaddingFactor
 			: 0;
 	// An arrowhead reaches beyond the line it ends.
-	const headPadding =
-		object.type === AnnotationObjectTypeId.Connector
-			? Math.max(...Object.values(connectorEnds(object)).map((end) => lineEndLength(object.width, end)))
-			: 0;
+	const headPadding = Math.max(0, ...lineEndsOf(object).map((end) => lineEndLength('width' in object ? object.width : 0, end)));
 	const padding = Math.max(
 		AnnotationCacheGeometry.SelectionPadding,
 		strokePadding,
 		blurPadding,
 		headPadding,
-	);
+	) + effectMargin(object.effects);
 	return clampRegion(
 		{
 			x: Math.floor(bounds.x - padding),

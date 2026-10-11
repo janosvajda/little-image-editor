@@ -10,14 +10,13 @@ import {
 	DocumentType,
 } from '../../core/document/appTypes';
 import { PROJECT_MIME_TYPE } from '../projects/projectTypes';
+import { SVG_MIME_TYPE } from '../../core/document/svgFormat';
 import {
 	DEFAULT_IMAGE_FORMAT,
-	imageFormat,
-	imageFormatOfFileName,
 	isImageFormat,
 } from '../../core/document/imageFormats';
 import type { NewImageSpec } from '../assistant/assistantCommandTypes';
-import { isProjectFileName } from './openFileTypes';
+import { fileTypeOfName, isSavableFileName } from './openFileTypes';
 import {
 	documentFileTypeWarning,
 	populateDocumentFileTypeSelect,
@@ -36,6 +35,11 @@ const ResolutionPpi = {
 } as const;
 const RESOLUTION_PRESETS = Object.values(ResolutionPpi);
 const PresetId = { Custom: 'custom' } as const;
+/** The kind of document each file type in the dialog makes; an image format makes an image. */
+const DOCUMENT_TYPE_OF_FILE_TYPE: Readonly<Record<string, DocumentType>> = {
+	[PROJECT_MIME_TYPE]: DocumentType.Project,
+	[SVG_MIME_TYPE]: DocumentType.Svg,
+};
 const AspectRatioId = { Free: 'free' } as const;
 const DimensionAxis = { Width: 'width', Height: 'height' } as const;
 type DimensionAxis = (typeof DimensionAxis)[keyof typeof DimensionAxis];
@@ -82,10 +86,7 @@ export class NewImageController {
 	private suggest(fileName: string): void {
 		const extensionStart = fileName.lastIndexOf('.');
 		this.#name.value = extensionStart > 0 ? fileName.slice(0, extensionStart) : fileName;
-		const type = isProjectFileName(fileName)
-			? PROJECT_MIME_TYPE
-			: imageFormatOfFileName(fileName)?.mimeType;
-		if (type) this.#format.value = type;
+		if (isSavableFileName(fileName)) this.#format.value = fileTypeOfName(fileName);
 		this.updateFileTypeWarning();
 		this.updateTransparencyWarning();
 	}
@@ -240,10 +241,7 @@ export class NewImageController {
 			format: isImageFormat(fileType)
 				? fileType
 				: DEFAULT_IMAGE_FORMAT.mimeType,
-			documentType:
-				fileType === PROJECT_MIME_TYPE
-					? DocumentType.Project
-					: DocumentType.Image,
+			documentType: DOCUMENT_TYPE_OF_FILE_TYPE[fileType] ?? DocumentType.Image,
 		});
 		this.#createListeners.forEach((listener) => listener());
 	}
@@ -253,10 +251,9 @@ export class NewImageController {
 		const transparent = element<HTMLInputElement>(
 			'#newImageTransparent',
 		).checked;
-		warning.textContent =
-			this.#format.value === PROJECT_MIME_TYPE
-				? documentFileTypeWarning(PROJECT_MIME_TYPE)
-				: transparencyWarning(imageFormat(this.#format.value).mimeType);
+		warning.textContent = isImageFormat(this.#format.value)
+			? transparencyWarning(this.#format.value)
+			: documentFileTypeWarning(this.#format.value);
 		warning.classList.toggle('hidden', !transparent);
 	}
 

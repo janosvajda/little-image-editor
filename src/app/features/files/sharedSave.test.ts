@@ -65,7 +65,7 @@ describe('one save for every edition', () => {
 		const types = savePickerTypes(ImageMimeType.Jpeg);
 		expect(Object.keys(types[0]!.accept)).toEqual([ImageMimeType.Jpeg]);
 		expect(types.at(-1)).toBe(PROJECT_PICKER_TYPE);
-		expect(types).toHaveLength(4);
+		expect(types).toHaveLength(5);
 	});
 
 	it('downloads where no file can be chosen, in the format of the typed name, without keeping the download as the file', async () => {
@@ -112,7 +112,7 @@ describe('one save for every edition', () => {
 });
 
 describe('the File menu', () => {
-	it('reads New, Open · Save, Save As, Export · Copy · diagrams · Close, without a format dropdown or a separate project save', () => {
+	it('reads New, Open · Save, Save As, Export · diagrams · Close, with Copy only in Edit and without a format dropdown or separate project save', () => {
 		new NewImageController(editor().model);
 		const items = [...document.querySelectorAll<HTMLElement>('#fileMenu .menu-popover > button, #fileMenu .menu-popover > .menu-rule')].map((item) =>
 			item.classList.contains('menu-rule') ? '|' : item.id,
@@ -125,13 +125,14 @@ describe('the File menu', () => {
 			'saveAsButton',
 			'exportButton',
 			'|',
-			'copyImageButton',
-			'|',
 			'insertDiagramMenuButton',
 			'importDiagramButton',
+			'placeImageButton',
 			'|',
 			'closeImageButton',
 		]);
+		expect(document.querySelector('#editMenu #copyImageButton')).not.toBeNull();
+		expect(document.querySelectorAll('#copyImageButton')).toHaveLength(1);
 		expect(document.querySelector('#formatSelect')).toBeNull();
 		expect(document.querySelector('#saveProjectButton')).toBeNull();
 	});

@@ -71,10 +71,10 @@ svg.editor-icon {
     flex-shrink: 0;
     vertical-align: middle;
     pointer-events: none;
-    color: var(--icon-ink);
+    color: #1b2634;
     fill: none;
     stroke: currentColor;
-    stroke-width: 1.7;
+    stroke-width: .75;
     stroke-linecap: round;
     stroke-linejoin: round;
 }
@@ -90,7 +90,7 @@ svg.editor-icon .icon-shine { stroke: var(--icon-highlight); stroke-width: 1.3 }
 svg.editor-icon .icon-shine-fill { fill: var(--icon-shine); stroke: none }
 
 .icon-button svg.editor-icon,
-.icon-button svg.editor-icon.filled-icon { fill: none; stroke: currentColor; stroke-width: 1.7 }
+.icon-button svg.editor-icon.filled-icon { fill: none; stroke: currentColor; stroke-width: .75 }
 .tool-select-icon svg.editor-icon { width: 24px; height: 24px }
 .utility-tool svg.editor-icon { width: 20px; height: 20px }
 .grouped-tool-palette .tool > span svg.editor-icon { width: 21px; height: 21px }
@@ -191,3 +191,11 @@ html[data-theme=contrast] .layer-row.active { border-color: var(--accent) }
         --icon-shine: CanvasText;
     }
 }
+
+/* Shared realistic artwork; only neutral marks and visibility rims follow the theme. */
+:root { --realistic-icon-neutral: #dce6df; }
+html[data-theme="light"] { --realistic-icon-neutral: #1b2634; }
+html[data-theme="light"] .editor-icon-halo { filter: none; }
+html[data-theme="contrast"] { --realistic-icon-neutral: #fff; }
+html[data-theme="contrast"] svg.editor-icon { filter: contrast(1.5); }
+#overlay { cursor: var(--editor-cursor, crosshair) !important; }

@@ -3,7 +3,7 @@
   "displayName": "Little Image Editor",
   "description": "Edit images and layered .limg projects inside VS Code.",
   "icon": "webview/assets/images/extensionIcon-128.png",
-  "version": "0.3.14",
+  "version": "0.3.28",
   "publisher": "janosvajda",
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
@@ -49,6 +49,9 @@
           },
           {
             "filenamePattern": "*.webp"
+          },
+          {
+            "filenamePattern": "*.svg"
           }
         ],
         "priority": "option"

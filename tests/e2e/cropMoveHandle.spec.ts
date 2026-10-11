@@ -11,7 +11,7 @@ for (const zoom of ['100', '50', '200']) {
 			await page.locator('#newImageTransparent').check();
 			await page.locator('#createImageButton').click();
 			await page.getByRole('button', { name: 'Shape tools: Rectangle' }).click();
-			await page.locator('#fillInput').check();
+			await page.getByRole('group', { name: 'Shape style' }).getByRole('button', { name: 'Fill', exact: true }).click();
 			await page.locator('[data-panel="tools"] .panel-close').click();
 			const drag = async (x: number, y: number, dx: number, dy: number) => {
 				await page.mouse.move(x, y);

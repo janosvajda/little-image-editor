@@ -2,6 +2,8 @@ import { EditorIconId, editorIconMarkup } from '../../shared/style/editorIcons';
 import {
 	type ConnectorTool,
 	ConnectorToolId,
+	type PathTool,
+	PathToolId,
 	MarkupToolId,
 	PaintToolId,
 	ShapeToolId,
@@ -135,10 +137,29 @@ export const CONNECTOR_TOOL_DEFINITIONS = [
 	},
 ] as const satisfies readonly ToolDefinition<ConnectorTool>[];
 
-/** The Shape tools menu: shapes, then connectors. */
-export const SHAPE_MENU_TOOL_DEFINITIONS: readonly ToolDefinition<ShapeTool | ConnectorTool>[] = [
+/** Shown with the shapes, but they draw one vector path of lines and curves. */
+export const PATH_TOOL_DEFINITIONS = [
+	{
+		id: PathToolId.Pen,
+		label: 'Pen',
+		icon: editorIconMarkup(EditorIconId.Pen),
+		title: 'Pen (Y): click for corners, drag for curves, Enter to finish',
+		shortcut: 'y',
+	},
+	{
+		id: PathToolId.Polyline,
+		label: 'Polyline',
+		icon: editorIconMarkup(EditorIconId.Polyline),
+		title: 'Polyline (J): click for each corner, click the first to close, Enter to finish',
+		shortcut: 'j',
+	},
+] as const satisfies readonly ToolDefinition<PathTool>[];
+
+/** The Shape tools menu: shapes, then connectors, then the pen. */
+export const SHAPE_MENU_TOOL_DEFINITIONS: readonly ToolDefinition<ShapeTool | ConnectorTool | PathTool>[] = [
 	...SHAPE_TOOL_DEFINITIONS,
 	...CONNECTOR_TOOL_DEFINITIONS,
+	...PATH_TOOL_DEFINITIONS,
 ];
 
 export const MARKUP_TOOL_DEFINITIONS = [
@@ -197,7 +218,7 @@ export const UTILITY_TOOL_DEFINITIONS = [
 		id: UtilityToolId.Picker,
 		label: 'Picker',
 		icon: editorIconMarkup(EditorIconId.Picker),
-		title: 'Color picker (I)',
+		title: 'Color picker (I): click for the line colour, Alt/Option-click for the fill colour',
 		shortcut: 'i',
 	},
 	{
@@ -228,6 +249,7 @@ export const DRAWING_TOOL_DEFINITIONS: readonly ToolDefinition<Tool>[] = [
 	...PAINT_TOOL_DEFINITIONS,
 	...SHAPE_TOOL_DEFINITIONS,
 	...CONNECTOR_TOOL_DEFINITIONS,
+	...PATH_TOOL_DEFINITIONS,
 	...MARKUP_TOOL_DEFINITIONS,
 	...UTILITY_TOOL_DEFINITIONS,
 ];

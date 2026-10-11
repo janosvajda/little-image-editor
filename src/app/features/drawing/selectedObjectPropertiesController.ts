@@ -11,9 +11,19 @@ import { drawingToolBehavior, ToolOptionSource } from './drawingToolBehavior';
 import {
 	EditableObjectPropertyId,
 	editableObjectProperties,
+	fillColorOf,
 	setEditableObjectProperty,
 	type EditableObjectProperty,
+	FillStyle,
 } from '../annotations/editableObjectProperties';
+import { PatternSize } from '../../core/geometry/fillPattern';
+import { LiveItemEdit } from './liveItemEdit';
+import { layerItemLabel } from '../layers/layerItemLabels';
+import { ShapeStyleButtons } from './shapeStyleButtons';
+import { applyShapeStyle, ShapeStyle, shapeStyleOf } from '../annotations/shapeStyle';
+import { ObjectClipActions } from './objectClipActions';
+import { SelectedObjectEffects } from './selectedObjectEffects';
+import type { SelectedObjectSection } from './selectedObjectSection';
 
 const Percentage = {
 	Scale: 100,
@@ -29,6 +39,7 @@ const PropertyLabel = {
 	Opacity: 'Opacity',
 	Hardness: 'Hardness',
 	Fill: 'Fill',
+	PatternSize: 'Pattern size',
 } as const;
 /** How assistive technology names each control, whatever it says beside it. */
 const ACCESSIBLE_NAMES: Readonly<Record<EditableObjectProperty, string>> = {
@@ -38,20 +49,52 @@ const ACCESSIBLE_NAMES: Readonly<Record<EditableObjectProperty, string>> = {
 	[EditableObjectPropertyId.Hardness]: 'hardness',
 	[EditableObjectPropertyId.Fill]: 'fill',
 	[EditableObjectPropertyId.FillColor]: 'fill colour',
+	[EditableObjectPropertyId.FillStyle]: 'fill style',
+	[EditableObjectPropertyId.FillColorEnd]: 'fill end colour',
+	[EditableObjectPropertyId.PatternSize]: 'pattern size',
 };
+/** What an item that could be filled, but is not, says on its fill swatch. */
+const NO_FILL_TITLE = 'No fill: choose a colour to fill it';
+/** Properties measured in image pixels; the others are shares, shown as percentages. */
+const PIXEL_PROPERTIES: ReadonlySet<EditableObjectProperty> = new Set([EditableObjectPropertyId.Size, EditableObjectPropertyId.PatternSize]);
+/** The names of the ways to fill, where one is chosen. */
+const FILL_STYLE_LABELS: Readonly<Record<FillStyle, string>> = {
+	[FillStyle.Solid]: 'Solid',
+	[FillStyle.Linear]: 'Linear',
+	[FillStyle.Radial]: 'Radial',
+	[FillStyle.Stripes]: 'Stripes',
+	[FillStyle.Dots]: 'Dots',
+	[FillStyle.Grid]: 'Grid',
+	[FillStyle.Checks]: 'Checks',
+};
+
+/** The properties shown as a control row of their own; filling is chosen as a style instead. */
+type RowProperty = Exclude<EditableObjectProperty, typeof EditableObjectPropertyId.Fill>;
+
+/** What the bar shares with the tools: the fill colour a new fill starts from, and the style chosen last. */
+export interface SharedToolColors {
+	fillColor(): string;
+	/** A style chosen for an item becomes the shape tools' style too, as its colours become theirs. */
+	chooseShapeStyle(style: ShapeStyle): void;
+}
 
 interface PropertyControl {
 	readonly row: HTMLElement;
 	readonly label: Text;
-	readonly input: HTMLInputElement;
+	readonly input: HTMLInputElement | HTMLSelectElement;
 	readonly output?: HTMLOutputElement;
 }
 
 export class SelectedObjectPropertiesController {
 	readonly #root = document.createElement('section');
-	readonly #controls: Readonly<Record<EditableObjectProperty, PropertyControl>>;
-	readonly #dirtyProperties = new Set<EditableObjectProperty>();
-	#synchronizing = false;
+	readonly #controls: Readonly<Record<RowProperty, PropertyControl>>;
+	/** Outline, fill, or both, for a shape or a path. */
+	readonly #shapeStyle: ShapeStyleButtons;
+	/** What the selected item is, as its section's title, as the Layers panel names it. */
+	readonly #title = document.createElement('h3');
+	readonly #edit: LiveItemEdit;
+	/** Effects and clipping, after the item's own properties. */
+	readonly #sections: readonly SelectedObjectSection[];
 	#tool: Tool | null = null;
 
 	constructor(
@@ -61,9 +104,13 @@ export class SelectedObjectPropertiesController {
 			object: Readonly<AnnotationObject>,
 			color: string,
 		) => void,
+		/** A fill colour chosen for an item becomes the tools' fill colour too, as its line colour becomes theirs. */
+		private readonly onFillColorChange?: (color: string) => void,
+		private readonly toolColors?: SharedToolColors,
 	) {
 		this.#root.className = 'selected-object-options hidden';
 		this.#root.setAttribute('aria-label', 'Selected object properties');
+		this.#edit = new LiveItemEdit(objects);
 		this.#controls = {
 			[EditableObjectPropertyId.Color]: this.colorControl(EditableObjectPropertyId.Color, PropertyLabel.Color),
 			[EditableObjectPropertyId.Size]: this.rangeControl(
@@ -84,13 +131,36 @@ export class SelectedObjectPropertiesController {
 				Percentage.Minimum,
 				Percentage.Maximum,
 			),
-			[EditableObjectPropertyId.Fill]: this.checkboxControl(),
-			[EditableObjectPropertyId.FillColor]: this.fillColorControl(),
+			[EditableObjectPropertyId.FillStyle]: this.fillStyleControl(),
+			[EditableObjectPropertyId.FillColor]: this.swatchControl(EditableObjectPropertyId.FillColor),
+			[EditableObjectPropertyId.FillColorEnd]: this.swatchControl(EditableObjectPropertyId.FillColorEnd),
+			[EditableObjectPropertyId.PatternSize]: this.rangeControl(
+				EditableObjectPropertyId.PatternSize,
+				PropertyLabel.PatternSize,
+				PatternSize.Minimum,
+				PatternSize.Maximum,
+			),
 		};
-		// The fill colour sits on the Fill row, right after the checkbox that names it.
-		const { [EditableObjectPropertyId.FillColor]: fillColor, ...rows } = this.#controls;
-		this.#controls[EditableObjectPropertyId.Fill].row.append(fillColor.row);
-		this.#root.append(...Object.values(rows).map((control) => control.row));
+		// The fill's kind and its second colour sit beside the word Fill, in one group; a pattern's size follows on its own row.
+		const {
+			[EditableObjectPropertyId.FillStyle]: style,
+			[EditableObjectPropertyId.FillColor]: first,
+			[EditableObjectPropertyId.FillColorEnd]: last,
+			...rows
+		} = this.#controls;
+		const fillGroup = document.createElement('div');
+		fillGroup.className = 'fill-group';
+		const fillWord = document.createElement('span');
+		fillWord.dataset.objectProperty = EditableObjectPropertyId.Fill;
+		fillWord.className = 'fill-group-label';
+		fillWord.textContent = PropertyLabel.Fill;
+		fillGroup.append(fillWord, first.row, style.row, last.row);
+		this.#shapeStyle = new ShapeStyleButtons('Selected object style', (shapeStyle) => this.chooseShapeStyle(shapeStyle));
+		this.#sections = [new SelectedObjectEffects(this.#edit), new ObjectClipActions(objects)];
+		// Its own section, titled with what it is: its line, its fill, how it is drawn, then the rest.
+		this.#title.className = 'selected-object-title';
+		const { [EditableObjectPropertyId.Color]: line, ...others } = rows;
+		this.#root.append(this.#title, line.row, fillGroup, this.#shapeStyle.element, ...Object.values(others).map((control) => control.row), ...this.#sections.map(({ element }) => element));
 		parent.prepend(this.#root);
 		objects.onChange((_state, change) => {
 			if (!isEphemeralAnnotationChange(change)) this.sync();
@@ -129,16 +199,30 @@ export class SelectedObjectPropertiesController {
 	}
 
 	/** A swatch without words of its own, placed on the Fill row; a click on it opens the colour, not the checkbox. */
-	private fillColorControl(): PropertyControl {
-		const row = document.createElement('span');
-		row.dataset.objectProperty = EditableObjectPropertyId.FillColor;
-		row.className = 'fill-color-option';
+	private swatchControl(property: typeof EditableObjectPropertyId.FillColor | typeof EditableObjectPropertyId.FillColorEnd): PropertyControl {
 		const input = document.createElement('input');
 		input.type = 'color';
-		input.setAttribute('aria-label', `Selected object ${ACCESSIBLE_NAMES[EditableObjectPropertyId.FillColor]}`);
-		row.append(input);
-		this.bind(input, EditableObjectPropertyId.FillColor, () => input.value);
+		const row = this.inlineControl(property, input);
+		this.bind(input, property, () => input.value);
 		return { row, label: document.createTextNode(''), input };
+	}
+
+	/** Solid, linear or radial, on the Fill row. */
+	private fillStyleControl(): PropertyControl {
+		const select = document.createElement('select');
+		for (const style of Object.values(FillStyle)) select.add(new Option(FILL_STYLE_LABELS[style], style));
+		const row = this.inlineControl(EditableObjectPropertyId.FillStyle, select);
+		this.bind(select, EditableObjectPropertyId.FillStyle, () => select.value);
+		return { row, label: document.createTextNode(''), input: select };
+	}
+
+	private inlineControl(property: EditableObjectProperty, input: HTMLInputElement | HTMLSelectElement): HTMLElement {
+		const row = document.createElement('span');
+		row.dataset.objectProperty = property;
+		row.className = 'fill-color-option';
+		input.setAttribute('aria-label', `Selected object ${ACCESSIBLE_NAMES[property]}`);
+		row.append(input);
+		return row;
 	}
 
 	private rangeControl(
@@ -153,25 +237,27 @@ export class SelectedObjectPropertiesController {
 		const output = document.createElement('output');
 		row.insertBefore(output, input);
 		this.bind(input, property, () =>
-			property === EditableObjectPropertyId.Size
+			PIXEL_PROPERTIES.has(property)
 				? Number(input.value)
 				: Number(input.value) / Percentage.Scale,
 		);
 		return { row, label: text, input, output };
 	}
 
-	private checkboxControl(): PropertyControl {
-		const control = this.baseControl(EditableObjectPropertyId.Fill, PropertyLabel.Fill, 'checkbox');
-		control.row.classList.add('check');
-		this.bind(control.input, EditableObjectPropertyId.Fill, () => control.input.checked);
-		return control;
+	/** Draws the selected shape or path as an outline, a fill or both, in one undo step; a new fill starts from the tools' fill colour. */
+	private chooseShapeStyle(shapeStyle: ShapeStyle): void {
+		const selected = this.objects.selected;
+		if (!selected || (selected.type !== AnnotationObjectTypeId.Shape && selected.type !== AnnotationObjectTypeId.Path)) return;
+		const fillColor = this.toolColors?.fillColor() ?? fillColorOf(selected) ?? selected.color;
+		this.objects.update(selected.id, (item) => applyShapeStyle(item as typeof selected, shapeStyle, fillColor));
+		this.toolColors?.chooseShapeStyle(shapeStyle);
 	}
 
 	private baseControl(
 		property: EditableObjectProperty,
 		label: string,
 		type: HTMLInputElement['type'],
-	): PropertyControl {
+	): PropertyControl & { readonly input: HTMLInputElement } {
 		const row = document.createElement('label');
 		row.dataset.objectProperty = property;
 		const text = document.createTextNode(label);
@@ -184,37 +270,21 @@ export class SelectedObjectPropertiesController {
 	}
 
 	private bind(
-		input: HTMLInputElement,
+		input: HTMLInputElement | HTMLSelectElement,
 		property: EditableObjectProperty,
 		read: () => string | number | boolean,
 	): void {
-		input.addEventListener('input', () => {
-			this.#dirtyProperties.add(property);
-			this.apply(property, read(), false);
-		});
-		input.addEventListener('change', () => {
-			if (!this.#dirtyProperties.has(property))
-				this.apply(property, read(), false);
-			this.#dirtyProperties.delete(property);
-			this.apply(property, read(), true);
-		});
+		this.#edit.bind(
+			input,
+			property,
+			read,
+			(object, value) => setEditableObjectProperty(object, property, value),
+			(value) => this.edited(property, value),
+		);
 	}
 
-	private apply(
-		property: EditableObjectProperty,
-		value: string | number | boolean,
-		commit: boolean,
-	): void {
-		if (this.#synchronizing || !this.objects.selected) return;
-		if (commit) {
-			this.objects.commitCurrent();
-			return;
-		}
-		this.objects.update(
-			this.objects.selected.id,
-			(object) => setEditableObjectProperty(object, property, value),
-			false,
-		);
+	/** After an edit: its value shows beside its control, and a new colour is remembered for the item's tool. */
+	private edited(property: EditableObjectProperty, value: string | number | boolean): void {
 		this.updateOutput(property, value);
 		const selected = this.objects.selected;
 		if (
@@ -223,42 +293,64 @@ export class SelectedObjectPropertiesController {
 			'color' in selected
 		)
 			this.onColorChange?.(selected, selected.color);
+		if (property === EditableObjectPropertyId.FillColor && typeof value === 'string') this.onFillColorChange?.(value);
 	}
 
 	private sync(): void {
-		this.#synchronizing = true;
-		const selected = this.objects.selected;
-		this.#dirtyProperties.clear();
-		const propertiesVisible =
-			selected !== null && this.showsPropertiesOf(selected);
-		this.#root.classList.toggle('hidden', !propertiesVisible);
-		this.parent.classList.toggle('editing-selected-object', propertiesVisible);
-		if (selected && propertiesVisible) {
+		this.#edit.show(() => {
+			const selected = this.objects.selected;
+			const propertiesVisible =
+				selected !== null && this.showsPropertiesOf(selected);
+			this.#root.classList.toggle('hidden', !propertiesVisible);
+			this.parent.classList.toggle('editing-selected-object', propertiesVisible);
+			if (!selected || !propertiesVisible) return;
 			const values = editableObjectProperties(selected);
+			this.#title.textContent = layerItemLabel(selected);
 			this.#controls[EditableObjectPropertyId.Color].label.data = values.fill === undefined ? PropertyLabel.Color : PropertyLabel.Line;
-			for (const [property, control] of Object.entries(this.#controls) as Array<
-				[EditableObjectProperty, PropertyControl]
-			>) {
-				const value = values[property];
-				control.row.classList.toggle('hidden', value === undefined);
-				if (value === undefined) continue;
-				if (typeof value === 'boolean') control.input.checked = value;
-				else control.input.value = controlValue(property, value);
-				this.updateOutput(property, value);
-			}
-		}
-		this.#synchronizing = false;
+			// An item that could be filled but is not shows No fill on its fill swatch; choosing a colour there fills it.
+			const unfilled = values.fill === false;
+			const shown = unfilled ? { ...values, fillColor: fillColorOf(selected) } : values;
+			const fillSwatch = this.#controls[EditableObjectPropertyId.FillColor];
+			fillSwatch.row.classList.toggle('no-fill', unfilled);
+			fillSwatch.input.title = unfilled ? NO_FILL_TITLE : '';
+			for (const [property, control] of Object.entries(this.#controls) as Array<[RowProperty, PropertyControl]>)
+				this.showValue(property, control, shown[property]);
+			this.showShapeStyle(selected, values.fill);
+			for (const section of this.#sections) section.element.classList.toggle('hidden', !section.show(selected));
+		});
+	}
+
+	/** A shape's or path's fill and style; anything else has neither. */
+	private showShapeStyle(selected: Readonly<AnnotationObject>, fill: boolean | undefined): void {
+		const fillable = fill !== undefined && 'width' in selected;
+		// Its fill swatch stays in view, showing No fill when there is none.
+		this.#root.querySelector<HTMLElement>('.fill-group')!.classList.toggle('hidden', !fillable);
+		this.#shapeStyle.element.classList.toggle('hidden', !fillable);
+		if (!fillable) return;
+		const shapeStyle = shapeStyleOf({ fill, width: selected.width });
+		this.#shapeStyle.show(shapeStyle);
+		// A fill without a line has no line width to set.
+		if (shapeStyle === ShapeStyle.Fill) this.#controls[EditableObjectPropertyId.Size].row.classList.add('hidden');
+	}
+
+	/** One control showing the selected item's value, or hidden when the item has none. */
+	private showValue(property: EditableObjectProperty, control: PropertyControl, value: string | number | boolean | undefined): void {
+		control.row.classList.toggle('hidden', value === undefined);
+		if (value === undefined) return;
+		if (typeof value !== 'boolean') control.input.value = controlValue(property, value);
+		else if (control.input instanceof HTMLInputElement) control.input.checked = value;
+		this.updateOutput(property, value);
 	}
 
 	private updateOutput(
 		property: EditableObjectProperty,
 		value: string | number | boolean,
 	): void {
-		const output = this.#controls[property].output;
+		const output = property === EditableObjectPropertyId.Fill ? undefined : this.#controls[property].output;
 		if (!output || typeof value !== 'number') return;
 		const numericValue = value as number;
 		output.value =
-			property === EditableObjectPropertyId.Size
+			PIXEL_PROPERTIES.has(property)
 				? `${Math.round(numericValue)} px`
 				: `${Math.round(numericValue <= 1 ? numericValue * Percentage.Scale : numericValue)}%`;
 	}

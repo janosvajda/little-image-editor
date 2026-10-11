@@ -74,7 +74,8 @@ test('draws through the shared tool system and copies the annotated composited s
 	const toolsBounds = (await page.locator('[data-panel="tools"]').boundingBox())!;
 	expect(qaBounds.x >= toolsBounds.x + toolsBounds.width || toolsBounds.x >= qaBounds.x + qaBounds.width || qaBounds.y >= toolsBounds.y + toolsBounds.height || toolsBounds.y >= qaBounds.y + qaBounds.height, JSON.stringify({ qaBounds, toolsBounds, workspace: await page.locator('.workspace').evaluate((element) => ({ height: element.clientHeight, width: element.clientWidth })) })).toBe(true);
 	await page.locator('#colorInput').fill(ColorPalette.Black);
-	await page.locator('#fillInput').check();
+	await page.locator('#fillColorInput').fill(ColorPalette.Black);
+	await page.getByRole('group', { name: 'Shape style' }).getByRole('button', { name: 'Fill', exact: true }).click();
 	await page.locator('#focusButton').click();
 	await expect(page.locator('body')).toHaveClass(/focus-mode/);
 	await mouseCanvasDrag(page, { x: 20, y: 20 }, { x: 55, y: 55 });

@@ -5,6 +5,7 @@ import type {
 } from '../../../app/features/assistant/assistantCommandTypes';
 import type { FileBytes } from '../vscodeMessages';
 import type { ImageExtension } from '../../../app/core/document/imageFormats';
+import type { SVG_EXTENSION } from '../../../app/core/document/svgFormat';
 
 /** An image open in the editor, as an assistant sees it in a list. */
 export interface OpenImageSummary {
@@ -52,7 +53,7 @@ export interface ImageExportRequest {
 
 export interface ImageExportResult {
 	readonly path: string;
-	readonly format: typeof ImageExtension.Png;
+	readonly format: typeof ImageExtension.Png | typeof SVG_EXTENSION;
 	readonly width: number;
 	readonly height: number;
 	readonly bytesWritten: number;
@@ -60,6 +61,25 @@ export interface ImageExportResult {
 
 export interface ExportableImages extends OpenImages {
 	export(image: string | undefined, request: ImageExportRequest): Promise<ImageExportResult>;
+}
+
+/** A picture in the workspace to place on an image, where and how big, on which layer. */
+export interface ImagePlacementRequest {
+	readonly path: string;
+	readonly workspace?: string;
+	readonly layer?: string;
+	readonly at?: Readonly<{ x: number; y: number }>;
+	readonly width?: number;
+	readonly height?: number;
+}
+
+export interface PlaceableImages extends EditableImages {
+	/** Places a picture file from the workspace on an image, by id or name; without either, on the active image. */
+	place(image: string | undefined, request: ImagePlacementRequest): Promise<AssistantResult>;
+}
+
+export function canPlace(images: OpenImages): images is PlaceableImages {
+	return canEdit(images) && 'place' in images && typeof images.place === 'function';
 }
 
 export function canExport(images: OpenImages): images is ExportableImages {

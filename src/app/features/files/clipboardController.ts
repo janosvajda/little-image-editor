@@ -9,25 +9,17 @@ import {
 const STATUS_VISIBILITY_MS = 2_400;
 
 export class ClipboardController {
-	readonly #buttons: HTMLButtonElement[];
+	readonly #button = element<HTMLButtonElement>('#copyImageButton');
 	readonly #status = element<HTMLElement>('#clipboardStatus');
 
 	constructor(
 		private readonly documentModel: CanvasDocument,
 		private readonly clipboard: PlatformClipboard = editorPlatform().clipboard,
 	) {
-		this.#buttons = [
-			element<HTMLButtonElement>('#copyImageButton'),
-			element<HTMLButtonElement>('#quickCopyButton'),
-		];
-		this.#buttons.forEach((button) =>
-			button.addEventListener('click', () => void this.copy()),
-		);
-		this.documentModel.onDocumentChange(({ hasImage }) =>
-			this.#buttons.forEach((button) => {
-				button.disabled = !hasImage;
-			}),
-		);
+		this.#button.addEventListener('click', () => void this.copy());
+		this.documentModel.onDocumentChange(({ hasImage }) => {
+			this.#button.disabled = !hasImage;
+		});
 	}
 
 	copy(): Promise<boolean> {

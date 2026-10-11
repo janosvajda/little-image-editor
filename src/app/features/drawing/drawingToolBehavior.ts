@@ -1,6 +1,8 @@
 import {
 	type ConnectorTool,
 	ConnectorToolId,
+	type PathTool,
+	PathToolId,
 	MarkupToolId,
 	PaintToolId,
 	ShapeToolId,
@@ -21,6 +23,8 @@ export const DrawingToolKind = {
 	Shape: 'shape',
 	/** Draws one connector item: a line with bends. */
 	Connector: 'connector',
+	/** Draws one vector path, node by node. */
+	Path: 'path',
 	Markup: 'markup',
 	Select: 'select',
 	Picker: 'picker',
@@ -60,6 +64,8 @@ export type ToolColorScope =
 const SHARED_COLOR_OWNER: Tool = PaintToolId.Brush;
 /** An eyedropper drawn for the colour picker; its tip, at the given point, samples the colour. */
 const PICKER_CURSOR = 'url("assets/cursors/pickerCursor.svg") 3 28, crosshair';
+/** A pen nib whose tip, at the given point, places each node. */
+const PEN_CURSOR = 'url("assets/cursors/penCursor.svg") 4 4, crosshair';
 
 export interface DrawingToolOptions {
 	readonly color: boolean;
@@ -140,6 +146,14 @@ const shape = (): DrawingToolBehavior => ({
 	optionSource: ToolOptionSource.Contextual,
 	sizeLabel: ToolSizeLabel.ShapeStrokeWidth,
 });
+/** The Pen and the Polyline draw one path, with its ends, filled once closed when asked. */
+const pathTool = (): DrawingToolBehavior => ({
+	kind: DrawingToolKind.Path,
+	cursor: PEN_CURSOR,
+	options: { ...CONNECTOR_OPTIONS, shapeFill: true },
+	optionSource: ToolOptionSource.Contextual,
+	sizeLabel: ToolSizeLabel.ShapeStrokeWidth,
+});
 
 type MarkupBehaviorDetails = Partial<
 	Pick<DrawingToolBehavior, 'cursor' | 'sizeLabel' | 'colorScope'>
@@ -185,6 +199,8 @@ export const DRAWING_TOOL_BEHAVIORS: Readonly<
 		optionSource: ToolOptionSource.Contextual,
 		sizeLabel: ToolSizeLabel.ShapeStrokeWidth,
 	},
+	[PathToolId.Pen]: pathTool(),
+	[PathToolId.Polyline]: pathTool(),
 	[MarkupToolId.Number]: markup(
 		{ color: true, size: true, marker: true },
 		{ sizeLabel: ToolSizeLabel.MarkerSize, colorScope: ToolColorScope.Own },
@@ -260,6 +276,9 @@ export function isShapeTool(tool: Tool): tool is ShapeTool {
 }
 export function isConnectorTool(tool: Tool): tool is ConnectorTool {
 	return isToolKind(tool, DrawingToolKind.Connector);
+}
+export function isPathTool(tool: Tool): tool is PathTool {
+	return isToolKind(tool, DrawingToolKind.Path);
 }
 export function isMarkupTool(tool: Tool): tool is MarkupTool {
 	return isToolKind(tool, DrawingToolKind.Markup);

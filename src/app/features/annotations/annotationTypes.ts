@@ -1,4 +1,7 @@
 import { LineEnd, type LineEnds } from './lineEnd';
+import type { FillRule, PathContour } from '../../core/geometry/vectorPath';
+import type { Gradient } from '../../core/geometry/gradient';
+import type { FillPattern } from '../../core/geometry/fillPattern';
 import type {
 	CropRect,
 	PaintTool,
@@ -24,6 +27,8 @@ export const AnnotationObjectTypeId = {
 	RasterFragment: 'rasterFragment',
 	/** A line through several points, with bends, as one item: a diagram link, for example. */
 	Connector: 'connector',
+	/** A vector path of straight lines and curves, as SVG draws one. */
+	Path: 'path',
 } as const;
 export type AnnotationObjectType =
 	(typeof AnnotationObjectTypeId)[keyof typeof AnnotationObjectTypeId];
@@ -55,6 +60,33 @@ export interface ObjectPixelMask {
 	strokeSourceRect?: CropRect;
 }
 
+/** A drop shadow, as SVG's feDropShadow draws one: its colour and opacity, how far it falls and how soft it is. */
+export interface ItemShadow {
+	readonly color: string;
+	readonly opacity: number;
+	/** How far it falls, in image pixels. */
+	readonly offset: Point;
+	/** How soft it is: the spread of its blur, as SVG's stdDeviation. */
+	readonly softness: number;
+}
+
+/** Effects any item can have, as SVG filters give them: a blur, and a drop shadow under it. */
+export interface ItemEffects {
+	/** How far the item is blurred: the spread of its blur, as SVG's stdDeviation. */
+	readonly blur?: number;
+	readonly shadow?: ItemShadow;
+}
+
+/**
+ * A shape an item shows only inside of, as SVG's clipPath. Its points are
+ * relative to the item's frame, from 0 to 1 on each side, so the clip moves,
+ * stretches and turns with its item.
+ */
+export interface ItemClip {
+	readonly contours: PathContour[];
+	readonly fillRule?: FillRule;
+}
+
 /** One editable item: a shape, a brush stroke, a text and so on. Items live in content layers. */
 interface AnnotationBase extends ErasableAnnotation {
 	id: string;
@@ -62,6 +94,8 @@ interface AnnotationBase extends ErasableAnnotation {
 	rotation?: number;
 	visible?: boolean;
 	locked?: boolean;
+	effects?: ItemEffects;
+	clip?: ItemClip;
 }
 
 export interface StrokePoint extends Point {
@@ -139,6 +173,26 @@ export interface ConnectorAnnotation extends AnnotationBase {
 	tail?: LineEnd;
 }
 
+export interface PathAnnotation extends AnnotationBase {
+	type: typeof AnnotationObjectTypeId.Path;
+	contours: PathContour[];
+	/** The line's colour; for a filled path without `fillColor`, the fill's too. */
+	color: string;
+	width: number;
+	opacity: number;
+	/** Whether its closed contours are filled. */
+	fill: boolean;
+	fillColor?: string;
+	fillGradient?: Gradient;
+	fillPattern?: FillPattern;
+	lineGradient?: Gradient;
+	fillRule?: FillRule;
+	dash: LineDash;
+	/** The end at the path's last point, and at its first, when its contour is open. */
+	head?: LineEnd;
+	tail?: LineEnd;
+}
+
 /** A connector's ends: its named ones, and otherwise the arrowhead its `arrow` flag asks for. */
 export function connectorEnds(connector: Pick<ConnectorAnnotation, 'arrow' | 'head' | 'tail'>): LineEnds {
 	return { head: connector.head ?? (connector.arrow ? LineEnd.Arrow : LineEnd.None), tail: connector.tail ?? LineEnd.None };
@@ -169,6 +223,12 @@ export interface ShapeAnnotation extends AnnotationBase, RectOrientation {
 	fill: boolean;
 	/** A filled shape's own fill colour, drawn under an outline in `color`. */
 	fillColor?: string;
+	/** A gradient the shape is filled with instead of a single colour. */
+	fillGradient?: Gradient;
+	/** A pattern the shape is filled with instead of a single colour. */
+	fillPattern?: FillPattern;
+	/** A gradient its outline is drawn in instead of `color`. */
+	lineGradient?: Gradient;
 }
 
 export interface StepAnnotation extends AnnotationBase {
@@ -197,7 +257,8 @@ export type AnnotationObject =
 	| StrokeAnnotation
 	| FillAnnotation
 	| RasterFragmentAnnotation
-	| ConnectorAnnotation;
+	| ConnectorAnnotation
+	| PathAnnotation;
 
 export const LinkedHistoryDomain = {
 	Document: 'document',

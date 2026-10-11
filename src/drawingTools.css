@@ -409,6 +409,7 @@
 }
 
 .drawing-panel .tool-options::before,
+.selected-object-title,
 .tool-section-title {
   display: block;
   margin: 0 0 6px;
@@ -456,27 +457,6 @@
 
 .tool-hint {
   margin: 2px 0 9px;
-  color: var(--muted);
-  font-size: 10px;
-}
-
-.sampled-color {
-  display: grid;
-  grid-template-columns: 1fr 22px auto;
-  align-items: center;
-  gap: 7px;
-  margin: 7px 0;
-}
-
-.sampled-color i {
-  width: 22px;
-  height: 22px;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  background: var(--color-black);
-}
-
-.sampled-color code {
   color: var(--muted);
   font-size: 10px;
 }

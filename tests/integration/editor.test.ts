@@ -31,6 +31,7 @@ describe("editor integration", () => {
     const newFormat = document.querySelector<HTMLSelectElement>("#newImageFormat")!;
     expect([...newFormat.options].map(option => option.text)).toEqual([
       "Little Image Editor (.limg) — preserves layers",
+      "SVG (.svg) — editable vectors",
       "PNG — flattened image",
       "JPEG — flattened image",
       "WebP — flattened image",
