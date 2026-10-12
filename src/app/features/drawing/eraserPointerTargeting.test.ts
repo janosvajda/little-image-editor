@@ -5,8 +5,6 @@ import { CanvasDocument } from '../../core/document/imageDocument';
 import { CoreLayerId } from '../../core/layers/layerTypes';
 import { AnnotationDocument, AnnotationHitTestScope } from '../annotations/annotationDocument';
 import { AnnotationObjectTypeId, type ShapeAnnotation } from '../annotations/annotationTypes';
-import { ProjectCodec } from '../projects/projectCodec';
-import { ProjectEditorAdapter } from '../projects/projectEditorAdapter';
 import { DrawingController } from './drawingController';
 
 const Surface = { width: 200, height: 160 } as const;
@@ -92,22 +90,6 @@ describe('eraser layer targeting from the pointer', () => {
 		drag(Press.Image);
 		expect(model.canUndo).toBe(false);
 		expect(objects.state.objects.every((item) => item.erasures === undefined)).toBe(true);
-	});
-
-	it('keeps erasure history and the selected layer content editable after .limg restoration', () => {
-		drag(Press.Object);
-		objects.undo();
-		expect(objects.object(Target.Lower)?.erasures).toBeUndefined();
-		objects.redo();
-		const adapter = new ProjectEditorAdapter(model, objects);
-		const codec = new ProjectCodec();
-		const project = codec.parse(codec.serializeEditorState(adapter.capture()));
-		const restored = new AnnotationDocument();
-		restored.restoreSession(codec.toEditableObjects(project));
-		expect(restored.object(Target.Lower)?.erasures).toEqual(objects.object(Target.Lower)?.erasures);
-		expect(restored.state.layers).toEqual(objects.state.layers);
-		restored.undo();
-		expect(restored.object(Target.Lower)?.erasures).toBeUndefined();
 	});
 
 	it('can inspect locked visible hits without changing the existing editable hit-test contract', () => {

@@ -6,7 +6,7 @@ import { AnnotationObjectTypeId } from './annotationTypes';
 /**
  * Item effects, as SVG filters give them: a Gaussian blur, and a drop shadow
  * beneath. Spreads are SVG's standard deviations, so an effect is the same on
- * the canvas, in a `.limg` project and in an SVG.
+ * the canvas and in an SVG.
  */
 
 /** A shadow a new one starts as: soft, falling down and to the right. */

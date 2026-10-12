@@ -180,25 +180,39 @@ function renderUnaffected(
 		renderAnnotationObjectContent(context, baseCanvas, object);
 		return;
 	}
-	resizeErasedObjectCanvas(context.canvas.width, context.canvas.height);
-	erasedObjectContext.clearRect(
-		0,
-		0,
-		erasedObjectCanvas.width,
-		erasedObjectCanvas.height,
-	);
+	// Erasing takes away from everything under it, so an item is erased on a canvas of its own, unless the context already keeps it apart.
+	const target = isolatesItems(context) ? context : clearedErasedObjectContext(context);
 	if (
 		object.type === AnnotationObjectTypeId.Stroke &&
 		(object.erasures?.length || object.pixelCutouts?.length)
 	)
-		renderChronologicallyModifiedStroke(erasedObjectContext, object);
+		renderChronologicallyModifiedStroke(target, object);
 	else {
-		renderAnnotationObjectContent(erasedObjectContext, baseCanvas, object);
-		applyObjectErasures(erasedObjectContext, object);
-		applyPixelCutouts(erasedObjectContext, object);
+		renderAnnotationObjectContent(target, baseCanvas, object);
+		applyObjectErasures(target, object);
+		applyPixelCutouts(target, object);
 	}
-	applyPixelClips(erasedObjectContext, object);
-	context.drawImage(erasedObjectCanvas, 0, 0);
+	applyPixelClips(target, object);
+	if (target !== context) context.drawImage(erasedObjectCanvas, 0, 0);
+}
+
+/**
+ * A drawing context that keeps each item apart from everything else, as an
+ * SVG recording of one item does: erasing in it takes away only from that
+ * item, so nothing needs erasing on a canvas of its own first.
+ */
+export interface ItemIsolatingContext {
+	readonly isolatesItems: true;
+}
+
+function isolatesItems(context: CanvasRenderingContext2D): boolean {
+	return (context as Partial<ItemIsolatingContext>).isolatesItems === true;
+}
+
+function clearedErasedObjectContext(context: CanvasRenderingContext2D): CanvasRenderingContext2D {
+	resizeErasedObjectCanvas(context.canvas.width, context.canvas.height);
+	erasedObjectContext.clearRect(0, 0, erasedObjectCanvas.width, erasedObjectCanvas.height);
+	return erasedObjectContext;
 }
 
 function applyPixelCutouts(

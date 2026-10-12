@@ -20,7 +20,7 @@ const PictureSize = {
 } as const;
 const BASE64 = 'base64';
 const NO_IMAGES_MESSAGE =
-	'No image is open in Little Image Editor. Open an image or a .limg project in VS Code with Little Image Editor first.';
+	'No image is open in Little Image Editor. Open an image or an SVG in VS Code with Little Image Editor first.';
 const ASSISTANT_INSTRUCTIONS =
 	'Little Image Editor in VS Code: images with editable layers. To draw, send the whole picture in one draw call (one undo step) rather than many add_* calls. For an architecture, flow, state, class or sequence diagram, including one made from code you have read, pass Mermaid as draw\'s diagram; it is laid out automatically into editable shapes. Use describe_image before changing existing work, and view_image only when you need to see the result. Group parts on named layers. For a requested asset file, use export_image with the workspace PNG path.';
 

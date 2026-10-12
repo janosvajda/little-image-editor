@@ -17,8 +17,6 @@ import { IMAGE_VIEW_TYPE, openUntitledImage, untitledImageUri } from './untitled
 
 /** Must match `contributes.customEditors[].viewType` in the extension manifest. */
 const ViewType = {
-	/** Opens .limg projects by default. */
-	Project: 'littleImageEditor.project',
 	/** Offered for images through "Open With…", leaving VS Code's image preview the default. */
 	Image: IMAGE_VIEW_TYPE,
 } as const;

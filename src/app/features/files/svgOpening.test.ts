@@ -4,7 +4,6 @@ import { CanvasDocument } from '../../core/document/imageDocument';
 import { decodeSvg, SVG_MIME_TYPE } from '../../core/document/svgImage';
 import type { EditorPlatform, SaveTarget } from '../../platform/editorPlatform';
 import { editorPlatform } from '../../platform/editorPlatform';
-import { PROJECT_MIME_TYPE } from '../projects/projectTypes';
 import { FileController } from './fileController';
 import { fileTypeOfName } from './openFileTypes';
 
@@ -55,12 +54,6 @@ describe('opening an SVG file', () => {
 		expect([model.width, model.height]).toEqual([40, 20]);
 		expect(model.baseName).toBe('logo');
 		expect(model.savedType).toBe(ImageMimeType.Png);
-	});
-
-	it('is known by its name, as images and projects are', () => {
-		expect(fileTypeOfName('logo.svg')).toBe(SVG_MIME_TYPE);
-		expect(fileTypeOfName('photo.jpg')).toBe(ImageMimeType.Jpeg);
-		expect(fileTypeOfName('plan.limg')).toBe(PROJECT_MIME_TYPE);
 	});
 
 	it('is saved into as SVG, never as pixels, and only by an editor that can write SVG', async () => {

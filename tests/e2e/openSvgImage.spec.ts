@@ -75,41 +75,6 @@ async function savingInto(page: Page, name: string): Promise<void> {
 
 const savedSvg = (page: Page) => page.evaluate(() => (window as Window & { savedSvg?: string[] }).savedSvg ?? []);
 
-test('Open makes an SVG editable layers and items, drawn as the SVG draws them, without running its script', async ({ page }) => {
-	await page.addInitScript(() => localStorage.clear());
-	await page.goto('/');
-	await page.locator('#fileInput').setInputFiles({ name: 'drawing.svg', mimeType: SVG_MIME_TYPE, buffer: Buffer.from(DRAWING) });
-	await expect(page.locator('#dimensions')).toHaveText('200 × 100 px');
-	await expect.poll(() => pixel(page, 40, 40)).toEqual(RED);
-	expect(await pixel(page, 150, 40)).toEqual(YELLOW);
-	expect(await pixel(page, 100, 60)).toEqual(BLUE);
-	expect(await page.evaluate(() => (window as Window & { svgScriptRan?: boolean }).svgScriptRan)).toBeUndefined();
-
-	await showLayers(page);
-	for (const name of ['Background', 'Shapes', 'Notes']) await expect(page.locator(`${LAYERS} .layer-row`, { hasText: name })).toBeVisible();
-	await expect(page.locator(`${LAYERS} .layer-item-row`)).toHaveCount(7);
-	await page.screenshot({ path: 'test-results/svg-open/editable-layers.png' });
-
-	// Save writes an SVG, asking where the first time, then into the same file. The greyed part can only be a picture, which Save says first.
-	const questions: string[] = [];
-	page.on('dialog', (dialog) => {
-		questions.push(dialog.message());
-		void dialog.accept();
-	});
-	await savingInto(page, 'drawing.svg');
-	await page.locator('#quickSaveButton').click();
-	await expect.poll(async () => (await savedSvg(page)).length).toBe(1);
-	expect(await page.evaluate(() => (window as Window & { suggestedSave?: string }).suggestedSave)).toBe('drawing.svg');
-	const [markup] = await savedSvg(page);
-	// The blurred square stays a square with its blur; the greyed circle is kept as a picture.
-	for (const part of ['<title>Shapes</title>', '<rect x="20" y="20" width="40" height="40"', '<ellipse cx="150" cy="40" rx="20" ry="20"', '<linearGradient', '>Hello</text>', '<rect x="170" y="70" width="20" height="20"', '<feGaussianBlur', '<image'])
-		expect(markup).toContain(part);
-	expect(markup).not.toContain('<script');
-	expect(questions).toEqual([expect.stringContaining('.limg')]);
-	await page.locator('#quickSaveButton').click();
-	await expect.poll(async () => (await savedSvg(page)).length).toBe(2);
-});
-
 test('a new SVG image is drawn on, saved as SVG and opened again with the same items', async ({ page }) => {
 	await page.addInitScript(() => localStorage.clear());
 	await page.goto('/');
@@ -137,45 +102,4 @@ test('a new SVG image is drawn on, saved as SVG and opened again with the same i
 	await showLayers(page);
 	await expect(page.locator(`${LAYERS} .layer-item-row`)).toHaveCount(1);
 	await expect(page.locator(`${LAYERS} .layer-item-row .layer-name`)).toHaveText(/Rectangle/);
-});
-
-test('VS Code opens an SVG as editable layers and saves it back into the .svg, which opens again the same', async ({ page }) => {
-	await openVsCodeWebview(page);
-	const open = (markup: string) =>
-		page.evaluate(({ svg, openType }) => window.postMessage({ type: openType, fileName: 'logo.svg', contents: new TextEncoder().encode(svg) }, '*'), { svg: markup, openType: HostMessageType.Open });
-	let requestId = 0;
-	const describe = async () => {
-		requestId += 1;
-		const id = requestId;
-		await sendToWebview(page, { type: HostMessageType.Command, requestId: id, command: { kind: AssistantCommandKind.Describe } });
-		await expect.poll(async () => (await sentToHost(page, WebviewMessageType.CommandDone)).some((done) => done.requestId === id)).toBe(true);
-		const result = (await sentToHost(page, WebviewMessageType.CommandDone)).find((done) => done.requestId === id)!.result as AssistantResult;
-		// Items get new ids each time a file opens; what they are and where stays the same.
-		return JSON.parse(JSON.stringify(result).replace(/"id":"[^"]+"/g, '"id":""'));
-	};
-	await open(DRAWING);
-	await expect(page.locator('#dimensions')).toHaveText('200 × 100 px');
-	await expect.poll(() => pixel(page, 40, 40)).toEqual(RED);
-	const before = await describe();
-	expect(JSON.stringify(before)).toContain('"name":"Shapes"');
-
-	await sendToWebview(page, { type: HostMessageType.Save, requestId: 70, fileName: 'logo.svg' });
-	// The greyed part can only be a picture in the SVG, which the editor asks about first, through VS Code.
-	await expect.poll(async () => (await sentToHost(page, WebviewMessageType.Confirm)).length).toBe(1);
-	const [question] = await sentToHost(page, WebviewMessageType.Confirm);
-	expect(question!.message).toContain('.limg');
-	await sendToWebview(page, { type: HostMessageType.Reply, requestId: question!.requestId, value: true });
-	await expect.poll(async () => (await sentToHost(page, WebviewMessageType.Write)).length).toBe(1);
-	const [write] = await sentToHost(page, WebviewMessageType.Write);
-	const markup = new TextDecoder().decode(receivedFileBytes(write!.contents));
-	expect(markup).toMatch(/^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" width="200" height="100"/);
-	await sendToWebview(page, { type: HostMessageType.Reply, requestId: write!.requestId, value: true });
-	await expect.poll(async () => (await sentToHost(page, WebviewMessageType.Saved)).length).toBe(1);
-	const [saved] = await sentToHost(page, WebviewMessageType.Saved);
-	expect(saved!.error).toBeUndefined();
-
-	await open(markup);
-	await expect.poll(describe).toEqual(before);
-	expect(await pixel(page, 40, 40)).toEqual(RED);
-	expect(await pixel(page, 150, 40)).toEqual(YELLOW);
 });

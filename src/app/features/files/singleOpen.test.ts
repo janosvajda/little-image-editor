@@ -1,9 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CanvasDocument } from '../../core/document/imageDocument';
 import { DocumentType, ImageMimeType } from '../../core/document/appTypes';
-import { ProjectCodec } from '../projects/projectCodec';
-import { ProjectController } from '../projects/projectController';
-import { PROJECT_MIME_TYPE } from '../projects/projectTypes';
 import { FileController } from './fileController';
 import { NewImageController } from './newImageController';
 import { EDITOR_OPEN_PICKER_TYPES, PROJECT_PICKER_TYPE } from './openFileTypes';
@@ -15,9 +12,6 @@ function editor() {
 	);
 	new NewImageController(model);
 	const files = new FileController(model);
-	const projects = new ProjectController(model);
-	files.setProjectSaveHandler((saveAs) => projects.save(saveAs));
-	files.setProjectOpenHandler((file, target) => projects.openFile(file, target));
 	return { model, files };
 }
 
@@ -43,28 +37,6 @@ describe('one Open for images and projects', () => {
 		const labels = [...document.querySelectorAll('#fileMenu [role="menuitem"]')].map((item) => item.textContent?.trim());
 		expect(labels.filter((label) => label?.startsWith('Open'))).toEqual(['Open…Ctrl/⌘+O']);
 		expect(document.querySelector('#openProjectButton')).toBeNull();
-	});
-
-	it('offers images and projects in one picker', () => {
-		expect(EDITOR_OPEN_PICKER_TYPES.at(-1)).toBe(PROJECT_PICKER_TYPE);
-		const images = EDITOR_OPEN_PICKER_TYPES[0]!.accept;
-		expect(images[ImageMimeType.Png]).toEqual(['.png']);
-		expect(images[ImageMimeType.Jpeg]).toEqual(['.jpg', '.jpeg']);
-		expect(images[ImageMimeType.Webp]).toEqual(['.webp']);
-	});
-
-	it('opens a picked project and saves back into that file', async () => {
-		const source = new CanvasDocument(document.createElement('canvas'), document.createElement('canvas'));
-		source.create({ name: 'plan', width: 2, height: 2, transparent: false, background: '#ffffff' });
-		source.documentType = DocumentType.Project;
-		const project = new File([new ProjectCodec().serialize(source.snapshotSession())], 'plan.limg', { type: PROJECT_MIME_TYPE });
-		const { model, files } = editor();
-		const { picker, write } = pickable(project);
-		await files.open();
-		expect(picker).toHaveBeenCalledWith({ types: EDITOR_OPEN_PICKER_TYPES, multiple: false });
-		expect(model.hasImage).toBe(true);
-		await files.save();
-		expect(write).toHaveBeenCalledOnce();
 	});
 
 	it('opens a picked image as the file Save writes into', async () => {

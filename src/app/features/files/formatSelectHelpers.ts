@@ -4,7 +4,6 @@ import {
 	imageFormat,
 } from '../../core/document/imageFormats';
 import { SVG_EXTENSION, SVG_MIME_TYPE } from '../../core/document/svgFormat';
-import { PROJECT_EXTENSION, PROJECT_MIME_TYPE } from '../projects/projectTypes';
 
 const RasterFlatteningMessage =
 	'Raster formats save a flattened image. Layers remain editable in the open document, but cannot be restored from the saved raster file.';
@@ -27,13 +26,7 @@ export function isImageFileType(value: string): value is (typeof IMAGE_FORMATS)[
 
 export function populateDocumentFileTypeSelect(select: HTMLSelectElement): void {
 	select.replaceChildren(
-		new Option(
-			`Little Image Editor (.${PROJECT_EXTENSION}) — preserves layers`,
-			PROJECT_MIME_TYPE,
-			true,
-			true,
-		),
-		new Option(`SVG (.${SVG_EXTENSION}) — editable vectors`, SVG_MIME_TYPE),
+		new Option(`SVG (.${SVG_EXTENSION}) — editable layers and vectors`, SVG_MIME_TYPE, true, true),
 		...IMAGE_FORMATS.map(
 			(format) =>
 				new Option(`${format.label} — flattened image`, format.mimeType),
@@ -42,8 +35,6 @@ export function populateDocumentFileTypeSelect(select: HTMLSelectElement): void 
 }
 
 export function documentFileTypeWarning(fileType: string): string {
-	if (fileType === PROJECT_MIME_TYPE)
-		return `.${PROJECT_EXTENSION} preserves layers, editable objects, and document settings.`;
 	return fileType === SVG_MIME_TYPE ? SvgDocumentMessage : RasterFlatteningMessage;
 }
 

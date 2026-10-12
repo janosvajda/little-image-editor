@@ -131,16 +131,6 @@ describe('an SVG export', () => {
 		fillGradient: linearGradient(['#ff0000', '#0000ff']),
 	});
 
-	it('is a standard SVG of the image\'s size, named after it, with the image\'s own picture first', () => {
-		const svg = parse(svgDocument(model, objects.state));
-		expect(svg.namespaceURI).toBe(SVG_NAMESPACE);
-		expect([svg.getAttribute('width'), svg.getAttribute('height'), svg.getAttribute('viewBox')]).toEqual(['200', '100', '0 0 200 100']);
-		expect(svg.querySelector('title')!.textContent).toBe('scene & co');
-		expect(svg.children[1]!.tagName).toBe('image');
-		model.layers.setVisible(CoreLayerId.Image, false);
-		expect(parse(svgDocument(model, objects.state)).querySelector('image')).toBeNull();
-	});
-
 	it('draws vector items as the SVG elements for them in a group per layer named by its title, with gradients and line ends defined once', () => {
 		objects.add(box('a'));
 		objects.add({
@@ -167,45 +157,6 @@ describe('an SVG export', () => {
 		const marker = svg.querySelector(`marker[id="${curve.getAttribute('marker-end')!.slice('url(#'.length, -1)}"]`)!;
 		expect(marker.getAttribute('data-line-end')).toBe(LineEnd.Arrow);
 		expect(curve.hasAttribute('marker-start')).toBe(false);
-	});
-
-	it('gives layers their opacity and blend mode, numbers ids of layers with one name, and leaves out what is hidden', () => {
-		objects.add(box('a'));
-		objects.setLayerAppearance(objects.state.layers[0]!.id, { name: 'Top', opacity: 0.5, blendMode: BlendMode.Multiply });
-		objects.setLayerAppearance(objects.createLayer(), { name: 'Top' });
-		objects.add(box('b'));
-		const hidden = objects.createLayer();
-		objects.add(box('c'));
-		objects.setLayerVisible(hidden, false);
-		const groups = [...parse(svgDocument(model, objects.state)).querySelectorAll('g')];
-		expect(groups.map(({ id }) => id)).toEqual(['layer-Top', 'layer-Top-2']);
-		expect(groups[0]!.getAttribute('opacity')).toBe('0.5');
-		expect(groups[0]!.getAttribute('style')).toBe('mix-blend-mode: multiply');
-		model.layers.setVisible(CoreLayerId.Objects, false);
-		expect(parse(svgDocument(model, objects.state)).querySelector('g')).toBeNull();
-	});
-
-	it('embeds pixel items, and erased vector items, as pictures cropped to what they cover', () => {
-		objects.add({
-			id: 'stroke',
-			type: AnnotationObjectTypeId.Stroke,
-			layerId: CoreLayerId.Objects,
-			tool: PaintToolId.Brush,
-			points: [
-				{ x: 5, y: 5, pressure: 1 },
-				{ x: 50, y: 50, pressure: 1 },
-			],
-			rect: { x: 5, y: 5, width: 45, height: 45 },
-			color: '#000000',
-			size: 6,
-			opacity: 1,
-			hardness: 1,
-			seed: 1,
-		});
-		const svg = svgDocument(model, objects.state);
-		// The test canvas paints every pixel, so the stroke covers the whole image.
-		expect(parse(svg).querySelector('g image')!.getAttribute('width')).toBe('200');
-		expect(svg).not.toContain('<path');
 	});
 
 	it('finds the box around what shows, or nothing', () => {

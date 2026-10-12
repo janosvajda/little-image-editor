@@ -7,7 +7,7 @@ test("shows compact save and close icons and confirms destructive image closing"
   await page.getByRole("button", { name: "Create image" }).click();
 
   await expect(page.locator("#quickSaveButton svg")).toHaveClass(/filled-icon/);
-  await expect(page.locator("#quickSaveButton svg path")).toHaveAttribute("fill-rule", "evenodd");
+  await expect(page.locator('#quickSaveButton svg path[fill-rule="evenodd"]')).toHaveCount(1);
   await expect(page.locator("#quickCloseImageButton svg")).toBeVisible();
   await expect(page.locator("#quickCloseImageButton")).toBeEnabled();
 

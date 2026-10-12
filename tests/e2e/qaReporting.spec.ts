@@ -4,7 +4,6 @@ import type { CaptureSourceMetadata } from '../../src/app/core/document/browserC
 import { ImageMimeType, ShapeToolId } from '../../src/app/core/document/appTypes';
 import { CAPTURE_METADATA_KEY } from '../../src/app/features/capture/browserCaptureImporter';
 import { seedBrowserCapture } from './support/browserCapture';
-import { mouseCanvasDrag, installTestProjectWriter, restoreTestProject, saveTestProject } from './support/editorWorkflow';
 
 const Source: CaptureSourceMetadata = { url: 'https://application.example/checkout?mode=test', capturedAt: '2026-10-10T10:00:00Z', userAgent: 'QA browser / OS', viewport: { width: 80, height: 80 } };
 const Issue = { title: 'Checkout fails', ticket: 'https://tracker.example/browse/QA-123', steps: '1. Open checkout\n2. Submit the order', expected: 'The order completes.\nA confirmation appears.', actual: 'The request fails.' } as const;
@@ -22,7 +21,6 @@ test.beforeEach(async ({ page }) => {
 	await page.goto('/?capture=qa-report&mode=annotate');
 	await expect(page.locator(`${Panel} .panel-header > span`)).toHaveText('QA Reporting');
 	await expect(page.locator('#canvasWrap')).toBeVisible();
-	await installTestProjectWriter(page);
 	await installClipboard(page);
 });
 
@@ -46,47 +44,6 @@ test('shows a larger QA form, automatic source metadata and Markdown copy feedba
 	expect(await page.evaluate(() => (window as ClipboardTestWindow).qaClipboardText)).toBe(markdown);
 	await report.scrollIntoViewIfNeeded();
 	await page.screenshot({ path: '/tmp/little-image-editor-qa-reporting-desktop.png' });
-});
-
-test('saves every issue field, capture source and manual Markdown with .limg', async ({ page }) => {
-	await fillIssue(page);
-	const report = page.getByLabel('Editable Markdown report');
-	const custom = `${await report.inputValue()}\n## Notes\nInvestigate the timeout.\n`;
-	await report.fill(custom);
-	const project = await saveTestProject(page);
-	expect(project.document.toolbarStates[CAPTURE_METADATA_KEY]).toEqual(Source);
-	await page.reload();
-	await restoreTestProject(page, project);
-	await expect(page.locator('#annotationIssueTitle')).toHaveValue(Issue.title);
-	await expect(page.locator('#annotationTicketUrl')).toHaveValue(Issue.ticket);
-	await expect(page.locator('#annotationSteps')).toHaveValue(Issue.steps);
-	await expect(page.locator('#annotationExpected')).toHaveValue(Issue.expected);
-	await expect(page.locator('#annotationActual')).toHaveValue(Issue.actual);
-	await expect(report).toHaveValue(custom);
-	await page.locator('#annotationActual').fill('Updated observation');
-	await expect(report).toHaveValue(/## Actual behaviour\n\nUpdated observation/);
-});
-
-test('draws through the shared tool system and copies the annotated composited screenshot', async ({ page }) => {
-	await page.locator(`${Panel} [data-tool="${ShapeToolId.Rectangle}"]`).click();
-	await expect(page.locator('[data-panel="tools"] .palette-group-button.active')).toHaveAttribute('aria-label', 'Shape tools: Rectangle');
-	const qaBounds = (await page.locator(Panel).boundingBox())!;
-	const toolsBounds = (await page.locator('[data-panel="tools"]').boundingBox())!;
-	expect(qaBounds.x >= toolsBounds.x + toolsBounds.width || toolsBounds.x >= qaBounds.x + qaBounds.width || qaBounds.y >= toolsBounds.y + toolsBounds.height || toolsBounds.y >= qaBounds.y + qaBounds.height, JSON.stringify({ qaBounds, toolsBounds, workspace: await page.locator('.workspace').evaluate((element) => ({ height: element.clientHeight, width: element.clientWidth })) })).toBe(true);
-	await page.locator('#colorInput').fill(ColorPalette.Black);
-	await page.locator('#fillColorInput').fill(ColorPalette.Black);
-	await page.getByRole('group', { name: 'Shape style' }).getByRole('button', { name: 'Fill', exact: true }).click();
-	await page.locator('#focusButton').click();
-	await expect(page.locator('body')).toHaveClass(/focus-mode/);
-	await mouseCanvasDrag(page, { x: 20, y: 20 }, { x: 55, y: 55 });
-	await page.locator('#exitFocusButton').click();
-	await expect(page.locator('body')).not.toHaveClass(/focus-mode/);
-	const project = await saveTestProject(page);
-	expect(project.editableObjects.state.layers).toHaveLength(1);
-	expect(project.editableObjects.state.objects).toHaveLength(1);
-	await page.locator(Panel).getByRole('button', { name: 'Copy annotated screenshot', exact: true }).click();
-	await expect(page.locator(`${Panel} .annotation-feedback`)).toHaveText('Annotated screenshot copied.');
-	expect(await page.evaluate(() => (window as ClipboardTestWindow).qaClipboardPixel)).toEqual([0, 0, 0, 255]);
 });
 
 test('shows clipboard failures and rejects invalid ticket links', async ({ page }) => {

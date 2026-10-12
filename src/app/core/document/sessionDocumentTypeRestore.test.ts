@@ -32,7 +32,7 @@ describe('session document type restore', () => {
 		});
 	});
 
-	it.each([DocumentType.Project, DocumentType.Image])(
+	it.each([DocumentType.Image])(
 		'restores a %s session snapshot with its document type',
 		(documentType) => {
 			const source = canvasDocument();
@@ -53,14 +53,4 @@ describe('session document type restore', () => {
 		expect(restored.documentType).toBe(DocumentType.Image);
 	});
 
-	it('keeps a layered project a project after a browser recovery', async () => {
-		const source = canvasDocument();
-		new SessionPersistence(source);
-		createDocument(source, DocumentType.Project);
-		const restored = canvasDocument();
-		await expect
-			.poll(() => new SessionPersistence(restored).restore())
-			.toBe(true);
-		expect(restored.documentType).toBe(DocumentType.Project);
-	});
 });

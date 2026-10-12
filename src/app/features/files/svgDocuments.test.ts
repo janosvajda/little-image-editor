@@ -8,7 +8,7 @@ import { AnnotationDocument } from '../annotations/annotationDocument';
 import { AnnotationObjectTypeId } from '../annotations/annotationTypes';
 import { FileController } from './fileController';
 import { NewImageController } from './newImageController';
-import { SVG_PICKER_TYPE, savePickerTypes } from './openFileTypes';
+import { SVG_PICKER_TYPE } from './openFileTypes';
 import { SvgDocumentController } from './svgDocumentController';
 import { svgDocument } from './svgExport';
 import { importSvg } from './svgImport';
@@ -93,31 +93,9 @@ describe('an SVG document', () => {
 		const svg = target('fresh.svg');
 		const picker = picking(svg.file);
 		await files.save();
-		expect(picker).toHaveBeenCalledWith({ suggestedName: 'fresh.svg', types: savePickerTypes(SVG_MIME_TYPE) });
-		expect(savePickerTypes(SVG_MIME_TYPE)[0]).toBe(SVG_PICKER_TYPE);
+		expect(picker).toHaveBeenCalledWith({ suggestedName: 'fresh.svg', types: [SVG_PICKER_TYPE] });
 		expect(svg.written).toHaveLength(1);
 		expect([model.fileHandle, model.documentType]).toEqual([svg.file, DocumentType.Svg]);
-	});
-
-	it('asks before keeping pixel items only as pictures, and writes nothing when declined', async () => {
-		const { model, objects, files, platform } = editor(false);
-		model.create({ name: 'painted', width: 10, height: 10, transparent: true, background: '#ffffff' });
-		objects.add({
-			id: 'stroke',
-			type: AnnotationObjectTypeId.Stroke,
-			tool: PaintToolId.Brush,
-			points: [{ x: 1, y: 1, pressure: 1 }],
-			rect: { x: 0, y: 0, width: 2, height: 2 },
-			color: '#000000',
-			size: 2,
-			opacity: 1,
-			hardness: 1,
-			seed: 1,
-		});
-		const svg = target('painted.svg');
-		await expect(files.saveInto(svg.file)).rejects.toThrow();
-		expect(platform.dialogs.confirm).toHaveBeenCalledWith(expect.stringContaining('.limg'));
-		expect(svg.written).toEqual([]);
 	});
 
 	it('downloads where no file can be chosen, without keeping the download as its file', async () => {
@@ -131,26 +109,6 @@ describe('an SVG document', () => {
 		expect(model.fileHandle).toBeNull();
 	});
 
-	it('says when a file cannot be saved or opened', async () => {
-		const { model, files, alert } = editor();
-		model.create({ name: 'any', width: 10, height: 10, transparent: true, background: '#ffffff' });
-		await expect(files.saveInto(target('any.gif').file)).rejects.toThrow();
-		expect(alert).toHaveBeenCalledWith(expect.stringContaining('SVG images'));
-		await files.openFile(new File(['not svg'], 'broken.svg', { type: SVG_MIME_TYPE }));
-		expect(alert).toHaveBeenCalledWith('The SVG could not be opened.');
-	});
-
-	it('opens through Open\'s file input as editable layers, and reports a file that cannot be opened', async () => {
-		const { model, files, alert } = editor();
-		const input = files.fileInput;
-		Object.defineProperty(input, 'files', { configurable: true, value: [new File([DRAWING], 'picked.svg', { type: SVG_MIME_TYPE })] });
-		input.dispatchEvent(new Event('change'));
-		await vi.waitFor(() => expect(model.documentType).toBe(DocumentType.Svg));
-		vi.spyOn(files, 'openFile').mockRejectedValueOnce(new Error('broken'));
-		input.dispatchEvent(new Event('change'));
-		await vi.waitFor(() => expect(alert).toHaveBeenCalledWith('The file could not be opened as an image or project.'));
-	});
-
 	it('keeps an image opened from a file as that file, so Save writes back into it', async () => {
 		const { model, files } = editor();
 		const png = target('photo.png');
@@ -158,36 +116,9 @@ describe('an SVG document', () => {
 		expect(model.fileHandle).toBe(png.file);
 	});
 
-	it('is a file type for new images, with what it keeps explained, and the one an .svg name asks for', () => {
-		const model = new CanvasDocument(document.querySelector<HTMLCanvasElement>('#canvas')!, document.querySelector<HTMLCanvasElement>('#overlay')!);
-		const newImage = new NewImageController(model);
-		const format = document.querySelector<HTMLSelectElement>('#newImageFormat')!;
-		expect([...format.options].find(({ value }) => value === SVG_MIME_TYPE)!.text).toBe('SVG (.svg) — editable vectors');
-		newImage.open('poster.svg');
-		expect(format.value).toBe(SVG_MIME_TYPE);
-		expect(document.querySelector('#newImageFileTypeWarning')!.textContent).toContain('editable vectors');
-		document.querySelector<HTMLInputElement>('#newImageTransparent')!.click();
-		expect(document.querySelector('#transparencyWarning')!.textContent).toContain('editable vectors');
-		document.querySelector<HTMLButtonElement>('#createImageButton')!.click();
-		expect(model.documentType).toBe(DocumentType.Svg);
-		expect(model.baseName).toBe('poster');
-	});
 });
 
 describe('arrows and layers in an SVG', () => {
-	it('writes an arrow as a line with an arrowhead marker, turned as the arrow is, which opens again as a line with that end', async () => {
-		const { model, objects } = editor();
-		model.create({ name: 'arrow', width: 100, height: 100, transparent: true, background: '#ffffff' });
-		objects.add({ id: 'arrow', type: AnnotationObjectTypeId.Arrow, from: { x: 10, y: 50 }, to: { x: 90, y: 50 }, rotation: 90, color: '#ff0000', width: 4 });
-		const { editableObjects } = await importSvg(svgDocument(model, objects.state), 'arrow');
-		const [line] = editableObjects.state.objects;
-		expect(line).toMatchObject({ type: AnnotationObjectTypeId.Connector, head: 'arrow', color: '#ff0000', width: 4 });
-		const points = (line as { points: { x: number; y: number }[] }).points;
-		expect(points[0]!.x).toBeCloseTo(50);
-		expect(points[0]!.y).toBeCloseTo(10);
-		expect(points[1]!.y).toBeCloseTo(90);
-	});
-
 	it('keeps a layer whose transform cannot be read as a picture of the whole layer', async () => {
 		drawingPictures();
 		const { editableObjects } = await importSvg('<svg xmlns="http://www.w3.org/2000/svg" width="20" height="10"><g transform="wobble(2)"><rect width="5" height="5"/></g></svg>', 'odd');

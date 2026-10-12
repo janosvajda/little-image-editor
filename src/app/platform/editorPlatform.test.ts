@@ -2,7 +2,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ImageMimeType } from '../core/document/appTypes';
 import { CanvasDocument } from '../core/document/imageDocument';
 import { ClipboardController } from '../features/files/clipboardController';
+import { AnnotationDocument } from '../features/annotations/annotationDocument';
 import { FileController } from '../features/files/fileController';
+import { SvgDocumentController } from '../features/files/svgDocumentController';
 import { ToolbarLayoutStore } from '../features/workspace/toolbarLayoutStore';
 import { createBrowserPlatform } from './browserPlatform';
 import {
@@ -48,7 +50,7 @@ function hostPlatform(target: SaveTarget): EditorPlatform & {
 
 function hostTarget(written: Blob[]): SaveTarget {
 	return {
-		name: 'diagram.png',
+		name: 'diagram.svg',
 		createWritable: async () => ({
 			write: async (contents) => void written.push(contents),
 			close: async () => undefined,
@@ -77,11 +79,13 @@ describe('editor platform', () => {
 		);
 		model.create({ name: 'diagram', ...Surface, transparent: false, background: '#ffffff' });
 		vi.spyOn(model, 'toBlob').mockResolvedValue(new Blob(['png'], { type: ImageMimeType.Png }));
+		vi.spyOn(HTMLCanvasElement.prototype, 'toDataURL').mockReturnValue('data:image/png;base64,AAAA');
 
 		const files = new FileController(model);
+		files.setSvgDocument(new SvgDocumentController(model, new AnnotationDocument()));
 		await files.saveAs();
 		expect(written).toHaveLength(1);
-		expect(model.fileHandle?.name).toBe('diagram.png');
+		expect(model.fileHandle?.name).toBe('diagram.svg');
 		await files.save();
 		expect(written).toHaveLength(2);
 

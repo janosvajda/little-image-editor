@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { CanvasDocument } from '../../core/document/imageDocument';
+import type { SaveTarget } from '../../platform/editorPlatform';
 import { AnnotationDocument } from '../annotations/annotationDocument';
 import { AnnotationObjectTypeId } from '../annotations/annotationTypes';
 import { FileController } from './fileController';
@@ -41,10 +42,9 @@ describe('raster layer flattening warning', () => {
 		});
 		const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
 
-		await files.saveAs();
+		await expect(files.saveInto(handle as unknown as SaveTarget)).rejects.toThrow('Saving was cancelled.');
 
 		expect(confirm).toHaveBeenCalledWith(expect.stringContaining('flattened'));
-		expect(picker).toHaveBeenCalledOnce();
 		expect(handle.createWritable).not.toHaveBeenCalled();
 		expect(objects.object('editable-box')).not.toBeNull();
 	});

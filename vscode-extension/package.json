@@ -1,9 +1,9 @@
 {
   "name": "little-image-editor",
   "displayName": "Little Image Editor",
-  "description": "Edit images and layered .limg projects inside VS Code.",
+  "description": "Edit images and layered SVG documents inside VS Code.",
   "icon": "webview/assets/images/extensionIcon-128.png",
-  "version": "0.3.28",
+  "version": "0.3.31",
   "publisher": "janosvajda",
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
@@ -24,16 +24,6 @@
   ],
   "contributes": {
     "customEditors": [
-      {
-        "viewType": "littleImageEditor.project",
-        "displayName": "Little Image Editor",
-        "selector": [
-          {
-            "filenamePattern": "*.limg"
-          }
-        ],
-        "priority": "default"
-      },
       {
         "viewType": "littleImageEditor.image",
         "displayName": "Little Image Editor",

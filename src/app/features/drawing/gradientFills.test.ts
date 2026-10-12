@@ -16,7 +16,6 @@ import {
 import { parsePathData } from '../../core/geometry/vectorPath';
 import { AnnotationDocument } from '../annotations/annotationDocument';
 import { renderAnnotationObject } from '../annotations/annotationRenderer';
-import { isAnnotationSessionState } from '../annotations/annotationSerialization';
 import { AnnotationObjectTypeId, LineDash, type ShapeAnnotation } from '../annotations/annotationTypes';
 import { EditableObjectPropertyId, editableObjectProperties, FillStyle, setEditableObjectProperty } from '../annotations/editableObjectProperties';
 import { AssistantCommandRunner } from '../assistant/assistantCommandRunner';
@@ -113,15 +112,6 @@ describe('filling with a gradient', () => {
 		expect(createLinearGradient).toHaveBeenCalledWith(0, 50, 100, 50);
 	});
 
-	it('saves gradients into projects, and refuses a broken one', () => {
-		const objects = new AnnotationDocument();
-		objects.add(structuredClone(BOX));
-		const saved = JSON.parse(JSON.stringify(objects.snapshotSession()));
-		expect(isAnnotationSessionState(saved)).toBe(true);
-		const broken = structuredClone(saved);
-		broken.state.objects[0].fillGradient.stops = [];
-		expect(isAnnotationSessionState(broken)).toBe(false);
-	});
 });
 
 describe('choosing a fill', () => {

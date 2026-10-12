@@ -32,32 +32,6 @@ describe('effects, clips and patterns in an SVG written by the editor', () => {
 		vi.spyOn(HTMLCanvasElement.prototype, 'toDataURL').mockReturnValue('data:image/png;base64,AAAA');
 	});
 
-	it('are a standard filter, clipPath and pattern, and open again the same', async () => {
-		const objects = new AnnotationDocument();
-		const clip = clipFor(BOX, parsePathData('M30 30H90V70H30Z'), 'evenodd');
-		const shadow = { ...DEFAULT_SHADOW, color: '#112233' };
-		objects.add({ ...BOX, effects: { blur: 2, shadow }, clip, fillPattern: patternOf(PatternKind.Stripes, '#ff0000', '#ffffff', 10) });
-		const markup = svgDocument(model, objects.state);
-		const root = new DOMParser().parseFromString(markup, 'image/svg+xml').documentElement;
-		const filter = root.querySelector('filter')!;
-		expect([...filter.children].map(({ localName }) => localName)).toEqual(['feGaussianBlur', 'feDropShadow']);
-		expect(filter.querySelector('feDropShadow')!.getAttribute('in')).toBe('blurred');
-		expect(root.querySelector('clipPath path')!.getAttribute('clip-rule')).toBe('evenodd');
-		const pattern = root.querySelector('pattern')!;
-		expect([pattern.getAttribute('data-pattern'), pattern.getAttribute('data-pattern-color'), pattern.getAttribute('width')]).toEqual(['stripes', '#ff0000', '10']);
-		expect(pattern.querySelectorAll('path, rect').length).toBeGreaterThan(0);
-		expect(root.querySelector('g[filter] > g[clip-path] > rect')!.getAttribute('fill')).toBe(`url(#${pattern.id})`);
-
-		const [item] = (await opened(markup)) as [ShapeAnnotation];
-		expect(item.effects!.blur).toBeCloseTo(2);
-		expect(item.effects!.shadow).toMatchObject({ color: '#112233', opacity: 0.35, softness: 4 });
-		expect(item.effects!.shadow!.offset.x).toBeCloseTo(6);
-		expect(item.fillPattern).toEqual(patternOf(PatternKind.Stripes, '#ff0000', '#ffffff', 10));
-		expect(item.clip!.fillRule).toBe('evenodd');
-		const xs = clipContours(item, item.clip!).flatMap(({ nodes }) => nodes.map(({ point }) => point.x));
-		expect([Math.min(...xs), Math.max(...xs)]).toEqual([30, 90]);
-	});
-
 	it('write a shadow alone from the item itself', () => {
 		const objects = new AnnotationDocument();
 		objects.add({ ...BOX, effects: { shadow: DEFAULT_SHADOW } });

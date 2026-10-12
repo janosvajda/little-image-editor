@@ -13,7 +13,7 @@ import {
 	EditableObjectKind,
 	EditorToolImpact,
 	TRANSFORM_DOCUMENT_CONTRACT,
-} from './editorToolContract';
+} from '../document/editorToolContract';
 
 describe('editor tool document enforcement contract', () => {
 	it('requires every paint, shape, fill, annotation, effect, and adjustment to be editable', () => {

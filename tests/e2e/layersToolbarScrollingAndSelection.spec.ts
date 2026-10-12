@@ -7,7 +7,7 @@ test('only the layer list scrolls, and it visibly selects clicked layers', async
 }) => {
 	await page.goto('/');
 	await page.locator('#quickNewButton').click();
-	await page.locator('#newImageFormat').selectOption('application/vnd.little-image-editor.project+json');
+	await page.locator('#newImageFormat').selectOption('image/svg+xml');
 	await page.locator('#newImageName').fill('scrolling-layers');
 	await page.locator('#createImageButton').click();
 	await selectBrush(page);

@@ -3,18 +3,12 @@ import { expect, type Page } from '@playwright/test';
 import { ImageMimeType, type ImageFormat, type Point, type Tool } from '../../../src/app/core/document/appTypes';
 import { ColorPalette } from '../../../src/app/core/document/colorPalette';
 import { DRAWING_TOOL_DEFINITIONS } from '../../../src/app/features/drawing/drawingToolCatalog';
-import { ProjectCodec } from '../../../src/app/features/projects/projectCodec';
-import { type LittleImageProject, PROJECT_MIME_TYPE } from '../../../src/app/features/projects/projectTypes';
 
 export const TestSurface = { width: 240, height: 180 } as const;
 export const PointerPhase = { Press: 'pointerdown', Move: 'pointermove', Release: 'pointerup' } as const;
 export interface CanvasPointerSample {
 	readonly type: (typeof PointerPhase)[keyof typeof PointerPhase];
 	readonly point: Point;
-}
-
-interface ProjectWriterWindow extends Window {
-	testProjectSource?: string;
 }
 
 export async function openTestPhoto(page: Page, format: ImageFormat = ImageMimeType.Png, opacity = 1): Promise<void> {
@@ -33,22 +27,6 @@ export async function openTestPhoto(page: Page, format: ImageFormat = ImageMimeT
 	}, { ...TestSurface, colors: ColorPalette, mimeType: format, alpha: opacity });
 	await page.locator('#fileInput').setInputFiles({ name: format === ImageMimeType.Jpeg ? 'photo.jpg' : 'photo.png', mimeType: format, buffer: Buffer.from(encoded, 'base64') });
 	await expect(page.locator('#canvasWrap')).toBeVisible();
-	await installTestProjectWriter(page);
-}
-
-export async function installTestProjectWriter(page: Page): Promise<void> {
-	await page.evaluate(() => {
-		Object.defineProperty(window, 'showSaveFilePicker', {
-			configurable: true,
-			value: async () => ({
-				name: 'cut-and-move.limg',
-				createWritable: async () => ({
-					write: async (blob: Blob) => { (window as ProjectWriterWindow).testProjectSource = await blob.text(); },
-					close: async () => undefined,
-				}),
-			}),
-		});
-	});
 }
 
 export async function selectTool(page: Page, tool: Tool): Promise<void> {
@@ -94,19 +72,6 @@ export async function mouseCanvasDrag(page: Page, from: Point, to: Point): Promi
 
 export function canvasPixel(page: Page, point: Point, selector = '#canvas'): Promise<number[]> {
 	return page.locator(selector).evaluate((element, position) => Array.from((element as HTMLCanvasElement).getContext('2d')!.getImageData(position.x, position.y, 1, 1).data), point);
-}
-
-export async function saveTestProject(page: Page): Promise<LittleImageProject> {
-	await page.evaluate(() => { (window as ProjectWriterWindow).testProjectSource = undefined; });
-	await page.locator('#fileMenu > summary').click();
-	await page.locator('#saveAsButton').click();
-	const source = await page.waitForFunction(() => (window as ProjectWriterWindow).testProjectSource).then((handle) => handle.jsonValue());
-	if (typeof source !== 'string') throw new Error('Project save produced no document.');
-	return new ProjectCodec().parse(source);
-}
-
-export async function restoreTestProject(page: Page, project: LittleImageProject): Promise<void> {
-	await page.locator('#fileInput').setInputFiles({ name: 'restored.limg', mimeType: PROJECT_MIME_TYPE, buffer: Buffer.from(JSON.stringify(project)) });
 }
 
 export async function showLayers(page: Page): Promise<void> {

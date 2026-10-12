@@ -278,7 +278,7 @@ export class GenericToolbar<TTool extends string> {
 	}
 }
 
-interface DocumentToolbarState<TExtra> {
+export interface DocumentToolbarState<TExtra> {
 	controls: Record<string, PersistedValue>;
 	extra?: TExtra;
 }

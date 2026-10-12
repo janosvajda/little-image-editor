@@ -10,8 +10,6 @@ import { ColorPalette } from '../../core/document/colorPalette';
 import { CanvasDocument } from '../../core/document/imageDocument';
 import { AnnotationDocument } from '../annotations/annotationDocument';
 import { AnnotationObjectTypeId } from '../annotations/annotationTypes';
-import { ProjectCodec } from '../projects/projectCodec';
-import { ProjectEditorAdapter } from '../projects/projectEditorAdapter';
 import { DrawingController } from './drawingController';
 
 const Surface = { width: 200, height: 160 } as const;
@@ -91,23 +89,6 @@ describe('drawing colours follow explicit user choices', () => {
 		objects.select(objects.state.objects[0]!.id);
 		drawing.select(PaintToolId.Pencil);
 		expect(colorInput().value).toBe(ChosenColor.Paint);
-	});
-
-	it('preserves both colour profiles through the .limg persistence boundary', () => {
-		changeColor(ChosenColor.Paint);
-		drawing.select(MarkupToolId.Number);
-		changeColor(ChosenColor.Number);
-		drag({ x: 30, y: 30 });
-		const codec = new ProjectCodec();
-		const adapter = new ProjectEditorAdapter(model, objects);
-		const source = codec.serializeEditorState(adapter.capture());
-		model.create({ name: 'replacement', ...Surface, transparent: true, background: ColorPalette.White });
-		adapter.restore(codec.toEditorState(codec.parse(source)));
-		expect(colorInput().value).toBe(ChosenColor.Number);
-		drawing.select(PaintToolId.Pencil);
-		expect(colorInput().value).toBe(ChosenColor.Paint);
-		drawing.select(MarkupToolId.Number);
-		expect(colorInput().value).toBe(ChosenColor.Number);
 	});
 
 	it('keeps saved colours from projects whose tool profiles predate colour profiling', () => {

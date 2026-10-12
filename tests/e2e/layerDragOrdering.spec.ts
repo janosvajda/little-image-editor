@@ -7,7 +7,7 @@ test('dragging a layer row changes the real object stacking order', async ({
 }) => {
 	await page.goto('/');
 	await page.locator('#quickNewButton').click();
-	await page.locator('#newImageFormat').selectOption('application/vnd.little-image-editor.project+json');
+	await page.locator('#newImageFormat').selectOption('image/svg+xml');
 	await page.locator('#newImageName').fill('drag-layers');
 	await page.locator('#createImageButton').click();
 	await page.locator('#toolbarPickerButton').click();

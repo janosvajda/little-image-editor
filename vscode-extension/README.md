@@ -9,15 +9,15 @@ A layered image editor inside VS Code. Open a PNG, JPEG or WebP, annotate a scre
 - **Layers:** every shape, stroke and text stays a movable, editable object, with undo and redo.
 - **Screenshot annotation:** highlights, blur and redaction.
 - **Image tools:** cut and move selections, resize, rotate, flip, brightness, contrast, saturation and effects.
-- **Vector tools:** Pen and Polyline paths, gradient and pattern fills, blur and drop-shadow effects, and clipping with a shape. They are kept in `.limg` and written to SVG as standard SVG.
-- **Formats:** open and save PNG, JPEG, WebP and SVG. An SVG opens as editable layers and items, and saves back as SVG. Save as `.limg` to keep everything editable, and export a PNG, JPEG, WebP or SVG copy at any time.
+- **Vector tools:** Pen and Polyline paths, gradient and pattern fills, blur and drop-shadow effects, and clipping with a shape. They are saved in the SVG as standard SVG.
+- **Formats:** SVG is the document format: an SVG opens as editable layers and items, and Save keeps everything editable in it. Open PNG, JPEG and WebP images too, and export a PNG, JPEG, WebP or SVG copy at any time.
 - **AI assistants:** Claude Code and Codex can look at your images, draw on layers, draw diagrams and export PNG or SVG files.
 
 ## Getting started
 
 Little Image Editor's commands are in VS Code's **Command Palette**. Open it with **Cmd+Shift+P** on macOS, or **Ctrl+Shift+P** on Windows and Linux, then type part of a command's name, such as `Little Image Editor`.
 
-- **Open an image:** right-click a PNG, JPEG, WebP or SVG file in the Explorer and choose **Open With… → Little Image Editor**. `.limg` projects open in the editor directly.
+- **Open an image:** right-click a PNG, JPEG, WebP or SVG file in the Explorer and choose **Open With… → Little Image Editor**.
 - **Create an image:** run **New Image – Little Image Editor** from the Command Palette, or right-click a folder in the Explorer and choose **New Image – Little Image Editor**.
 - **Save:** **Cmd+S** on macOS, **Ctrl+S** on Windows and Linux. Use **Export…** in the toolbar to save a copy while keeping your layers: choose the format, size, JPEG/WebP quality, transparency or background colour, and see the estimated file size.
 

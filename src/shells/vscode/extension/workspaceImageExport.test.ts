@@ -6,7 +6,7 @@ import type { OpenImageView } from '../assistant/openImages';
 import { WorkspaceImageExporter } from './workspaceImageExporter';
 
 const Png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a7p8AAAAASUVORK5CYII=', 'base64');
-const View: OpenImageView = { name: 'app-icon.limg', png: new Uint8Array(Png), width: 1, height: 1, imageWidth: 1, imageHeight: 1 };
+const View: OpenImageView = { name: 'app-icon.svg', png: new Uint8Array(Png), width: 1, height: 1, imageWidth: 1, imageHeight: 1 };
 const Asset = 'src/assets/app-icon.png';
 let root: string;
 let project: string;
@@ -68,7 +68,7 @@ describe('workspace PNG copies', () => {
 		expect((await exporter.export({ path, overwrite: false }, undefined, picture)).path).toBe(path);
 	});
 
-	it.each(['icon.limg', 'icon.jpg', 'png', '', 'icon\0.png'])('refuses an invalid PNG destination: %s', async (path) => {
+	it.each(['icon.gif', 'icon.jpg', 'png', '', 'icon\0.png'])('refuses an invalid PNG destination: %s', async (path) => {
 		await expect(exporter.export({ path, overwrite: false }, undefined, picture)).rejects.toThrow();
 		expect(await readdir(project)).toEqual([]);
 	});
@@ -83,8 +83,8 @@ describe('workspace PNG copies', () => {
 		const other = join(root, 'other');
 		await mkdir(other);
 		const multi = new WorkspaceImageExporter([{ name: 'Project', path: project }, { name: 'Other', path: other }]);
-		expect((await multi.export({ path: Asset, overwrite: false }, join(other, 'drawing.limg'), picture)).path).toBe(join(other, Asset));
-		expect((await multi.export({ path: Asset, workspace: 'Project', overwrite: false }, join(other, 'drawing.limg'), picture)).path).toBe(join(project, Asset));
+		expect((await multi.export({ path: Asset, overwrite: false }, join(other, 'drawing.svg'), picture)).path).toBe(join(other, Asset));
+		expect((await multi.export({ path: Asset, workspace: 'Project', overwrite: false }, join(other, 'drawing.svg'), picture)).path).toBe(join(project, Asset));
 		await expect(multi.export({ path: 'icon.png', overwrite: false }, undefined, picture)).rejects.toThrow('Choose a workspace folder');
 		await expect(multi.export({ path: 'icon.png', workspace: 'Missing', overwrite: false }, undefined, picture)).rejects.toThrow('No workspace folder');
 	});

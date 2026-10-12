@@ -4,7 +4,6 @@ import { genericShape } from '../../core/geometry/genericShape';
 import { parsePathData } from '../../core/geometry/vectorPath';
 import { AnnotationDocument } from '../annotations/annotationDocument';
 import { renderAnnotationObject } from '../annotations/annotationRenderer';
-import { isAnnotationSessionState } from '../annotations/annotationSerialization';
 import { AnnotationObjectTypeId, LineDash, type PathAnnotation } from '../annotations/annotationTypes';
 import { EditableObjectPropertyId, editableObjectProperties } from '../annotations/editableObjectProperties';
 import { LineEnd, PLAIN_ENDS } from '../annotations/lineEnd';
@@ -73,21 +72,6 @@ describe('a path item', () => {
 		expect(shape.geometry.rect).toEqual({ x: 0, y: -30, width: 100, height: 30 });
 		shape.setGeometry({ rect: { x: 0, y: 0, width: 200, height: 60 }, rotation: 0 });
 		expect(curved.contours[0]!.nodes[0]).toEqual({ point: { x: 0, y: 60 }, out: { x: 0, y: -20 } });
-	});
-
-	it('saves into projects, and a broken path is refused', () => {
-		const objects = new AnnotationDocument();
-		objects.add(path({ head: LineEnd.Arrow, fillRule: 'evenodd' }));
-		const saved = JSON.parse(JSON.stringify(objects.snapshotSession()));
-		expect(isAnnotationSessionState(saved)).toBe(true);
-		const restored = new AnnotationDocument();
-		restored.restoreSession(saved);
-		expect(restored.object('path')).toEqual(path({ head: LineEnd.Arrow, fillRule: 'evenodd' }));
-		for (const breakIt of [(item: Record<string, unknown>) => void (item.contours = []), (item: Record<string, unknown>) => void (item.fillRule = 'odd')]) {
-			const broken = structuredClone(saved);
-			breakIt(broken.state.objects[0]);
-			expect(isAnnotationSessionState(broken)).toBe(false);
-		}
 	});
 
 	it('is called a Path, and offers its line, fill and fill colour', () => {

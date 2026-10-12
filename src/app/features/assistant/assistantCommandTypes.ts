@@ -6,7 +6,7 @@ import { ColorPalette } from '../../core/document/colorPalette';
 /**
  * Edits an assistant can ask the editor for. They run through the same
  * layer and item model as the tools, so each one is a single undo step and
- * saves with the document, `.limg` projects included.
+ * saves with the document, in its SVG.
  *
  * This file has no browser dependencies: the VS Code extension, which runs
  * in Node, shares it with the editor.

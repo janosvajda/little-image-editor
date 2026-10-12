@@ -7,7 +7,6 @@ import { parseDrawScript } from '../assistant/drawScript';
 import { drawMermaidFlowchart } from '../diagrams/diagramDrawing';
 import { AnnotationDocument } from './annotationDocument';
 import { renderAnnotationObject } from './annotationRenderer';
-import { isAnnotationSessionState } from './annotationSerialization';
 import { AnnotationObjectTypeId, type ConnectorAnnotation, LineDash } from './annotationTypes';
 
 /** A link that leaves to the right, turns down, then right again. */
@@ -62,18 +61,6 @@ describe('a connector: one line with bends', () => {
 		expect(context.fill).toHaveBeenCalledOnce();
 	});
 
-	it('saves into projects and refuses a broken one', () => {
-		const objects = new AnnotationDocument();
-		objects.add(bentConnector());
-		const saved = JSON.parse(JSON.stringify(objects.snapshotSession()));
-		expect(isAnnotationSessionState(saved)).toBe(true);
-		const restored = new AnnotationDocument();
-		restored.restoreSession(saved);
-		expect(restored.object('link')).toEqual(bentConnector());
-		const broken = structuredClone(saved);
-		broken.state.objects[0].points = [{ x: 1, y: 1 }];
-		expect(isAnnotationSessionState(broken)).toBe(false);
-	});
 });
 
 describe('making connectors', () => {
