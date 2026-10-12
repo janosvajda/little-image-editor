@@ -9,7 +9,6 @@ import {
 	DEFAULT_DOCUMENT_NAME,
 	DocumentType,
 } from '../../core/document/appTypes';
-import { PROJECT_MIME_TYPE } from '../projects/projectTypes';
 import { SVG_MIME_TYPE } from '../../core/document/svgFormat';
 import {
 	DEFAULT_IMAGE_FORMAT,
@@ -37,7 +36,6 @@ const RESOLUTION_PRESETS = Object.values(ResolutionPpi);
 const PresetId = { Custom: 'custom' } as const;
 /** The kind of document each file type in the dialog makes; an image format makes an image. */
 const DOCUMENT_TYPE_OF_FILE_TYPE: Readonly<Record<string, DocumentType>> = {
-	[PROJECT_MIME_TYPE]: DocumentType.Project,
 	[SVG_MIME_TYPE]: DocumentType.Svg,
 };
 const AspectRatioId = { Free: 'free' } as const;

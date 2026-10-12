@@ -51,7 +51,7 @@ describe('reading pictures from the workspace', () => {
 			{ noWorkspace: 'none', outside: 'outside' },
 		);
 		expect(paths.workspaceFor({ path: 'a.png', workspace: 'Other' }, undefined).name).toBe('Other');
-		expect(paths.workspaceFor({ path: 'a.png' }, join(project, 'image.limg')).name).toBe('Project');
+		expect(paths.workspaceFor({ path: 'a.png' }, join(project, 'image.svg')).name).toBe('Project');
 		expect(() => paths.workspaceFor({ path: 'a.png' }, undefined)).toThrow('Choose a workspace folder with workspace: Project, Other.');
 		expect(() => paths.workspaceFor({ path: 'a.png', workspace: 'Missing' }, undefined)).toThrow('No workspace folder is called Missing.');
 	});

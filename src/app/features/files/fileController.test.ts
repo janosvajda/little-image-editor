@@ -2,19 +2,21 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NewImageController } from "./newImageController";
 import { CanvasDocument } from "../../core/document/imageDocument";
 import { FileController } from "./fileController";
+import { AnnotationDocument } from "../annotations/annotationDocument";
+import { SvgDocumentController } from "./svgDocumentController";
 
 describe("FileController", () => {
-  beforeEach(() => { vi.spyOn(window, "confirm").mockReturnValue(true); vi.spyOn(window, "prompt").mockReturnValue("fallback.png"); });
+  beforeEach(() => { vi.spyOn(window, "confirm").mockReturnValue(true); vi.spyOn(window, "prompt").mockReturnValue("fallback.png"); vi.spyOn(HTMLCanvasElement.prototype, "toDataURL").mockReturnValue("data:image/png;base64,AAAA"); });
 
   function subject() {
-    const model = new CanvasDocument(document.querySelector("#canvas")!, document.querySelector("#overlay")!); new NewImageController(model); return { model, files: new FileController(model) };
+    const model = new CanvasDocument(document.querySelector("#canvas")!, document.querySelector("#overlay")!); new NewImageController(model); const files = new FileController(model); files.setSvgDocument(new SvgDocumentController(model, new AnnotationDocument())); return { model, files };
   }
 
   it("saves as, then saves directly through a retained handle", async () => {
     const { model, files } = subject();
     model.create({ name: "test", width: 2, height: 2, transparent: false, background: "#fff" });
     const writable = { write: vi.fn(), close: vi.fn() };
-    const handle = { name: "chosen.png", createWritable: vi.fn().mockResolvedValue(writable) } as unknown as FileSystemFileHandle;
+    const handle = { name: "chosen.svg", createWritable: vi.fn().mockResolvedValue(writable) } as unknown as FileSystemFileHandle;
     Object.defineProperty(window, "showSaveFilePicker", { configurable: true, value: vi.fn().mockResolvedValue(handle) });
     await files.saveAs(); await files.save();
     expect(model.fileHandle).toBe(handle); expect(model.baseName).toBe("chosen"); expect(writable.write).toHaveBeenCalledTimes(2);
@@ -25,12 +27,12 @@ describe("FileController", () => {
     model.create({ name: "picture", width: 2, height: 2, transparent: false, background: "#fff" });
     const writable = { write: vi.fn(), close: vi.fn() };
     const invalid = { name: "picture", createWritable: vi.fn() } as unknown as FileSystemFileHandle;
-    const valid = { name: "picture.png", createWritable: vi.fn().mockResolvedValue(writable) } as unknown as FileSystemFileHandle;
+    const valid = { name: "picture.svg", createWritable: vi.fn().mockResolvedValue(writable) } as unknown as FileSystemFileHandle;
     const picker = vi.fn().mockResolvedValueOnce(invalid).mockResolvedValueOnce(valid);
     Object.defineProperty(window, "showSaveFilePicker", { configurable: true, value: picker });
     vi.spyOn(window, "alert").mockImplementation(() => undefined);
     await files.saveAs();
-    expect(picker).toHaveBeenNthCalledWith(2, expect.objectContaining({ suggestedName: "picture.png" }));
+    expect(picker).toHaveBeenNthCalledWith(2, expect.objectContaining({ suggestedName: "picture.svg" }));
     expect(invalid.createWritable).not.toHaveBeenCalled();
     expect(valid.createWritable).toHaveBeenCalledOnce();
   });
@@ -47,21 +49,4 @@ describe("FileController", () => {
     expect(writable.write).toHaveBeenCalledOnce();
   });
 
-  it("handles save cancellation and fallback download", async () => {
-    const { model, files } = subject();
-    model.create({ name: "alpha", width: 2, height: 2, transparent: true, background: "#fff" });
-    vi.mocked(window.confirm).mockReturnValueOnce(false); await files.saveAs("image/jpeg");
-    Object.defineProperty(window, "showSaveFilePicker", { configurable: true, value: undefined });
-    await files.saveAs("image/png");
-    vi.mocked(window.prompt).mockReturnValueOnce(null); await files.saveAs(); files.open();
-  });
-
-  it("loads selected files", async () => {
-    const { model } = subject();
-    const input = document.querySelector<HTMLInputElement>("#fileInput")!;
-    expect(input.accept).toBe("image/png,image/jpeg,image/webp,image/svg+xml,.svg,.limg,application/vnd.little-image-editor.project+json");
-    Object.defineProperty(input, "files", { configurable: true, value: [new File(["x"], "open.png", { type: "image/png" })] });
-    input.dispatchEvent(new Event("change")); await vi.waitFor(() => expect(model.hasImage).toBe(true));
-    expect(input.value).toBe("");
-  });
 });

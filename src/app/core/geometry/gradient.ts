@@ -75,6 +75,12 @@ export function relativeToFrame(frame: CropRect, point: Point): Point {
 }
 
 /** Whether a value read from a file is a gradient: a kind, two or more stops in order, and two points. */
+/** A gradient laid over one frame, laid over another instead, so it covers the same place. */
+export function reframedGradient(gradient: Gradient, from: CropRect, to: CropRect): Gradient {
+	const moved = (point: Point) => relativeToFrame(to, inFrame(from, point));
+	return { ...gradient, start: moved(gradient.start), end: moved(gradient.end) };
+}
+
 export function isGradient(value: unknown): value is Gradient {
 	if (typeof value !== 'object' || value === null) return false;
 	const candidate = value as Record<string, unknown>;

@@ -159,12 +159,3 @@ export const TRANSFORM_DOCUMENT_CONTRACT = {
 		DocumentOperationKind.Flip,
 	),
 } as const satisfies Record<TransformActionId, ToolDocumentRegistration>;
-
-export function isEditableToolRegistration(
-	registration: ToolDocumentRegistration,
-): registration is Extract<
-	ToolDocumentRegistration,
-	{ impact: typeof EditorToolImpact.EditableObject }
-> {
-	return registration.impact === EditorToolImpact.EditableObject;
-}

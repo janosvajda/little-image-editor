@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { CanvasDocument } from '../../core/document/imageDocument';
+import { AnnotationDocument } from '../annotations/annotationDocument';
 import { FileController } from './fileController';
+import { SvgDocumentController } from './svgDocumentController';
 
 describe('FileController uncovered behavior', () => {
 	beforeEach(() => {
@@ -47,10 +49,10 @@ describe('FileController uncovered behavior', () => {
 			createWritable: vi.fn().mockResolvedValue({ write: vi.fn(), close: vi.fn() }),
 		} as unknown as FileSystemFileHandle;
 		vi.mocked(window.confirm).mockReturnValueOnce(false);
-		await files.save();
+		await expect(files.saveInto(model.fileHandle!)).rejects.toThrow('Saving was cancelled.');
 		expect(beforeSave).not.toHaveBeenCalled();
 		vi.mocked(window.confirm).mockReturnValueOnce(true);
-		await files.save();
+		await files.saveInto(model.fileHandle!);
 		expect(beforeSave).toHaveBeenCalledOnce();
 	});
 
@@ -58,6 +60,8 @@ describe('FileController uncovered behavior', () => {
 		vi.useFakeTimers();
 		const { model, files } = subject();
 		model.create({ name: 'fallback', width: 2, height: 2, transparent: false, background: '#fff' });
+		files.setSvgDocument(new SvgDocumentController(model, new AnnotationDocument()));
+		vi.spyOn(HTMLCanvasElement.prototype, 'toDataURL').mockReturnValue('data:image/png;base64,AAAA');
 		Object.defineProperty(window, 'showSaveFilePicker', { configurable: true, value: undefined });
 		await files.saveAs();
 		expect(URL.createObjectURL).toHaveBeenCalledOnce();

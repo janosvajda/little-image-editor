@@ -255,7 +255,7 @@ export class CanvasDocument implements HistoryParticipant {
 		this.resolution = PIXELS_PER_INCH;
 		this.documentType = DocumentType.Image;
 		this.#opaqueBackgroundColor = ColorPalette.White;
-		// An SVG is opened as a picture; it is saved as an image or a project, so it starts as the default image format.
+		// An SVG is opened as a picture; it is saved as an image or an SVG, so it starts as the default image format.
 		if (picture.vector) this.savedType = DEFAULT_IMAGE_FORMAT.mimeType;
 		picture.release();
 		this.activate(file.name.replace(/\.[^.]+$/, '') || 'little-image');

@@ -39,8 +39,7 @@ import { SpriteController } from './app/features/files/spriteController';
 import { LayerMerger } from './app/features/layers/layerMerge';
 import { LayersController } from './app/features/layers/layersController';
 import { RasterSelection } from './app/features/selection/rasterSelection';
-import { ProjectController } from './app/features/projects/projectController';
-import { DocumentLimitController } from './app/features/projects/documentLimitController';
+import { DocumentLimitController } from './app/features/document/documentLimitController';
 import {
 	CanvasViewportController,
 	ImagePlacement,
@@ -149,9 +148,6 @@ drawing.onToolChange(presentSelectionFor);
 drawing.onPathPointEditingChange((editing) =>
 	editing ? layerCanvas.setSelectionPresentation(SelectionPresentation.Hidden) : presentSelectionFor(drawing.tool),
 );
-const projects = new ProjectController(documentModel, undefined, vectorShapes);
-files.setProjectSaveHandler((saveAs) => projects.save(saveAs));
-files.setProjectOpenHandler((file, target) => projects.openFile(file, target));
 enhancePanelButtons();
 // A host that owns the file restores it itself, so reload recovery stays off.
 const sessionPersistence = platform.document
@@ -200,7 +196,7 @@ function connectDocumentHost(host: PlatformDocumentHost, assistant: AssistantCom
 				// The whole image is in view when it opens, as in the host's own image preview.
 				.then(() => viewport.showWholeImage())
 				.catch(() =>
-					platform.dialogs.alert(`${target.name} could not be opened as an image or project.`),
+					platform.dialogs.alert(`${target.name} could not be opened as an image.`),
 				),
 	);
 	// A new, untitled file starts as a new image, unsaved until the host saves it.

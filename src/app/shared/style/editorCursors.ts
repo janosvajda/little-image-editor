@@ -30,6 +30,7 @@ const CursorId = {
 	Lasso: 'lasso',
 } as const;
 type CursorId = (typeof CursorId)[keyof typeof CursorId];
+export { CursorId as EditorCursorId };
 export const EditorCursorVariant = { Lasso: 'lasso' } as const;
 export type EditorCursorVariant =
 	(typeof EditorCursorVariant)[keyof typeof EditorCursorVariant];
@@ -56,6 +57,7 @@ const HOTSPOTS: Readonly<Record<CursorId, Point>> = {
 	[CursorId.Rotate]: { x: 12, y: 12 },
 	[CursorId.Lasso]: { x: 26, y: 26 },
 };
+export { HOTSPOTS as EDITOR_CURSOR_HOTSPOTS };
 const TOOL_ARTWORK: Readonly<Partial<Record<Tool, CursorId>>> = {
 	[PaintToolId.Pencil]: CursorId.Pencil,
 	[PaintToolId.Brush]: CursorId.Brush,

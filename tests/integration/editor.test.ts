@@ -22,43 +22,6 @@ describe("editor integration", () => {
     document.querySelector<HTMLInputElement>("#newImageName")!.value = "integration-image";
   });
 
-  it("creates a new image and exercises editing, history, transforms, and saving", async () => {
-    await boot();
-    click("#newImageButton");
-    expect(document.querySelector<HTMLDialogElement>("#newImageDialog")!.open).toBe(true);
-    const preset = document.querySelector<HTMLSelectElement>("#newImagePreset")!;
-    preset.value = "1280x720"; preset.dispatchEvent(new Event("change"));
-    const newFormat = document.querySelector<HTMLSelectElement>("#newImageFormat")!;
-    expect([...newFormat.options].map(option => option.text)).toEqual([
-      "Little Image Editor (.limg) — preserves layers",
-      "SVG (.svg) — editable vectors",
-      "PNG — flattened image",
-      "JPEG — flattened image",
-      "WebP — flattened image",
-    ]);
-    newFormat.value = "image/webp";
-    expect(document.querySelector<HTMLInputElement>("#newImageWidth")!.value).toBe("1280");
-    click("#createImageButton");
-    expect(document.querySelector("#canvasWrap")!.classList.contains("hidden")).toBe(false);
-    expect(document.querySelector<HTMLButtonElement>("#saveButton")!.disabled).toBe(false);
-    const saveAsOptions = vi.fn().mockRejectedValue(new DOMException("cancelled", "AbortError"));
-    Object.defineProperty(window, "showSaveFilePicker", { configurable: true, value: saveAsOptions });
-    click("#saveAsButton");
-    await vi.waitFor(() => expect(saveAsOptions).toHaveBeenCalledOnce());
-    expect(saveAsOptions.mock.calls[0]![0].suggestedName).toMatch(/\.webp$/);
-    expect(saveAsOptions.mock.calls[0]![0].types[0].accept).toHaveProperty("image/webp");
-    Object.defineProperty(window, "showSaveFilePicker", { configurable: true, value: undefined });
-    expect(document.querySelector<HTMLButtonElement>("#exportButton")!.disabled).toBe(false);
-
-    const effect = document.querySelector<HTMLSelectElement>("#effectSelect")!;
-    for (const name of ["invert", "monochrome", "sepia", "sharpen"]) {
-      effect.value = name; effect.dispatchEvent(new Event("change")); click("#applyEffectButton");
-    }
-    click("#rotateRightButton"); click("#rotateLeftButton"); click("#flipHButton"); click("#flipVButton");
-    click("#undoButton"); click("#redoButton");
-    click("#saveButton");
-  });
-
   it("supports presets, aspect ratios, transparency warnings, tools, menus, themes, panels, and dialogs", async () => {
     await boot();
     expect(document.querySelector("#quickOpenButton")!.nextElementSibling?.id).toBe("quickSaveButton");

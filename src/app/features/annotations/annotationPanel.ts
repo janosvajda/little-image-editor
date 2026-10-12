@@ -8,7 +8,8 @@ import { ToolbarAutoOpenMode, ToolbarId } from '../workspace/toolbarTypes';
 import { QA_REPORTING_TITLE } from './bugReportMetadata';
 
 const ReportRows = { Steps: 4, Behaviour: 3, Markdown: 14 } as const;
-const ReportControlId = {
+/** The QA report form's fields, by the ids their controls have. */
+export const ReportControlId = {
 	Title: 'annotationIssueTitle',
 	TicketUrl: 'annotationTicketUrl',
 	Steps: 'annotationSteps',

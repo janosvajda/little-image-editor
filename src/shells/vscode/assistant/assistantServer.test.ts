@@ -13,7 +13,7 @@ const PNG_BYTES = new Uint8Array([0x89, 0x50, 0x4e, 0x47]);
 const twoImages: OpenImages = {
 	list: () => [
 		{ id: 'file:///a.png', name: 'a.png', location: '/a.png', active: true },
-		{ id: 'file:///b.limg', name: 'b.limg', location: '/b.limg', active: false },
+		{ id: 'file:///b.svg', name: 'b.svg', location: '/b.svg', active: false },
 	],
 	view: async (image, maxSize) => {
 		if (image === 'missing') throw new Error('No open image is called missing.');
@@ -44,11 +44,11 @@ describe('the assistant server', () => {
 		const client = await connect(TOKEN);
 		expect((await client.listTools()).tools.map((tool) => tool.name)).toEqual([ImageTool.List, ImageTool.View]);
 		const list = await client.callTool({ name: ImageTool.List });
-		expect(JSON.stringify(list.content)).toContain('b.limg');
-		const view = await client.callTool({ name: ImageTool.View, arguments: { image: 'b.limg', max_size: 200 } });
+		expect(JSON.stringify(list.content)).toContain('b.svg');
+		const view = await client.callTool({ name: ImageTool.View, arguments: { image: 'b.svg', max_size: 200 } });
 		expect(view.content).toEqual([
 			{ type: 'image', data: Buffer.from(PNG_BYTES).toString('base64'), mimeType: 'image/png' },
-			{ type: 'text', text: 'b.limg: 800 × 400 px, shown at 200 × 400 px.' },
+			{ type: 'text', text: 'b.svg: 800 × 400 px, shown at 200 × 400 px.' },
 		]);
 		await client.close();
 	});

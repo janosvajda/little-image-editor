@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from 'vitest';
 import { ShapeToolId } from '../../core/document/appTypes';
 import { drawPatternTile, isFillPattern, PatternKind, type PatternPainter, patternOf } from '../../core/geometry/fillPattern';
 import { parsePathData } from '../../core/geometry/vectorPath';
-import { isAnnotationSessionState } from './annotationSerialization';
 import { renderAnnotationObject } from './annotationRenderer';
 import { AnnotationObjectTypeId, type ShapeAnnotation } from './annotationTypes';
 import { EffectPropertyId, editableEffects, setEffectProperty } from './editableEffects';
@@ -196,27 +195,4 @@ describe('item clips', () => {
 		expect(isOptionalItemClip({ contours: square, fillRule: 'wavy' })).toBe(false);
 		expect(isOptionalItemClip(4)).toBe(false);
 	});
-});
-
-describe('a project with effects, clips and patterns', () => {
-	const session = (item: unknown) => {
-		const state = { objects: [item], layers: [{ id: 'l', name: 'Layer 1', itemIds: ['box'] }], nextStep: 1 };
-		return { state, history: [state], historyIndex: 0 };
-	};
-
-	it('is read when they are whole, and refused when they are not', () => {
-		const good = box({ effects: { blur: 2, shadow: DEFAULT_SHADOW }, clip: clipFor(BOX, square()), fillPattern: patternOf(PatternKind.Grid, '#000000') });
-		expect(isAnnotationSessionState(session(good))).toBe(true);
-		expect(isOptionalItemEffects({ blur: -1 })).toBe(false);
-		expect(isOptionalItemEffects({ shadow: { ...DEFAULT_SHADOW, opacity: 2 } })).toBe(false);
-		expect(isOptionalItemEffects({ shadow: { ...DEFAULT_SHADOW, offset: null } })).toBe(false);
-		expect(isOptionalItemEffects('blur')).toBe(false);
-		expect(isAnnotationSessionState(session({ ...good, effects: { blur: 'x' } }))).toBe(false);
-		expect(isAnnotationSessionState(session({ ...good, clip: { contours: [] } }))).toBe(false);
-		expect(isAnnotationSessionState(session({ ...good, fillPattern: { kind: 'plaid' } }))).toBe(false);
-	});
-
-	function square() {
-		return parsePathData('M0 0H10V10H0Z');
-	}
 });

@@ -32,10 +32,10 @@ Shape frames keep a normalized rectangle and optional `flipX`/`flipY` drawing
 direction. The shared `rectOrientation` and `rectEndpoints` helpers preserve the
 drag's start and end through rendering, moves and transforms. Direction stays
 independent of item and layer rotation, so adding a shape to a rotated layer
-matches its preview. These optional fields persist in `.limg` version 1; shapes
-saved without them retain their existing orientation.
+matches its preview. These optional fields are saved in the SVG as `data-flip`;
+shapes saved without them retain their existing orientation.
 
-Cut-outs reuse the existing `RasterFragmentAnnotation` item and `.limg` version 1.
+Cut-outs reuse the existing `RasterFragmentAnnotation` item, saved in the SVG as its PNG.
 An object cut stays in its source layer. A photo cut removes the selected image
 pixels and creates a layer immediately above the image containing the cut-out;
 both changes form one linked undo step. Moving a cut-out uses the shared object
@@ -120,8 +120,10 @@ baked into one pixel item. Merging the bottom layer writes into the image as one
 linked step. `EditorHistory` gives one chronological undo history over image and
 layer steps.
 
-`.limg` has a single format, version 1. `editableObjects` stores the layers and
-their items.
+The document format is SVG. Each item is a `<g data-item>` group around its
+vector drawing, which any viewer shows as it looks; the group carries only what
+SVG cannot say. `SVG_ITEM_CODECS` holds one reader and writer per item type and
+is keyed by item type, so a new kind of item does not compile until it is saved.
 
 ## Tools and toolbars
 
@@ -130,7 +132,7 @@ markers, highlight, blur, redaction, text) and utilities (Select, Crop, Fill,
 Picker, Zoom). `DrawingToolControls` holds the one active tool and its options,
 `DrawingToolRouter` turns pointer input into gestures, and each tool is listed
 once in `drawingToolCatalog` (labels, icons, shortcuts) and registered once in
-`DRAWING_TOOL_DOCUMENT_CONTRACT` for layers and `.limg`.
+`DRAWING_TOOL_DOCUMENT_CONTRACT` for layers and the SVG document.
 
 Paint and shape tools share the last explicitly chosen colour. Numbered markers
 have a separate colour profile, initially red. An explicit colour edit on a
@@ -142,7 +144,7 @@ and `White`. CSS uses generated `--color-*` variables; HTML defaults and standal
 SVG assets use `{{ColorPalette.Name}}` references. The shared palette asset helper
 generates the stylesheet and resolves those references during both builds and
 development updates. Unknown names fail validation. User-selected colours remain
-ordinary colour values in objects and `.limg` projects.
+ordinary colour values in objects and saved SVGs.
 
 Toolbars only present tools. The Tools panel and QA Reporting (`AnnotationPanel`)
 use the same `ToolButtonGroup`. The central drawing catalogue declares which
@@ -152,7 +154,7 @@ QA Reporting opens through the generic toolbar auto-open mode.
 
 Its issue title, ticket URL, reproduction steps, expected/actual behaviour and
 editable Markdown use `PersistentDocumentToolbar`, preserving the existing
-`annotationToolbar` key and `.limg` version 1. Restoring partial older records
+`annotationToolbar` key, and are saved as named fields in the SVG's `metadata`. Restoring partial older records
 resets newly added fields to their defaults. `BugReportController` listens for
 capture metadata edits through the generic `CanvasDocument.onToolbarStateChange`
 event; session restoration remains on `onDocumentChange`, so report regeneration

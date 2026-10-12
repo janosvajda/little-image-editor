@@ -80,7 +80,6 @@ describe('Place image…', () => {
 		document.querySelector<HTMLButtonElement>('#quickPlaceImageButton')!.click();
 		expect(click).toHaveBeenCalledTimes(2);
 		expect(input.accept).toBe(PICTURE_FILE_ACCEPT);
-		expect(input.accept).not.toContain('limg');
 	});
 
 	it('places the chosen picture and hands it over to be selected', async () => {

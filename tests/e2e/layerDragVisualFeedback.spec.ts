@@ -50,7 +50,7 @@ test('layer dragging clearly identifies the source, preview, and destination', a
 async function openProjectWithStrokes(page: Page): Promise<void> {
 	await page.goto('/');
 	await page.locator('#quickNewButton').click();
-	await page.locator('#newImageFormat').selectOption('application/vnd.little-image-editor.project+json');
+	await page.locator('#newImageFormat').selectOption('image/svg+xml');
 	await page.locator('#newImageName').fill('layer-drag-feedback');
 	await page.locator('#createImageButton').click();
 	await page.locator('#toolbarPickerButton').click();

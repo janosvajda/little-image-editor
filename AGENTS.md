@@ -14,7 +14,7 @@ Before modifying, renaming, deleting, or updating the stored hash of any protect
 6. Wait for approval in the current conversation.
 7. MUST create senior level high quality code
 8. Use types, strong types instead or hard-coding things
-9. Every new item, object, tool that affects the image must be compatible with layer system and the .limg file format
+9. Every new item, object, tool that affects the image must be compatible with the layer system and the SVG document format (`SVG_ITEM_CODECS`)
 
 Approval applies only to the specifically named files and changes.
 

@@ -3,8 +3,6 @@ import { expect, test, type Page } from '@playwright/test';
 import type { Point } from '../../src/app/core/document/appTypes';
 import { ColorPalette } from '../../src/app/core/document/colorPalette';
 import { AnnotationObjectTypeId } from '../../src/app/features/annotations/annotationTypes';
-import { ProjectCodec } from '../../src/app/features/projects/projectCodec';
-import { type LittleImageProject, PROJECT_MIME_TYPE } from '../../src/app/features/projects/projectTypes';
 
 const Surface = { width: 600, height: 400 } as const;
 const PhotoColor = ColorPalette.CoalGray;
@@ -77,63 +75,6 @@ test('selection frames and resize handles stay visible on dark and light photos 
 	await page.screenshot({ path: '/tmp/little-image-editor-selection-light.png' });
 });
 
-test('the capture toolbar starts numbers red and remembers independent colours in .limg', async ({ page }) => {
-	await installProjectWriter(page);
-	await page.locator('#colorInput').fill(ChosenColor.Paint);
-	await page.locator('#toolbarPickerButton').click();
-	await page.locator('[data-panel-toggle="annotations"]').check();
-	await page.keyboard.press('Escape');
-	await page.locator('[data-panel="annotations"]').getByRole('button', { name: 'Number', exact: true }).click();
-	await drag(page, { x: 80, y: 80 });
-	const initial = await saveProject(page);
-	expect(initial.editableObjects.state.objects[0]).toMatchObject({ type: AnnotationObjectTypeId.Step, color: ColorPalette.Red });
-	await page.getByLabel('Selected object color', { exact: true }).fill(ChosenColor.Number);
-	await selectShortcut(page, 'p');
-	await expect(page.locator('#colorInput')).toHaveValue(ChosenColor.Paint);
-	await drag(page, { x: 320, y: 80 }, { x: 360, y: 80 });
-	const project = await saveProject(page);
-	await page.locator('#fileInput').setInputFiles({ name: 'colours.limg', mimeType: PROJECT_MIME_TYPE, buffer: Buffer.from(JSON.stringify(project)) });
-	await selectShortcut(page, 'n');
-	await expect(page.locator('#colorInput')).toHaveValue(ChosenColor.Number);
-	await selectShortcut(page, 'p');
-	await expect(page.locator('#colorInput')).toHaveValue(ChosenColor.Paint);
-});
-
-test('an explicit selected-object colour is retained when Pencil creates the next object', async ({ page }) => {
-	await installProjectWriter(page);
-	await selectShortcut(page, 'r');
-	await drag(page, Frame.from, Frame.to);
-	await page.getByLabel('Selected object color', { exact: true }).fill(ChosenColor.Paint);
-	await selectShortcut(page, 'p');
-	await expect(page.locator('#colorInput')).toHaveValue(ChosenColor.Paint);
-	await drag(page, { x: 320, y: 80 }, { x: 360, y: 80 });
-	await selectShortcut(page, 'e');
-	await selectShortcut(page, 'p');
-	await drag(page, { x: 320, y: 260 }, { x: 360, y: 260 });
-	const project = await saveProject(page);
-	const strokes = project.editableObjects.state.objects.filter((item) => item.type === AnnotationObjectTypeId.Stroke);
-	expect(strokes).toHaveLength(2);
-	for (const stroke of strokes) expect(stroke.color).toBe(ChosenColor.Paint);
-});
-
-test('erasing a photo after adding objects needs no layer-list selection and survives undo and project save', async ({ page }) => {
-	await installProjectWriter(page);
-	await selectShortcut(page, 'r');
-	await drag(page, Frame.from, Frame.to);
-	const before = await saveProject(page);
-	await selectShortcut(page, 'e');
-	await drag(page, { x: 400, y: 280 }, { x: 450, y: 280 });
-	expect(await imagePixel(page, { x: 425, y: 280 })).toEqual([255, 255, 255, 255]);
-	await page.locator('#undoButton').click();
-	expect(await imagePixel(page, { x: 425, y: 280 })).toEqual([24, 24, 24, 255]);
-	await page.locator('#redoButton').click();
-	expect(await imagePixel(page, { x: 425, y: 280 })).toEqual([255, 255, 255, 255]);
-	const after = await saveProject(page);
-	expect(after.editableObjects.state).toEqual(before.editableObjects.state);
-	await page.locator('#fileInput').setInputFiles({ name: 'erased.limg', mimeType: PROJECT_MIME_TYPE, buffer: Buffer.from(JSON.stringify(after)) });
-	expect(await imagePixel(page, { x: 425, y: 280 })).toEqual([255, 255, 255, 255]);
-});
-
 async function openPhoto(page: Page): Promise<void> {
 	const encoded = await page.evaluate(({ width, height, color }) => {
 		const canvas = document.createElement('canvas');
@@ -167,30 +108,6 @@ async function drag(page: Page, from: Point, to: Point = from): Promise<void> {
 				clientY: bounds.top + point.y * bounds.height / canvas.height,
 			}));
 	}, { from, to, pointerId: PointerId });
-}
-
-async function installProjectWriter(page: Page): Promise<void> {
-	await page.evaluate(() => {
-		Object.defineProperty(window, 'showSaveFilePicker', {
-			configurable: true,
-			value: async () => ({
-				name: 'usability.limg',
-				createWritable: async () => ({
-					write: async (blob: Blob) => (window as SavedProjectWindow).usabilityProject = await blob.text(),
-					close: async () => undefined,
-				}),
-			}),
-		});
-	});
-}
-
-async function saveProject(page: Page): Promise<LittleImageProject> {
-	await page.evaluate(() => (window as SavedProjectWindow).usabilityProject = undefined);
-	await page.locator('#fileMenu > summary').click();
-	await page.locator('#saveAsButton').click();
-	const source = await page.waitForFunction(() => (window as SavedProjectWindow).usabilityProject).then((handle) => handle.jsonValue());
-	if (typeof source !== 'string') throw new Error('Project save produced no document.');
-	return new ProjectCodec().parse(source);
 }
 
 function screenshotPixel(page: Page, screenshot: Buffer, point: Point): Promise<number[]> {

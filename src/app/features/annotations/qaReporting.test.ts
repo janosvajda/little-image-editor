@@ -5,8 +5,6 @@ import { ColorPalette } from '../../core/document/colorPalette';
 import { CanvasDocument } from '../../core/document/imageDocument';
 import { toolsForToolbar } from '../drawing/drawingToolCatalog';
 import type { ClipboardController } from '../files/clipboardController';
-import { ProjectCodec } from '../projects/projectCodec';
-import { ProjectEditorAdapter } from '../projects/projectEditorAdapter';
 import { CAPTURE_METADATA_KEY } from '../capture/browserCaptureImporter';
 import { PersistentDocumentToolbar } from '../workspace/genericToolbar';
 import { ToolbarId } from '../workspace/toolbarTypes';
@@ -96,26 +94,6 @@ describe('QA Markdown reports', () => {
 		expect(panel.feedback.classList.contains('error')).toBe(true);
 		edit(panel.ticketUrl, Issue.ticketUrl);
 		expect(panel.feedback.textContent).toBe('');
-	});
-
-	it('preserves all issue fields and manual Markdown through the .limg boundary', () => {
-		model.setToolbarState(CAPTURE_METADATA_KEY, Source);
-		for (const [control, value] of [[panel.issueTitle, Issue.title], [panel.ticketUrl, Issue.ticketUrl], [panel.steps, Issue.steps], [panel.expected, Issue.expected], [panel.actual, Issue.actual]] as const) edit(control, value);
-		const custom = `${panel.reportPreview.value}\n## Additional notes\nInvestigate the request timeout.\n`;
-		edit(panel.reportPreview, custom);
-		const adapter = new ProjectEditorAdapter(model, new AnnotationDocument());
-		const codec = new ProjectCodec();
-		const saved = codec.serializeEditorState(adapter.capture());
-		createImage();
-		expect(panel.ticketUrl.value).toBe('');
-		adapter.restore(codec.toEditorState(codec.parse(saved)));
-		expect(panel.issueTitle.value).toBe(Issue.title);
-		expect(panel.ticketUrl.value).toBe(Issue.ticketUrl);
-		expect(panel.steps.value).toBe(Issue.steps);
-		expect(panel.expected.value).toBe(Issue.expected);
-		expect(panel.actual.value).toBe(Issue.actual);
-		expect(panel.reportPreview.value).toBe(custom);
-		expect(panel.sourcePage.textContent).toBe(Source.url);
 	});
 
 	it('restores older projects without leaking newly added fields from a previous report', () => {

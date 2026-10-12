@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from 'vitest';
 import { ShapeToolId, UtilityToolId } from '../../core/document/appTypes';
 import { CanvasDocument } from '../../core/document/imageDocument';
 import { AnnotationDocument } from '../annotations/annotationDocument';
-import { isAnnotationSessionState } from '../annotations/annotationSerialization';
 import { AnnotationObjectTypeId } from '../annotations/annotationTypes';
 import { CropSelectionOverlay } from './cropSelectionOverlay';
 import { DrawingController } from './drawingController';
@@ -104,7 +103,6 @@ describe('cut-and-move crop behavior', () => {
 			type: AnnotationObjectTypeId.RasterFragment,
 			rect: { x: 20, y: 20, width: 40, height: 60 },
 		});
-		expect(isAnnotationSessionState(objects.snapshotSession())).toBe(true);
 	});
 
 	it('selects pixels within a bare image layer without creating a retained layer', () => {

@@ -3,7 +3,6 @@ import { ShapeToolId } from '../../core/document/appTypes';
 import { CanvasDocument } from '../../core/document/imageDocument';
 import { AnnotationDocument } from '../annotations/annotationDocument';
 import { renderAnnotationObject } from '../annotations/annotationRenderer';
-import { isAnnotationSessionState } from '../annotations/annotationSerialization';
 import { AnnotationObjectTypeId, type ShapeAnnotation } from '../annotations/annotationTypes';
 import { EditableObjectPropertyId, editableObjectProperties, setEditableObjectProperty } from '../annotations/editableObjectProperties';
 import { AssistantCommandRunner } from '../assistant/assistantCommandRunner';
@@ -52,18 +51,6 @@ describe('a shape with its own fill colour', () => {
 		const { fillColor: _, ...legacy } = BOX;
 		renderAnnotationObject(context, document.createElement('canvas'), legacy);
 		expect(drawn).toEqual(['fill #333333']);
-	});
-
-	it('saves into projects, and a project with a broken fill colour is refused', () => {
-		const objects = documentWith(BOX);
-		const saved = JSON.parse(JSON.stringify(objects.snapshotSession()));
-		expect(isAnnotationSessionState(saved)).toBe(true);
-		const restored = new AnnotationDocument();
-		restored.restoreSession(saved);
-		expect(restored.object('box')).toEqual(BOX);
-		const broken = structuredClone(saved);
-		broken.state.objects[0].fillColor = 42;
-		expect(isAnnotationSessionState(broken)).toBe(false);
 	});
 
 	it('offers its fill colour only while filled, which is its colour until it has its own', () => {

@@ -1,13 +1,13 @@
 import { expect, test, type Page } from '@playwright/test';
 
-const ProjectMimeType = 'application/vnd.little-image-editor.project+json';
+const SvgMimeType = 'image/svg+xml';
 
 test('painting across existing pixels stays in one layer until a new layer is made', async ({
 	page,
 }) => {
 	await page.goto('/');
 	await page.locator('#quickNewButton').click();
-	await page.locator('#newImageFormat').selectOption(ProjectMimeType);
+	await page.locator('#newImageFormat').selectOption(SvgMimeType);
 	await page.locator('#createImageButton').click();
 	await chooseBrush(page);
 

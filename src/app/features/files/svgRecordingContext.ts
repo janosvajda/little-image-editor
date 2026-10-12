@@ -30,6 +30,15 @@ const HALF = 2;
 const DEFAULT_FONT = '10px sans-serif';
 const DEFAULT_COLOR = '#000000';
 const DEFAULT_LINE_WIDTH = 1;
+const TRANSPARENT = 'transparent';
+const NO_FILTER = 'none';
+/** The one canvas filter SVG has an equal of: a Gaussian blur, its spread in pixels. */
+const CANVAS_BLUR = /^blur\(\s*([\d.]+)px\s*\)$/;
+/** A canvas shadow's blur is twice the spread SVG's Gaussian blur names. */
+const SHADOW_BLUR_PER_DEVIATION = 2;
+/** The nine-number form of drawImage, which draws a part of an image, and where its destination starts. */
+const CROPPED_DRAW = 8;
+const CROPPED_DESTINATION = 4;
 const XML_ESCAPES: Readonly<Record<string, string>> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' };
 const TextAnchor: Readonly<Record<string, string>> = { center: 'middle', middle: 'middle', right: 'end', end: 'end' };
 const DominantBaseline: Readonly<Record<string, string>> = { middle: 'middle', top: 'hanging', hanging: 'hanging', bottom: 'text-after-edge' };
@@ -49,7 +58,36 @@ interface DrawingState {
 	font: string;
 	textAlign: CanvasTextAlign;
 	textBaseline: CanvasTextBaseline;
+	shadowColor: string;
+	shadowBlur: number;
+	/** The clip drawing is kept inside, as an SVG clipPath's id; none when it is not clipped. */
+	clip?: string;
+	/** A canvas filter, of which the blur SVG has a filter for is kept. */
+	filter: string;
+	compositing: GlobalCompositeOperation;
 }
+
+/**
+ * A mask that what was drawn before it is kept through: erasing hides what
+ * its marks cover, as `destination-out` does, and keeping shows only what its
+ * marks cover, as `destination-in` does.
+ */
+interface RecordedMask {
+	readonly id: string;
+	readonly keeps: boolean;
+	readonly marks: RecordedElement[];
+}
+
+/** How compositing marks a mask: erasing hides what it covers, keeping shows only that. */
+const MaskCompositing: Readonly<Partial<Record<GlobalCompositeOperation, { readonly keeps: boolean }>>> = {
+	'destination-out': { keeps: false },
+	'destination-in': { keeps: true },
+};
+/** What a mask shows in full, and hides in full; marks fade between them. */
+const MaskPaint = { Shown: '#ffffff', Hidden: '#000000' } as const;
+/** How far beyond the canvas, in canvas sizes, a mask reaches, so it covers whatever turned drawing it is used under. */
+const MASK_MARGIN = 1;
+const MASK_SPAN = MASK_MARGIN * 2 + 1;
 
 type Attributes = Record<string, string | number | undefined>;
 
@@ -147,8 +185,18 @@ export class SvgRecordingContext {
 		font: DEFAULT_FONT,
 		textAlign: 'start',
 		textBaseline: 'alphabetic',
+		shadowColor: TRANSPARENT,
+		shadowBlur: 0,
+		filter: NO_FILTER,
+		compositing: 'source-over',
 	};
-	globalCompositeOperation: GlobalCompositeOperation = 'source-over';
+	readonly #masks: RecordedMask[] = [];
+	/** The mask erasing goes on adding to, until something is drawn over it. */
+	#openMask: RecordedMask | null = null;
+	/** Each item is recorded on its own, so erasing takes away only from it. */
+	readonly isolatesItems = true;
+	/** The soft-edge filters made so far, by how soft they are, so each is defined once. */
+	readonly #softEdges = new Map<number, string>();
 	/** Whether an open path of straight pieces is written as a `polyline`, as a connector is, rather than a `path`. */
 	polylines = false;
 	imageSmoothingEnabled = true;
@@ -158,11 +206,20 @@ export class SvgRecordingContext {
 		readonly canvas: { readonly width: number; readonly height: number },
 		/** Prefix for gradient ids, so several recordings in one file do not clash. */
 		private readonly idPrefix: string,
+		/** Images the file already holds, by the id of their element: drawing one again refers to it rather than holding it twice. */
+		private readonly images: ReadonlyMap<CanvasImageSource, string> = new Map(),
 	) {}
 
-	/** What was drawn: the gradients it needs, then the elements in drawing order. */
+	/** What was drawn: the gradients and masks it needs, then the elements in drawing order. */
 	get definitions(): readonly string[] {
-		return this.#definitions;
+		return [...this.#definitions, ...this.#masks.map((mask) => this.maskMarkup(mask))];
+	}
+
+	get globalCompositeOperation(): GlobalCompositeOperation {
+		return this.#state.compositing;
+	}
+	set globalCompositeOperation(value: GlobalCompositeOperation) {
+		this.#state.compositing = value;
 	}
 
 	/** Every drawing call as its own element, exactly as drawn. */
@@ -177,16 +234,7 @@ export class SvgRecordingContext {
 	 * the canvas fades each of them.
 	 */
 	get shapes(): readonly string[] {
-		const shapes: string[] = [];
-		for (let index = 0; index < this.#records.length; index++) {
-			const record = this.#records[index]!;
-			const next = this.#records[index + 1];
-			if (next && outlines(record, next)) {
-				shapes.push(paintedShape(record, { ...next.attributes, fill: record.attributes.fill, 'fill-rule': record.attributes['fill-rule'] }));
-				index++;
-			} else shapes.push(record.path ? paintedShape(record, record.attributes) : svgElement(record.name, { ...record.attributes, opacity: fading(record.alpha), ...transformAttribute(record.matrix) }, record.content));
-		}
-		return shapes;
+		return shapesOf(this.#records);
 	}
 
 	/** The paths that were filled, as SVG path data with the transform each was drawn under. */
@@ -252,6 +300,32 @@ export class SvgRecordingContext {
 	}
 	set textBaseline(value: CanvasTextBaseline) {
 		this.#state.textBaseline = value;
+	}
+	get shadowColor(): string {
+		return this.#state.shadowColor;
+	}
+	set shadowColor(value: string) {
+		this.#state.shadowColor = value;
+	}
+	get shadowBlur(): number {
+		return this.#state.shadowBlur;
+	}
+	set shadowBlur(value: number) {
+		this.#state.shadowBlur = value;
+	}
+	get filter(): string {
+		return this.#state.filter;
+	}
+	set filter(value: string) {
+		this.#state.filter = value;
+	}
+
+	/** Keeps what is drawn next inside the current path, as an SVG clipPath, until the state is restored. */
+	clip(rule: CanvasFillRule = 'nonzero'): void {
+		const id = `${this.idPrefix}clip-${this.#definitions.length + 1}`;
+		const outline = svgElement('path', { d: this.#path, 'clip-rule': rule === 'evenodd' ? 'evenodd' : undefined, ...transformAttribute(this.#state.matrix) });
+		this.#definitions.push(svgElement('clipPath', { id, clipPathUnits: 'userSpaceOnUse' }, outline));
+		this.#state.clip = id;
 	}
 
 	save(): void {
@@ -323,7 +397,7 @@ export class SvgRecordingContext {
 			this.#shape === undefined
 				? { name: 'rect', x: Math.min(x, x + width), y: Math.min(y, y + height), width: Math.abs(width), height: Math.abs(height) }
 				: null;
-		this.#path += `M${svgNumber(x)} ${svgNumber(y)}h${svgNumber(width)}v${svgNumber(height)}h${svgNumber(-width)}Z`;
+		this.#path += rectData(x, y, width, height);
 	}
 
 	arc(x: number, y: number, radius: number, start: number, end: number, counterclockwise = false): void {
@@ -364,8 +438,17 @@ export class SvgRecordingContext {
 		this.#markers = {};
 	}
 
+	/** A filled rectangle; several in a row in the same paint join one path, as a spray's dots or a fill's rows do. */
 	fillRect(x: number, y: number, width: number, height: number): void {
-		this.emit('rect', { x, y, width, height, ...this.paint('fill') });
+		const record: RecordedElement = { name: 'rect', attributes: { x, y, width, height, ...this.paint('fill'), ...this.clipAndFilter() }, matrix: this.#state.matrix, alpha: this.#state.globalAlpha };
+		const previous = this.#records.at(-1);
+		if (!previous || MaskCompositing[this.#state.compositing] || !fillsAlike(previous, record)) {
+			this.record(record);
+			return;
+		}
+		const data = `${filledData(previous)}${rectData(x, y, width, height)}`;
+		const { x: _x, y: _y, width: _width, height: _height, ...paint } = record.attributes;
+		this.#records[this.#records.length - 1] = { ...record, name: 'path', attributes: { d: data, ...paint, stroke: 'none' }, path: { data, shape: null, paint: PathPaint.Fill } };
 	}
 
 	strokeRect(x: number, y: number, width: number, height: number): void {
@@ -403,34 +486,114 @@ export class SvgRecordingContext {
 		return new RecordedPattern(patternOfTile(tile), tile);
 	}
 
-	/** An image drawn into the picture, embedded as a PNG at the place and size it is drawn. */
-	drawImage(source: CanvasImageSource, x: number, y: number, width?: number, height?: number): void {
+	/**
+	 * An image drawn into the picture: one the file already holds is referred
+	 * to where it lies, as a blur over the photo does, and any other is
+	 * embedded as a PNG at the place and size it is drawn. A part of an image
+	 * drawn at its own place, as the nine-number form can draw it, is the image
+	 * kept to that part.
+	 */
+	drawImage(source: CanvasImageSource, ...placement: number[]): void {
+		const shared = this.images.get(source);
+		if (shared) {
+			this.emit('use', { href: `#${shared}` });
+			return;
+		}
 		const canvas = asCanvas(source);
-		this.emit('image', {
-			href: canvas.toDataURL('image/png'),
-			x,
-			y,
-			width: width ?? canvas.width,
-			height: height ?? canvas.height,
-			preserveAspectRatio: 'none',
-		});
+		const [x = 0, y = 0, width = canvas.width, height = canvas.height] = placement.length === CROPPED_DRAW ? placement.slice(CROPPED_DESTINATION) : placement;
+		this.emit('image', { href: canvas.toDataURL('image/png'), x, y, width, height, preserveAspectRatio: 'none' });
 	}
 
 	private emit(name: string, attributes: Attributes, content?: string): void {
-		this.#records.push({ name, attributes, content, matrix: this.#state.matrix, alpha: this.#state.globalAlpha });
+		this.record({ name, attributes: { ...attributes, ...this.clipAndFilter() }, content, matrix: this.#state.matrix, alpha: this.#state.globalAlpha });
 	}
 
+	/**
+	 * Something drawn: shown, or, while compositing erases or keeps, a mark in
+	 * the mask everything drawn before it is kept through.
+	 */
+	private record(record: RecordedElement): void {
+		const compositing = MaskCompositing[this.#state.compositing];
+		if (!compositing) {
+			this.#openMask = null;
+			this.#records.push(record);
+			return;
+		}
+		if (this.#openMask?.keeps === compositing.keeps) {
+			this.#openMask.marks.push(record);
+			return;
+		}
+		const mask: RecordedMask = { id: `${this.idPrefix}mask-${this.#masks.length + 1}`, keeps: compositing.keeps, marks: [record] };
+		const kept = shapesOf(this.#records.splice(0)).join('');
+		this.#records.push({ name: 'g', attributes: { mask: `url(#${mask.id})` }, content: kept, matrix: IDENTITY_MATRIX, alpha: 1 });
+		this.#masks.push(mask);
+		this.#openMask = mask;
+	}
+
+	/** A mask as SVG: shown or hidden everywhere, and its marks the other way. */
+	private maskMarkup({ id, keeps, marks }: RecordedMask): string {
+		const { width, height } = this.canvas;
+		const area = { x: -width * MASK_MARGIN, y: -height * MASK_MARGIN, width: width * MASK_SPAN, height: height * MASK_SPAN };
+		const ground = svgElement('rect', { ...area, fill: keeps ? MaskPaint.Hidden : MaskPaint.Shown });
+		return svgElement('mask', { id, maskUnits: 'userSpaceOnUse', ...area }, `${ground}${shapesOf(marks).join('')}`);
+	}
+
+	/** The clip and the blur the state draws through, as SVG references. */
+	private clipAndFilter(): Attributes {
+		const blur = CANVAS_BLUR.exec(this.#state.filter.trim())?.[1];
+		return { 'clip-path': this.#state.clip ? `url(#${this.#state.clip})` : undefined, filter: blur === undefined ? undefined : `url(#${this.blurFilter(Number(blur))})` };
+	}
+
+	/** An SVG Gaussian blur of the given spread, defined once for each spread. */
+	private blurFilter(spread: number): string {
+		const id = `${this.idPrefix}blur-${svgNumber(spread).replace('.', '_')}`;
+		if (!this.#definitions.some((definition) => definition.includes(`id="${id}"`)))
+			this.#definitions.push(svgElement('filter', { id }, svgElement('feGaussianBlur', { in: 'SourceGraphic', stdDeviation: spread })));
+		return id;
+	}
+
+	/**
+	 * A painted path; a path painted just as the one before joins it, so a
+	 * brush's many pieces are one element. A soft edge, as a canvas shadow
+	 * gives a brush, is an SVG blur under the path.
+	 */
 	private emitPath(paint: PathPaint, attributes: Attributes): void {
-		this.#records.push({
+		const softEdge = this.softEdge();
+		const record: RecordedElement = {
 			name: 'path',
-			attributes: { d: this.#path, ...attributes },
+			attributes: { d: this.#path, ...attributes, ...this.clipAndFilter(), ...(softEdge ? { filter: softEdge } : {}) },
 			matrix: this.#state.matrix,
 			alpha: this.#state.globalAlpha,
 			path: { data: this.#path, shape: this.#shape ?? null, paint },
-		});
+		};
+		// A mark joins only marks of the mask it goes in, never the drawing it hides or keeps, however alike their paint.
+		const masking = MaskCompositing[this.#state.compositing];
+		const records = masking ? (this.#openMask?.keeps === masking.keeps ? this.#openMask.marks : []) : this.#records;
+		const previous = records.at(-1);
+		if (previous?.path && joins(previous, record)) {
+			const data = `${previous.path.data}${record.path!.data}`;
+			records[records.length - 1] = { ...previous, attributes: { ...previous.attributes, d: data }, path: { data, shape: null, paint } };
+		} else this.record(record);
+	}
+
+	/** The filter a canvas shadow of the drawing's own colour gives it: its soft edge. */
+	private softEdge(): string | undefined {
+		const { shadowBlur, shadowColor } = this.#state;
+		if (shadowBlur <= 0 || shadowColor === TRANSPARENT) return undefined;
+		const known = this.#softEdges.get(shadowBlur);
+		if (known) return `url(#${known})`;
+		const id = `${this.idPrefix}soft-${this.#softEdges.size + 1}`;
+		this.#softEdges.set(shadowBlur, id);
+		const blurred = svgElement('feGaussianBlur', { in: 'SourceGraphic', stdDeviation: shadowBlur / SHADOW_BLUR_PER_DEVIATION, result: 'soft' });
+		const merged = svgElement('feMerge', {}, `${svgElement('feMergeNode', { in: 'soft' })}${svgElement('feMergeNode', { in: 'SourceGraphic' })}`);
+		this.#definitions.push(svgElement('filter', { id }, `${blurred}${merged}`));
+		return `url(#${id})`;
 	}
 
 	private paint(kind: 'fill' | 'stroke'): Record<string, string> {
+		// A mark in a mask hides or shows by how light it is, not by its colour.
+		const compositing = MaskCompositing[this.#state.compositing];
+		if (compositing) return { [kind]: compositing.keeps ? MaskPaint.Shown : MaskPaint.Hidden };
 		const style = kind === 'fill' ? this.#state.fillStyle : this.#state.strokeStyle;
 		if (typeof style === 'string') return { [kind]: style };
 		return { [kind]: `url(#${style instanceof RecordedPattern ? this.definePattern(style) : this.defineGradient(style)})` };
@@ -479,6 +642,59 @@ function patternTileMarkup(pattern: FillPattern, id: string): string {
 	const recorder = new SvgRecordingContext({ width: pattern.size, height: pattern.size }, `${id}-`);
 	drawPatternTile(recorder, pattern);
 	return recorder.shapes.join('');
+}
+
+/** What a drawing is painted and kept in: rectangles that agree on all of it can be one path. */
+const DRAWN_THROUGH = ['fill', 'clip-path', 'filter'] as const;
+
+function rectData(x: number, y: number, width: number, height: number): string {
+	return `M${svgNumber(x)} ${svgNumber(y)}h${svgNumber(width)}v${svgNumber(height)}h${svgNumber(-width)}Z`;
+}
+
+/** What a filled rectangle or a filled path covers, as path data. */
+function filledData(record: RecordedElement): string {
+	if (record.path) return record.path.data;
+	const { x, y, width, height } = record.attributes as Record<'x' | 'y' | 'width' | 'height', number>;
+	return rectData(x, y, width, height);
+}
+
+/** Whether a rectangle is filled just as `previous` was filled, a rectangle or a path of them, so the two can be one path. */
+function fillsAlike(previous: RecordedElement, rectangle: RecordedElement): boolean {
+	const filledRect = previous.name === 'rect' && previous.attributes.stroke === undefined;
+	const filledPath = previous.path?.paint === PathPaint.Fill && previous.attributes['fill-rule'] === undefined;
+	return (
+		(filledRect || filledPath) &&
+		DRAWN_THROUGH.every((name) => previous.attributes[name] === rectangle.attributes[name]) &&
+		previous.alpha === rectangle.alpha &&
+		previous.matrix.every((value, index) => value === rectangle.matrix[index])
+	);
+}
+
+/**
+ * What was drawn as the elements an SVG editor would write: a path filled
+ * and then outlined is one element with both, a lone rectangle or ellipse is
+ * a `rect` or an `ellipse`.
+ */
+function shapesOf(records: readonly RecordedElement[]): string[] {
+	const shapes: string[] = [];
+	for (let index = 0; index < records.length; index++) {
+		const record = records[index]!;
+		const next = records[index + 1];
+		if (next && outlines(record, next)) {
+			shapes.push(paintedShape(record, { ...next.attributes, fill: record.attributes.fill, 'fill-rule': record.attributes['fill-rule'] }));
+			index++;
+		} else shapes.push(record.path ? paintedShape(record, record.attributes) : svgElement(record.name, { ...record.attributes, opacity: fading(record.alpha), ...transformAttribute(record.matrix) }, record.content));
+	}
+	return shapes;
+}
+
+/** Whether `next` paints just as `previous` did, with no ends of its own, so the two can be one path. */
+function joins(previous: RecordedElement, next: RecordedElement): boolean {
+	if (previous.path?.paint !== next.path?.paint || previous.alpha !== next.alpha || previous.matrix.some((value, index) => value !== next.matrix[index])) return false;
+	const { d: _previous, ...previousPaint } = previous.attributes;
+	const { d: _next, ...nextPaint } = next.attributes;
+	const keys = new Set([...Object.keys(previousPaint), ...Object.keys(nextPaint)]);
+	return [...keys].every((key) => !key.startsWith('marker') && previousPaint[key] === nextPaint[key]);
 }
 
 /** Whether `next` outlines the very path `record` filled, under the same transform and fading. */

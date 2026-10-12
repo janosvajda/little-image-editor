@@ -36,8 +36,6 @@ export const ShapeHandleMetrics = {
 	HitTolerance: 10,
 } as const;
 
-export type SelectionBounds = Readonly<Pick<CropRect, 'width' | 'height'>>;
-
 export function shapeCenter(shape: TransformableGeometry): Point {
 	return {
 		x: shape.rect.x + shape.rect.width / 2,

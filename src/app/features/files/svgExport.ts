@@ -3,7 +3,6 @@ import { degreesToRadians, rotationAbout, transformPoint } from '../../core/geom
 import { genericShape } from '../../core/geometry/genericShape';
 import { shapeCenter } from '../../core/geometry/shapeTransformHelpers';
 import { BlendMode, CoreLayerId } from '../../core/layers/layerTypes';
-import { canvasContext } from '../../shared/dom/domHelpers';
 import { renderAnnotationObject } from '../annotations/annotationRenderer';
 import {
 	type AnnotationObject,
@@ -23,18 +22,22 @@ import { clipContours } from '../annotations/itemClip';
 import { hasVisibleEffects } from '../annotations/itemEffects';
 import { FillRule, pathData } from '../../core/geometry/vectorPath';
 import { layerAppearance } from '../layers/layerAppearance';
+import { documentMetadata } from './svgDocumentMetadata';
+import { erasableAttributes, itemCodec } from './svgItemCodecs';
+import { flagValue, SvgDataAttribute } from './svgItemFormat';
 import { type LineEndMarkerStyle, lineEndMarker, MarkerPosition } from './svgLineEnds';
-import { asCanvasContext, escapeXml, SvgRecordingContext, svgElement } from './svgRecordingContext';
+import { asCanvasContext, escapeXml, SvgRecordingContext, svgElement, svgNumber } from './svgRecordingContext';
+import { SvgKeyword } from './svgStyle';
 
 /**
- * SVG export: the image as a standard SVG of what is visible, nothing else.
- * Shapes, paths, connectors, arrows, text, markers and gradients become SVG
- * elements, drawn by the editor's own renderer into a recording context;
- * the photo, brush strokes, fills, cut-outs, placed pictures and blurs are
- * pixels, so they are embedded as PNG images. Each visible layer is a group
- * with its opacity and blend mode. Elements are the ones SVG has for each
- * thing: a rectangle is a `rect`, a line with ends a `path` or `polyline`
- * with markers, so an SVG opened again gives back the same editable items.
+ * The document as a standard SVG, which is also the editor's own document
+ * format. Every item is vector drawing, drawn by the editor's own renderer
+ * into a recording context: shapes, paths, lines, text, markers, brush
+ * strokes, fills, and erasing as SVG masks; a blur is the photo blurred by an
+ * SVG filter. Only real pixels, the photo and pixels cut or pasted in, are
+ * embedded as PNG images. Each item is a group naming what it is, and each
+ * layer a group with its settings, so the SVG opens again as the same
+ * editable document, while any SVG viewer shows it as it looks.
  */
 
 export const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
@@ -46,18 +49,15 @@ export const FilterInput = { Source: 'SourceGraphic', Blurred: 'blurred' } as co
 /** Characters an id may not hold; a layer's name is kept readable otherwise. */
 const ID_UNSAFE = /[^\p{L}\p{N}_-]+/gu;
 
-/** Items made of lines, fills and text, which SVG draws as they are. */
-const VECTOR_ITEMS: ReadonlySet<AnnotationObject['type']> = new Set([
-	AnnotationObjectTypeId.Shape,
-	AnnotationObjectTypeId.Arrow,
-	AnnotationObjectTypeId.Connector,
-	AnnotationObjectTypeId.Path,
-	AnnotationObjectTypeId.Text,
-	AnnotationObjectTypeId.Step,
-	AnnotationObjectTypeId.Highlight,
-	AnnotationObjectTypeId.Box,
-	AnnotationObjectTypeId.Redact,
-]);
+/** The id of the image's own picture, which a blur over it refers to rather than holding the picture twice. */
+export const IMAGE_ELEMENT_ID = 'image';
+
+/** What every item of a document is written with: the document, the definitions they add, and the images the file already holds. */
+interface SvgWriting {
+	readonly documentModel: CanvasDocument;
+	readonly definitions: string[];
+	readonly images: ReadonlyMap<CanvasImageSource, string>;
+}
 
 /** How an SVG is written: the size it asks to be shown at, as a share of the image's, and whether the image's own pixels are in it. */
 export interface SvgDocumentOptions {
@@ -70,40 +70,58 @@ export function svgDocument(documentModel: CanvasDocument, state: Readonly<Annot
 	const { width, height } = documentModel;
 	const definitions: string[] = [];
 	const body: string[] = [];
-	if (includeImage && documentModel.layers.isVisible(CoreLayerId.Image))
-		body.push(svgElement('image', { href: documentModel.canvas.toDataURL('image/png'), x: 0, y: 0, width, height }));
-	if (documentModel.layers.isVisible(CoreLayerId.Objects)) {
-		const ids = new LayerIds();
-		let cursor = 0;
-		state.layers.forEach((layer, layerIndex) => {
-			// `objects` follows `layers`, so each layer's items are the next run of objects.
-			const items = state.objects.slice(cursor, cursor + layer.itemIds.length);
-			cursor += layer.itemIds.length;
-			if (layer.visible === false) return;
-			const content = items
-				.filter((item) => item.visible !== false)
-				.map((item, itemIndex) => itemSvg(documentModel, item, `l${layerIndex}i${itemIndex}-`, definitions));
-			// A group's title is its name, as SVG names groups, so the layer opens again with it.
-			if (content.length) body.push(svgElement('g', layerAttributes(layer, ids), `${svgElement('title', {}, escapeXml(layer.name))}${content.join('')}`));
-		});
-	}
+	// The image's photo is kept even while hidden, as its layer is: hidden, it is still the document's.
+	if (includeImage) body.push(imageElement(documentModel));
+	const writing: SvgWriting = { documentModel, definitions, images: includeImage ? new Map([[documentModel.canvas, IMAGE_ELEMENT_ID]]) : new Map() };
+	const ids = new LayerIds();
+	let cursor = 0;
+	state.layers.forEach((layer, layerIndex) => {
+		// `objects` follows `layers`, so each layer's items are the next run of objects.
+		const items = state.objects.slice(cursor, cursor + layer.itemIds.length);
+		cursor += layer.itemIds.length;
+		const content = items.map((item, itemIndex) => itemSvg(writing, item, `l${layerIndex}i${itemIndex}-`));
+		// A group's title is its name, as SVG names groups, so the layer opens again with it.
+		body.push(svgElement('g', layerAttributes(layer, ids), `${svgElement('title', {}, escapeXml(layer.name))}${content.join('')}`));
+	});
 	const defs = definitions.length ? svgElement('defs', {}, definitions.join('')) : '';
 	return `${svgElement(
 		'svg',
 		// A vector drawing scales without loss: only the size it asks for changes, never its own coordinates.
-		{ xmlns: SVG_NAMESPACE, width: width * scale, height: height * scale, viewBox: `0 0 ${width} ${height}` },
-		`${svgElement('title', {}, escapeXml(documentModel.baseName))}${defs}${body.join('')}`,
+		{
+			xmlns: SVG_NAMESPACE,
+			width: width * scale,
+			height: height * scale,
+			viewBox: `0 0 ${width} ${height}`,
+			[SvgDataAttribute.NextStep]: state.nextStep,
+			[SvgDataAttribute.Resolution]: documentModel.resolution,
+		},
+		`${svgElement('title', {}, escapeXml(documentModel.baseName))}${documentMetadata((key) => documentModel.toolbarState(key))}${defs}${body.join('')}`,
 	)}\n`;
 }
 
+/** The image's own photo, hidden and locked as its layer is. */
+function imageElement(documentModel: CanvasDocument): string {
+	const layer = documentModel.layers.state.layers.find(({ id }) => id === CoreLayerId.Image);
+	return svgElement('image', {
+		id: IMAGE_ELEMENT_ID,
+		href: documentModel.canvas.toDataURL('image/png'),
+		x: 0,
+		y: 0,
+		width: documentModel.width,
+		height: documentModel.height,
+		visibility: layer?.visible === false ? SvgKeyword.Hidden : undefined,
+		[SvgDataAttribute.Locked]: flagValue(layer?.locked),
+	});
+}
+
 /**
- * One item: recorded as SVG when it is vector drawing, embedded as a picture
- * when it is pixels, inside its clip and its effects as SVG writes those.
+ * One item: its group, named by its kind and turned as it is, around its
+ * drawing, inside its clip and its effects as SVG writes those, which apply
+ * to the item as it is turned.
  */
-function itemSvg(documentModel: CanvasDocument, item: AnnotationObject, idPrefix: string, definitions: string[]): string {
-	const plain = { ...item, effects: undefined, clip: undefined };
-	const content = drawsAsVectors(plain) ? vectorItemSvg(documentModel, plain, idPrefix, definitions) : pixelItem(documentModel, plain);
-	if (!content) return '';
+function itemSvg(writing: SvgWriting, item: AnnotationObject, idPrefix: string): string {
+	const { documentModel, definitions } = writing;
+	const content = itemGroup(writing, { ...item, effects: undefined, clip: undefined }, idPrefix);
 	const clipped = item.clip ? clippedSvg(item, item.clip, content, idPrefix, definitions) : content;
 	return hasVisibleEffects(item.effects) ? effectsSvg(documentModel, item.effects, clipped, idPrefix, definitions) : clipped;
 }
@@ -136,9 +154,33 @@ function effectsSvg(documentModel: CanvasDocument, { blur = 0, shadow }: ItemEff
 	return svgElement('g', { filter: `url(#${id})` }, content);
 }
 
+/**
+ * An item's group: the item drawn unturned, as recorded SVG when it is vector
+ * drawing and as an embedded picture when it is pixels, turned by the group,
+ * which says what kind of item it is and what its drawing cannot show.
+ */
+function itemGroup(writing: SvgWriting, item: AnnotationObject, idPrefix: string): string {
+	const unturned = { ...item, rotation: undefined, visible: undefined, locked: undefined };
+	const drawing = vectorItemSvg(writing, unturned, idPrefix);
+	const centre = shapeCenter(genericShape(item).geometry);
+	return svgElement(
+		'g',
+		{
+			[SvgDataAttribute.Item]: item.type,
+			...itemCodec(item).attributes(item),
+			...erasableAttributes(item),
+			[SvgDataAttribute.Locked]: flagValue(item.locked),
+			// Hidden, but still there to read, as SVG's visibility keeps it.
+			visibility: item.visible === false ? SvgKeyword.Hidden : undefined,
+			transform: item.rotation ? `rotate(${svgNumber(item.rotation)} ${svgNumber(centre.x)} ${svgNumber(centre.y)})` : undefined,
+		},
+		drawing,
+	);
+}
+
 /** A vector item as SVG elements, its line ends as markers. */
-function vectorItemSvg(documentModel: CanvasDocument, item: AnnotationObject, idPrefix: string, definitions: string[]): string {
-	const recorder = new SvgRecordingContext(documentModel, idPrefix);
+function vectorItemSvg({ documentModel, definitions, images }: SvgWriting, item: AnnotationObject, idPrefix: string): string {
+	const recorder = new SvgRecordingContext(documentModel, idPrefix, images);
 	const { drawn, ends } = withMarkerEnds(item);
 	const markers = Object.fromEntries(
 		ends.map(([position, style]) => {
@@ -209,27 +251,6 @@ function arrowConnector(arrow: ArrowAnnotation): ConnectorAnnotation {
 	};
 }
 
-/** Vector items stay vectors unless parts were erased or cut away, which only pixels show. */
-export function drawsAsVectors(item: AnnotationObject): boolean {
-	return VECTOR_ITEMS.has(item.type) && !item.erasures?.length && !item.pixelCutouts?.length && !item.pixelClips?.length;
-}
-
-/** An item drawn as pixels and embedded as a PNG, cropped to what it covers. */
-function pixelItem(documentModel: CanvasDocument, item: AnnotationObject): string {
-	const canvas = document.createElement('canvas');
-	canvas.width = documentModel.width;
-	canvas.height = documentModel.height;
-	const context = canvasContext(canvas);
-	renderAnnotationObject(context, documentModel.canvas, item);
-	const bounds = coveredBounds(context.getImageData(0, 0, canvas.width, canvas.height));
-	if (!bounds) return '';
-	const crop = document.createElement('canvas');
-	crop.width = bounds.width;
-	crop.height = bounds.height;
-	canvasContext(crop).drawImage(canvas, bounds.x, bounds.y, bounds.width, bounds.height, 0, 0, bounds.width, bounds.height);
-	return svgElement('image', { href: crop.toDataURL('image/png'), ...bounds });
-}
-
 /** The smallest box around every pixel that is not fully transparent; none when nothing shows. */
 export function coveredBounds({ data, width, height }: Pick<ImageData, 'data' | 'width' | 'height'>): { x: number; y: number; width: number; height: number } | null {
 	let left = width;
@@ -254,6 +275,9 @@ function layerAttributes(layer: ContentLayer, ids: LayerIds): Record<string, str
 		id: ids.next(layer.name),
 		opacity: opacity === 1 ? undefined : opacity,
 		style: blendMode === BlendMode.Normal ? undefined : `mix-blend-mode: ${blendMode}`,
+		display: layer.visible === false ? SvgKeyword.None : undefined,
+		[SvgDataAttribute.Locked]: flagValue(layer.locked),
+		[SvgDataAttribute.Rotation]: layer.rotation || undefined,
 	};
 }
 

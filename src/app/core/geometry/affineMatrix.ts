@@ -48,6 +48,13 @@ export function multiplyMatrices(outer: AffineMatrix, inner: AffineMatrix): Affi
 	return [a * na + c * nb, b * na + d * nb, a * nc + c * nd, b * nc + d * nd, a * ne + c * nf + e, b * ne + d * nf + f];
 }
 
+/** The transform that undoes `matrix`; null when it flattens everything onto a line, which nothing undoes. */
+export function invertMatrix([a, b, c, d, e, f]: AffineMatrix): AffineMatrix | null {
+	const determinant = a * d - b * c;
+	if (!determinant) return null;
+	return [d / determinant, -b / determinant, -c / determinant, a / determinant, (c * f - d * e) / determinant, (b * e - a * f) / determinant];
+}
+
 export function transformPoint([a, b, c, d, e, f]: AffineMatrix, { x, y }: Point): Point {
 	return { x: a * x + c * y + e, y: b * x + d * y + f };
 }

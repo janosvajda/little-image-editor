@@ -10,7 +10,7 @@ import {
 	AnnotationObjectTypeId,
 	type TextAnnotation,
 } from '../annotations/annotationTypes';
-import { DRAWING_TOOL_DOCUMENT_CONTRACT } from '../projects/editorToolContract';
+import { DRAWING_TOOL_DOCUMENT_CONTRACT } from '../document/editorToolContract';
 import { DrawingController } from './drawingController';
 import { toolForShortcut } from './drawingToolCatalog';
 
@@ -37,7 +37,7 @@ beforeEach(() => {
 });
 
 describe('markup tools are ordinary shared tools', () => {
-	it('are listed with shortcuts and registered for layers and .limg', () => {
+	it('are listed with shortcuts and registered for layers and the SVG document', () => {
 		for (const tool of Object.values(MarkupToolId)) {
 			expect(DRAWING_TOOL_DOCUMENT_CONTRACT[tool]).toBeDefined();
 		}

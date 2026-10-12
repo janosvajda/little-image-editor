@@ -6,7 +6,6 @@ import { parseDrawScript } from '../assistant/drawScript';
 import { ConnectorDrawingGesture } from '../drawing/gestures/connectorDrawingGesture';
 import { AnnotationDocument } from './annotationDocument';
 import { renderAnnotationObject } from './annotationRenderer';
-import { isAnnotationSessionState } from './annotationSerialization';
 import { AnnotationObjectTypeId, type ConnectorAnnotation, connectorEnds, LineDash } from './annotationTypes';
 import { arrowHeadLength, drawLineEnd, lineEndInset, lineEndLength } from './arrowHead';
 import { ARROW_ENDS, isLineEnd, LINE_END_LABELS, LineEnd } from './lineEnd';
@@ -97,18 +96,6 @@ describe('connector ends', () => {
 		expect(calls.fill).toHaveBeenCalledOnce();
 	});
 
-	it('save into projects, and a project with an unknown end is refused', () => {
-		const objects = new AnnotationDocument();
-		objects.add(connector({ head: LineEnd.Triangle, tail: LineEnd.Diamond }));
-		const saved = JSON.parse(JSON.stringify(objects.snapshotSession()));
-		expect(isAnnotationSessionState(saved)).toBe(true);
-		const restored = new AnnotationDocument();
-		restored.restoreSession(saved);
-		expect(restored.object('relation')).toMatchObject({ head: LineEnd.Triangle, tail: LineEnd.Diamond });
-		const broken = structuredClone(saved);
-		broken.state.objects[0].tail = 'spiral';
-		expect(isAnnotationSessionState(broken)).toBe(false);
-	});
 });
 
 describe('drawing lines with named ends', () => {

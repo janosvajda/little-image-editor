@@ -15,7 +15,7 @@ import { openUntitledImage, untitledImageUri } from './untitledImages';
 import { WorkspaceImageExporter } from './workspaceImageExporter';
 
 const NO_EDITOR_MESSAGE =
-	'No image is open in Little Image Editor. Open an image or a .limg project in VS Code with Little Image Editor first, or create one with create_image.';
+	'No image is open in Little Image Editor. Open an image or an SVG in VS Code with Little Image Editor first, or create one with create_image.';
 const CHOOSE_IMAGE_MESSAGE =
 	'Several images are open and none is active; pass the id or name of one from list_images.';
 

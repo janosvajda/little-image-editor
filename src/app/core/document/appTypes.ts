@@ -70,7 +70,6 @@ export type ImageFormat = (typeof ImageMimeType)[keyof typeof ImageMimeType];
 
 export const DocumentType = {
 	Image: 'image',
-	Project: 'project',
 	/** An SVG: saved as SVG, its layers as groups and its shapes, paths and text as vectors. */
 	Svg: 'svg',
 } as const;

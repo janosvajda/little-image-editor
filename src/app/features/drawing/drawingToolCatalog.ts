@@ -263,19 +263,6 @@ export function toolsForToolbar(
 	);
 }
 
-export const PAINT_TOOLS = new Set<Tool>(
-	PAINT_TOOL_DEFINITIONS.map((tool) => tool.id),
-);
-export const SHAPE_TOOLS = new Set<Tool>(
-	SHAPE_TOOL_DEFINITIONS.map((tool) => tool.id),
-);
-
-export function isDrawingTool(value: string | null): value is Tool {
-	return (
-		value !== null && DRAWING_TOOL_DEFINITIONS.some((tool) => tool.id === value)
-	);
-}
-
 const TOOLS_BY_SHORTCUT = new Map(
 	DRAWING_TOOL_DEFINITIONS.flatMap((tool) =>
 		tool.shortcut ? [[tool.shortcut, tool.id] as const] : [],

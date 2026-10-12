@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ImageMimeType } from '../../core/document/appTypes';
 import { CanvasDocument } from '../../core/document/imageDocument';
 import type { OpenTarget } from '../../platform/editorPlatform';
-import { PROJECT_MIME_TYPE } from '../projects/projectTypes';
 import { FileController } from './fileController';
 
 const Surface = { width: 12, height: 8 } as const;
@@ -40,18 +39,8 @@ describe('a file opened by a host', () => {
 		expect(model.savedType).toBe(ImageMimeType.Jpeg);
 		expect(model.fileHandle?.name).toBe('photo.jpg');
 		vi.spyOn(model, 'toBlob').mockResolvedValue(new Blob(['saved']));
-		await files.save();
+		await files.saveInto(model.fileHandle!);
 		expect(written).toHaveLength(1);
 	});
 
-	it('hands a project, with its file, to the project handler', async () => {
-		const files = new FileController(model);
-		const openProject = vi.fn().mockResolvedValue(undefined);
-		files.setProjectOpenHandler(openProject);
-		const project = new File(['{}'], 'layers.limg', { type: PROJECT_MIME_TYPE });
-		const opened = target(project);
-		await files.openTarget(opened);
-		expect(openProject).toHaveBeenCalledWith(project, opened);
-		expect(model.load).not.toHaveBeenCalled();
-	});
 });

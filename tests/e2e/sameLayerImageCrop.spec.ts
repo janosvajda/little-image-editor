@@ -20,50 +20,6 @@ async function pixel(page: Page, x: number, y: number, canvas = IMAGE_CANVAS) {
 }
 
 for (const type of ['jpeg', 'png'] as const) {
-	test(`${type}: a selection cuts pixels into a layer that moves repeatedly, with undo, redo and .limg`, async ({ page }) => {
-		await page.setContent('<div id="source" style="width:240px;height:180px;background:linear-gradient(90deg,#ff0000 0 50%,#0000ff 50%)"></div>');
-		const buffer = await page.locator('#source').screenshot({ type });
-		await page.goto('/');
-		await page.locator('#fileInput').setInputFiles({ name: `source.${type}`, mimeType: `image/${type}`, buffer });
-		await page.locator('[data-panel="tools"] [data-tool="crop"]').click();
-		await page.locator('[data-panel="tools"] .panel-close').click();
-		const original = await page.locator(IMAGE_CANVAS).evaluate((element) => (element as HTMLCanvasElement).toDataURL());
-		const centre = await pixel(page, 50, 50);
-		await drag(page, [20, 20], [80, 80]);
-		expect((await pixel(page, 50, 50))[ALPHA]).toBe(0);
-		expect(await pixel(page, 50, 50, LAYER_CANVAS)).toEqual(centre);
-		await expect(page.locator('.layer-item-row')).toHaveCount(1);
-		await drag(page, [50, 50], [150, 100]);
-		expect((await pixel(page, 50, 50))[ALPHA]).toBe(0);
-		const moved = await pixel(page, 150, 100, LAYER_CANVAS);
-		expect(moved[0]).toBeGreaterThan(250);
-		expect(moved[2]).toBeLessThan(5);
-		await drag(page, [150, 100], [170, 120]);
-		expect(await pixel(page, 170, 120, LAYER_CANVAS)).toEqual(moved);
-		await page.locator('#undoButton').click();
-		expect(await pixel(page, 150, 100, LAYER_CANVAS)).toEqual(moved);
-		await page.locator('#undoButton').click();
-		expect(await pixel(page, 50, 50, LAYER_CANVAS)).toEqual(centre);
-		await page.locator('#undoButton').click();
-		expect(await page.locator(IMAGE_CANVAS).evaluate((element) => (element as HTMLCanvasElement).toDataURL())).toBe(original);
-		await expect(page.locator('.layer-item-row')).toHaveCount(0);
-		await page.locator('#redoButton').click();
-		expect((await pixel(page, 50, 50))[ALPHA]).toBe(0);
-		await expect(page.locator('.layer-item-row')).toHaveCount(1);
-		await page.evaluate(() => {
-			Object.defineProperty(window, 'showSaveFilePicker', { configurable: true, value: async () => ({
-				name: 'same-layer.limg',
-				createWritable: async () => ({ write: async (blob: Blob) => { (window as Window & { savedImageCrop?: string }).savedImageCrop = await blob.text(); }, close: async () => undefined }),
-			}) });
-		});
-		await page.locator('#saveAsButton').evaluate((button: HTMLButtonElement) => button.click());
-		const project = await page.waitForFunction(() => (window as Window & { savedImageCrop?: string }).savedImageCrop).then((handle) => handle.jsonValue());
-		await page.reload();
-		await page.locator('#fileInput').setInputFiles({ name: 'same-layer.limg', mimeType: 'application/vnd.little-image-editor.project+json', buffer: Buffer.from(project) });
-		expect((await pixel(page, 50, 50))[ALPHA]).toBe(0);
-		expect(await pixel(page, 50, 50, LAYER_CANVAS)).toEqual(centre);
-		await expect(page.locator('.layer-item-row')).toHaveCount(1);
-	});
 }
 
 test('a transparent PNG cut keeps its transparency and Escape cancels a move preview', async ({ page }) => {

@@ -10,7 +10,7 @@ import {
 	AnnotationObjectTypeId,
 	type AnnotationObject,
 } from '../annotations/annotationTypes';
-import { DocumentLimitController } from './documentLimitController';
+import { DocumentLimitController } from '../document/documentLimitController';
 
 function objects(count: number): AnnotationObject[] {
 	return Array.from({ length: count }, (_, index) => ({

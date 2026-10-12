@@ -8,7 +8,6 @@ import { ShapeHandleId, shapeHandles } from '../../core/geometry/shapeTransformH
 import { AnnotationDocument } from '../annotations/annotationDocument';
 import { renderAnnotationObject } from '../annotations/annotationRenderer';
 import { AnnotationObjectTypeId, type AnnotationObject, type ArrowAnnotation } from '../annotations/annotationTypes';
-import { ProjectCodec, ProjectFormatError } from '../projects/projectCodec';
 import { DrawingController } from './drawingController';
 import { LayerTransformGesture } from './gestures/layerTransformGesture';
 
@@ -58,9 +57,6 @@ describe('drawing direction in rotated layers', () => {
 			objects.undo();
 			objects.redo();
 			expect(objects.state).toEqual(saved.state);
-			const codec = new ProjectCodec();
-			const project = codec.parse(codec.serialize(model.snapshotSession(), [], objects.snapshotSession()));
-			expect(codec.toEditableObjects(project)).toEqual(saved);
 		});
 	}
 });
@@ -78,18 +74,6 @@ describe('endpoint arrows in existing projects', () => {
 		expect(arrow.from).toEqual({ x: frame.x + (before.from.x - frame.x) * 2, y: frame.y + (before.from.y - frame.y) * 2 });
 		expect(arrow.to).toEqual({ x: frame.x + (before.to.x - frame.x) * 2, y: frame.y + (before.to.y - frame.y) * 2 });
 		expect(arrow.rotation).toBe(QuarterTurn);
-	});
-});
-
-describe('stored drawing direction', () => {
-	it.each([{ flipX: 'true' }, { flipY: 1 }, { flipX: null }, { flipY: [] }])('rejects malformed .limg direction %o', (invalid) => {
-		drawing.select(ShapeToolId.Arrow);
-		drag(Start, translated(Start, Directions[0]!));
-		const codec = new ProjectCodec();
-		const project = codec.parse(codec.serialize(model.snapshotSession(), [], objects.snapshotSession()));
-		const editableObjects = project.editableObjects;
-		const state = { ...editableObjects.state, objects: [{ ...editableObjects.state.objects[0]!, ...invalid }] };
-		expect(() => codec.parse(JSON.stringify({ ...project, editableObjects: { ...editableObjects, state } }))).toThrow(ProjectFormatError);
 	});
 });
 

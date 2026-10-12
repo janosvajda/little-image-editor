@@ -11,13 +11,11 @@ import type { ImageFormat } from '../../core/document/appTypes';
 import { DocumentType } from '../../core/document/appTypes';
 import { imageFormat, imageFormatOfFileName } from '../../core/document/imageFormats';
 import { isSvgFile, isSvgFileName, SVG_EXTENSION, SVG_MIME_TYPE } from '../../core/document/svgFormat';
-import { PROJECT_MIME_TYPE } from '../projects/projectTypes';
 import type { ImageEncoding } from './canvasHelpers';
 import type { ExportOptions } from './exportOptions';
 import type { SvgDocumentOptions } from './svgExport';
 
-/** What a document is saved as: one of the image formats, SVG, or a project. */
-export type SaveFormat = ImageSaveFormat | typeof PROJECT_MIME_TYPE;
+/** What a document is saved as: one of the image formats, or SVG. */
 /** What a copy can be exported as: one of the image formats, or SVG. */
 export type ExportFormat = ImageFormat | typeof SVG_MIME_TYPE;
 
@@ -29,19 +27,13 @@ interface ChosenFileKind {
 	named(name: string): string;
 }
 
-/** An SVG to export: only an SVG name will do. */
+/** An SVG to save or export: only an SVG name will do. */
 const SVG_FILE_KIND: ChosenFileKind = {
 	extension: SVG_EXTENSION,
 	types: [SVG_PICKER_TYPE],
 	accepts: isSvgFileName,
 	named: (name) => ensureExtension(name, SVG_EXTENSION),
 };
-
-/** A file to save the document into, suggesting a format; any name the editor saves will do. */
-function savedFileKind(format: ImageSaveFormat): ChosenFileKind {
-	if (format === SVG_MIME_TYPE) return { ...SVG_FILE_KIND, types: savePickerTypes(format), accepts: isSavableFileName };
-	return imageFileKind(format, savePickerTypes(format), isSavableFileName);
-}
 
 /**
  * The document as SVG, which the editor gives the file controller: opening
@@ -51,7 +43,6 @@ function savedFileKind(format: ImageSaveFormat): ChosenFileKind {
 export interface SvgDocumentPort {
 	open(file: File, target: SaveTarget | null): Promise<void>;
 	write(options?: SvgDocumentOptions): Blob;
-	hasPicturedItems(): boolean;
 }
 
 function imageFileKind(format: ImageFormat, types: readonly PickerFileType[], accepts: (name: string) => boolean): ChosenFileKind {
@@ -61,13 +52,9 @@ import { isImageFileType } from './formatSelectHelpers';
 import {
 	EDITOR_OPEN_FILE_ACCEPT,
 	EDITOR_OPEN_PICKER_TYPES,
-	type ImageSaveFormat,
 	imagePickerType,
-	isProjectFile,
-	isProjectFileName,
 	isSavableFileName,
 	SVG_PICKER_TYPE,
-	savePickerTypes,
 } from './openFileTypes';
 import {
 	downloadTarget,
@@ -82,12 +69,12 @@ import {
 /** How a cancelled file operation is reported, as the browser's pickers do. */
 const ABORT_ERROR_NAME = 'AbortError';
 const SAVE_CANCELLED_MESSAGE = 'Saving was cancelled.';
+/** How many files of the wrong kind Save As takes before it stops asking. */
+const MAX_PICK_ATTEMPTS = 3;
 const SAVE_PROMPT = 'Save image as';
 const UNSAVABLE_FORMAT_MESSAGE =
-	'Little Image Editor saves projects (.limg), SVG images and PNG, JPEG or WebP images. Use Save As to choose one of them.';
-const SVG_PICTURE_WARNING =
-	'Some items, such as brush strokes, fills and erased objects, are saved in the SVG as pictures and open again as picture items. Keep a .limg project to edit them as they are. Continue?';
-const OPEN_FAILED_MESSAGE = 'The file could not be opened as an image or project.';
+	'Little Image Editor saves SVG documents and PNG, JPEG or WebP images. Use Save As to choose one of them.';
+const OPEN_FAILED_MESSAGE = 'The file could not be opened as an image.';
 const RASTER_LAYER_WARNING =
 	'This format saves a flattened image. Layers and editable objects remain available in the open document, but cannot be restored from the saved file. Continue?';
 
@@ -100,12 +87,9 @@ export class FileController {
 	readonly #beforeSaveListeners = new Set<() => void>();
 	/** Save targets that are downloads, which Save cannot write to again. */
 	readonly #downloads = new WeakSet<SaveTarget>();
-	#projectSave: ((saveAs: boolean) => Promise<void>) | null = null;
 	#svgDocument: SvgDocumentPort | null = null;
 	/** Opens the Export dialog, where an edition has one, to choose how a copy is exported. */
 	#exportDialog: (() => void) | null = null;
-	#projectOpen: ((file: File, target?: SaveTarget) => Promise<void>) | null =
-		null;
 
 	constructor(
 		readonly documentModel: CanvasDocument,
@@ -139,7 +123,7 @@ export class FileController {
 	}
 
 	/**
-	 * Opens an image or a project. Where the browser can pick files itself,
+	 * Opens an image or an SVG document. Where the browser can pick files itself,
 	 * the picked file stays the one Save writes back into.
 	 */
 	async open(): Promise<void> {
@@ -169,32 +153,16 @@ export class FileController {
 	setSvgDocument(svg: SvgDocumentPort): void {
 		this.#svgDocument = svg;
 	}
-	/** Saves the document as a project, choosing its file first when asked to or when it has none. */
-	setProjectSaveHandler(handler: (saveAs: boolean) => Promise<void>): void {
-		this.#projectSave = handler;
-	}
-
-	setProjectOpenHandler(
-		handler: (file: File, target?: SaveTarget) => Promise<void>,
-	): void {
-		this.#projectOpen = handler;
-	}
-
 	/** Opens a file the host owns; Save then writes back into it. */
 	async openTarget(target: OpenTarget): Promise<void> {
 		await this.openFile(await target.getFile(), target);
 	}
 
 	/**
-	 * Opens a file however it came, picked, dropped or pasted: a project, an
-	 * SVG as editable layers, or an image. With a target, Save writes back into it.
+	 * Opens a file however it came, picked, dropped or pasted: an SVG as its
+	 * editable document, or an image. With a target, Save writes back into it.
 	 */
 	async openFile(file: File, target?: SaveTarget): Promise<void> {
-		if (isProjectFile(file)) {
-			// A file without a target is opened on its own, as a picked or dropped file is.
-			await (target ? this.#projectOpen?.(file, target) : this.#projectOpen?.(file));
-			return;
-		}
 		if (isSvgFile(file) && this.#svgDocument) {
 			await this.#svgDocument.open(file, target ?? null);
 			return;
@@ -205,21 +173,21 @@ export class FileController {
 	}
 
 	/**
-	 * Saves into the document's file, in the format its name says; a document
-	 * without one is saved as a project when it is one, otherwise as Save As.
+	 * Saves the document into its SVG. A document without one, such as an
+	 * image opened from a PNG, is saved as Save As saves it: pictures are made
+	 * from it by Export, so its layers are never flattened by saving.
 	 */
 	async save(): Promise<void> {
 		if (!this.documentModel.hasImage) return;
 		const current = this.documentModel.fileHandle;
-		if (current) await ignoringCancel(this.saveInto(current));
-		else if (this.documentModel.documentType === DocumentType.Project) await this.#projectSave?.(false);
+		if (current && isSvgFileName(current.name)) await ignoringCancel(this.saveInto(current));
 		else await this.saveAs();
 	}
 
 	/**
-	 * Saves into a chosen file, by Save As or by a host such as VS Code: a
-	 * project for a .limg name, otherwise the image format the name says. Later
-	 * saves write there too. A declined question rejects, so a host keeps the
+	 * Saves into a chosen file, by Save As or by a host such as VS Code, in
+	 * the format its name says: SVG or an image format. Later saves write there
+	 * too. A declined question rejects, so a host keeps the
 	 * file marked unsaved.
 	 */
 	async saveInto(target: SaveTarget): Promise<void> {
@@ -231,19 +199,10 @@ export class FileController {
 		await this.saveByName(target);
 	}
 
-	/**
-	 * Chooses the file to save to, suggesting a format: by default the
-	 * document's own. The chosen name decides what is written, so a project
-	 * can be chosen for an image and the other way round; questions about
-	 * flattening or transparency come once an image file is chosen.
-	 */
-	async saveAs(format: SaveFormat = this.documentFormat()): Promise<void> {
+	/** Chooses the SVG to save the document into, which Save then keeps writing to. Pictures of it are made by Export. */
+	async saveAs(): Promise<void> {
 		if (!this.documentModel.hasImage) return;
-		if (format === PROJECT_MIME_TYPE) {
-			await this.#projectSave?.(true);
-			return;
-		}
-		await ignoringCancel(this.saveChosen(format));
+		await ignoringCancel(this.saveChosen());
 	}
 
 	/**
@@ -276,31 +235,18 @@ export class FileController {
 		this.documentModel.close();
 	}
 
-	/** The document's own format: a project, an SVG, or the image format it was opened or last saved in. */
-	private documentFormat(): SaveFormat {
-		if (this.documentModel.documentType === DocumentType.Project) return PROJECT_MIME_TYPE;
-		return this.documentModel.documentType === DocumentType.Svg ? SVG_MIME_TYPE : this.documentModel.savedType;
-	}
-
-	private async saveChosen(format: ImageSaveFormat): Promise<void> {
-		const target = await this.chooseTarget(savedFileKind(format));
-		if (target) await this.saveByName(target);
+	private async saveChosen(): Promise<void> {
+		const target = await this.chooseTarget(SVG_FILE_KIND);
+		if (target) await this.writeSvgDocument(target);
 	}
 
 	/**
-	 * Saves into a file in the format its name says: a project keeps every
-	 * layer, an SVG keeps layers as groups, an image flattens them. Questions
+	 * Saves into a file in the format its name says: an SVG keeps every layer
+	 * and item, an image flattens them. Questions
 	 * come once the file is chosen; a declined one cancels the save.
 	 */
 	private async saveByName(target: SaveTarget): Promise<void> {
-		if (isProjectFileName(target.name)) {
-			const previous = this.documentModel.fileHandle;
-			await this.saveProjectInto(target);
-			if (this.#downloads.has(target)) this.documentModel.fileHandle = previous;
-			return;
-		}
 		if (isSvgFileName(target.name)) {
-			if (!(await this.canSaveSvg())) throw new DOMException(SAVE_CANCELLED_MESSAGE, ABORT_ERROR_NAME);
 			await this.writeSvgDocument(target);
 			return;
 		}
@@ -334,20 +280,9 @@ export class FileController {
 		this.documentModel.baseName = target.name.replace(/\.[^.]+$/, '') || this.documentModel.baseName;
 	}
 
-	/** Asked before an SVG keeps some items only as pictures. */
-	private canSaveSvg(): Promise<boolean> {
-		return this.#svgDocument?.hasPicturedItems() ? this.platform.dialogs.confirm(SVG_PICTURE_WARNING) : Promise.resolve(true);
-	}
-
 	/** A file of a kind: chosen in a picker where the browser has one, otherwise named and downloaded. */
 	private chooseTarget(kind: ChosenFileKind): Promise<SaveTarget | null> {
 		return this.platform.files.canPickSaveTarget() ? this.pickTarget(kind) : this.promptedDownload(kind);
-	}
-
-	/** A project is saved into the document's file, so the chosen file becomes it first. */
-	private async saveProjectInto(target: SaveTarget): Promise<void> {
-		this.documentModel.fileHandle = target;
-		await this.#projectSave?.(false);
 	}
 
 	/** Writes the document into its file, which Save then keeps writing to; a download is not kept. */
@@ -440,15 +375,23 @@ export class FileController {
 		this.#beforeSaveListeners.forEach((listener) => listener());
 	}
 
-	/** Asks for a file until its name is one `accepts`, reopening with the name corrected to `format`. */
+	/**
+	 * Asks for a file until its name is one `accepts`, reopening with the name
+	 * corrected; after a few names of the wrong kind it stops asking, as if cancelled.
+	 */
 	private async pickTarget(kind: ChosenFileKind): Promise<SaveTarget> {
 		let suggestion = kind.named(this.documentModel.baseName);
-		for (;;) {
+		for (let attempt = 1; attempt <= MAX_PICK_ATTEMPTS; attempt++) {
 			const target = await this.platform.files.pickSaveTarget({ suggestedName: suggestion, types: kind.types });
 			if (kind.accepts(target.name)) return target;
 			suggestion = kind.named(target.name);
-			this.platform.dialogs.alert(`The file must use the .${kind.extension} extension. Save As will reopen with the corrected filename.`);
+			this.platform.dialogs.alert(
+				attempt < MAX_PICK_ATTEMPTS
+					? `The file must use the .${kind.extension} extension. Save As will reopen with the corrected filename.`
+					: `The file must use the .${kind.extension} extension, so nothing was saved.`,
+			);
 		}
+		throw new DOMException(SAVE_CANCELLED_MESSAGE, ABORT_ERROR_NAME);
 	}
 
 	/** Writes the image into a file: as the format writes by default, or with an export's own settings. */
