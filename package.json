@@ -20,6 +20,7 @@
     "test:e2e": "npm run build:vscode && playwright test",
     "test:all": "npm run test:contracts && npm run test && npm run test:e2e",
     "build:vscode": "npm run build && node scripts/buildVsCode.mjs",
+    "build:mcp": "node scripts/buildMcpServer.mjs",
     "package:vscode": "npm run build:vscode && cd vscode-extension && npx --yes @vscode/vsce package --no-dependencies"
   },
   "devDependencies": {

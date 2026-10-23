@@ -44,8 +44,8 @@ export function createImageToolServer(
 			description: 'Lists the open images and which one is active.',
 			annotations: { readOnlyHint: true },
 		},
-		() => {
-			const open = images.list();
+		async () => {
+			const open = await images.list();
 			return textResult(
 				open.length ? JSON.stringify(open) : NO_IMAGES_MESSAGE,
 			);

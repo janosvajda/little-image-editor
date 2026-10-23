@@ -35,7 +35,8 @@ pnpm-debug.log*
 .DS_Store
 Thumbs.db
 
-# Written by Little Image Editor's "Connect to Claude Code": this computer's server address and private key.
+# The developer-run MCP server (npm run build:mcp).
+build/
+# Local assistant setups name this computer's paths, and older ones hold a private key.
 .mcp.json
-# Written by "Connect to Codex": this computer's server address and private key.
 .codex/config.toml

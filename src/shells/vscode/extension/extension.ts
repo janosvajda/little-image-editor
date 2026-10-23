@@ -8,9 +8,7 @@ import {
 	type WebviewMessage,
 	WebviewMessageType,
 } from '../vscodeMessages';
-import { ASSISTANT_CLIENTS, AssistantClient } from './assistantClients';
-import { AssistantConnection, OUTPUT_NAME } from './assistantConnection';
-import { AssistantSetupController } from './assistantSetupController';
+import { AssistantBridge, OUTPUT_NAME } from './assistantBridge';
 import { EditorDocument, EditorSession, FILE_SCHEME, fileNameOf } from './editorSession';
 import { OpenEditors } from './openEditors';
 import { IMAGE_VIEW_TYPE, openUntitledImage, untitledImageUri } from './untitledImages';
@@ -266,17 +264,9 @@ export function activate(context: vscode.ExtensionContext): void {
 		);
 	context.subscriptions.push(vscode.commands.registerCommand(Command.NewImage, newImage));
 	const log = vscode.window.createOutputChannel(OUTPUT_NAME);
-	const assistant = new AssistantConnection(context, editors, log);
-	const setup = new AssistantSetupController(assistant, log);
-	context.subscriptions.push(log, assistant);
-	for (const client of Object.values(AssistantClient)) {
-		const definition = ASSISTANT_CLIENTS[client];
-		context.subscriptions.push(
-			vscode.commands.registerCommand(definition.connectCommand, () => setup.connect(client)),
-			vscode.commands.registerCommand(definition.disconnectCommand, () => assistant.disconnect(client)),
-		);
-	}
-	void assistant.resume();
+	const bridge = new AssistantBridge(context, editors, log);
+	context.subscriptions.push(log, bridge);
+	void bridge.sync();
 }
 
 export function deactivate(): void {}

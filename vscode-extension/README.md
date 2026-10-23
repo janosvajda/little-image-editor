@@ -11,7 +11,7 @@ A layered image editor inside VS Code. Open a PNG, JPEG or WebP, annotate a scre
 - **Image tools:** cut and move selections, resize, rotate, flip, brightness, contrast, saturation and effects.
 - **Vector tools:** Pen and Polyline paths, gradient and pattern fills, blur and drop-shadow effects, and clipping with a shape. They are saved in the SVG as standard SVG.
 - **Formats:** SVG is the document format: an SVG opens as editable layers and items, and Save keeps everything editable in it. Open PNG, JPEG and WebP images too, and export a PNG, JPEG, WebP or SVG copy at any time.
-- **AI assistants:** Claude Code and Codex can look at your images, draw on layers, draw diagrams and export PNG or SVG files.
+- **AI assistants:** with an MCP server you run yourself, Claude Code and Codex can look at your images, draw on layers, draw diagrams and export PNG or SVG files.
 
 ## Getting started
 
@@ -25,28 +25,13 @@ The editor uses VS Code's own menus and shortcuts, and gives the image as much r
 
 ## Draw with an AI assistant
 
-Little Image Editor includes an MCP server that lets Claude Code or Codex see the open images, create new ones, draw on named layers, draw diagrams and export PNG or SVG files. Everything the assistant draws is a normal editable object that you can move, change or undo.
+The extension does not include an MCP server. Developers who want Claude Code, Codex or another MCP client to see the open images, create new ones, draw on named layers, draw diagrams and export PNG or SVG files can run the MCP server from the [Little Image Editor repository](https://github.com/janosvajda/little-image-editor). The extension processes its requests. Everything the assistant draws is a normal editable object that you can move, change or undo.
 
-### Connect to coding agents
+### Set up
 
-Connect **once per project**: the connection belongs to the project open in that VS Code window, so a different project needs its own.
-
-**Claude Code**
-
-1. Open the Command Palette (**Cmd+Shift+P** / **Ctrl+Shift+P**) and run **Connect to Claude Code – Little Image Editor**.
-2. Start a new Claude Code conversation. If Claude Code asks whether to use the project's MCP servers, approve `little-image-editor`.
-3. To check, type **`/mcp`** in the Claude Code chat: `little-image-editor` should be listed as connected. If it shows an error, choose **Reconnect** there.
-
-**Codex**
-
-1. Open the Command Palette (**Cmd+Shift+P** / **Ctrl+Shift+P**) and run **Connect to Codex – Little Image Editor**.
-2. If Codex asks for permission, choose **Allow for This Project**.
-3. Run **Developer: Reload Window** from the Command Palette, then start a new Codex chat.
-4. To check, open the gear menu in the Codex panel and choose **MCP servers**: `little-image-editor` should be listed and enabled.
-
-To switch a connection off, run **Disconnect from Claude Code – Little Image Editor** or **Disconnect from Codex – Little Image Editor**.
-
-After updating the extension, run **Developer: Restart Extension Host** (or reload the window), then reconnect in `/mcp` or start a new chat, so the assistant loads the new tools.
+1. Turn on the **Little Image Editor › Assistant Bridge: Enabled** setting (`littleImageEditor.assistantBridge.enabled`) for the project. It is off by default.
+2. Build and register the MCP server as described in the repository's [MCP server guide](https://github.com/janosvajda/little-image-editor/blob/main/docs/mcp-server.md).
+3. To check, type **`/mcp`** in Claude Code, or open **MCP servers** from the gear menu in the Codex panel: `little-image-editor` should be listed as connected.
 
 ### Ask
 
@@ -62,7 +47,7 @@ The assistant writes diagrams in Mermaid (flowcharts, state, class and sequence 
 
 ### Security
 
-The server only accepts connections from your own computer, and only with the access key that the connect command writes into `.mcp.json` (Claude Code) or `.codex/config.toml` (Codex). Keep those files out of version control. The assistant cannot save or change your files: you save the images, and `export_image` writes only inside the workspace.
+The bridge is off until you turn it on. It only accepts requests from your own computer, and only with an access key kept in VS Code's secret storage and in a file under `~/.little-image-editor/` that only your user can read. The assistant cannot save or change your files: you save the images, and `export_image` writes only inside the workspace.
 
 ## Feedback
 
