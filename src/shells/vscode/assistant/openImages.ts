@@ -28,9 +28,9 @@ export interface OpenImageView {
 	readonly imageHeight: number;
 }
 
-/** The images open in the editor, as the assistant tools reach them. */
+/** The images open in the editor, as the assistant tools reach them, in the editor or through its bridge. */
 export interface OpenImages {
-	list(): readonly OpenImageSummary[];
+	list(): readonly OpenImageSummary[] | Promise<readonly OpenImageSummary[]>;
 	/** A picture of one image, by id or name; without either, of the active image. */
 	view(image: string | undefined, maxSize: number): Promise<OpenImageView>;
 }

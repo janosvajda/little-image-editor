@@ -3,7 +3,7 @@
   "displayName": "Little Image Editor",
   "description": "Edit images and layered SVG documents inside VS Code.",
   "icon": "webview/assets/images/extensionIcon-128.png",
-  "version": "0.3.31",
+  "version": "0.3.33",
   "publisher": "janosvajda",
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
@@ -52,24 +52,19 @@
         "command": "littleImageEditor.newImage",
         "title": "New Image – Little Image Editor",
         "icon": "$(file-media)"
-      },
-      {
-        "command": "littleImageEditor.connectAssistant",
-        "title": "Connect to Claude Code – Little Image Editor"
-      },
-      {
-        "command": "littleImageEditor.disconnectAssistant",
-        "title": "Disconnect from Claude Code – Little Image Editor"
-      },
-      {
-        "command": "littleImageEditor.connectCodex",
-        "title": "Connect to Codex – Little Image Editor"
-      },
-      {
-        "command": "littleImageEditor.disconnectCodex",
-        "title": "Disconnect from Codex – Little Image Editor"
       }
     ],
+    "configuration": {
+      "title": "Little Image Editor",
+      "properties": {
+        "littleImageEditor.assistantBridge.enabled": {
+          "type": "boolean",
+          "default": false,
+          "scope": "window",
+          "markdownDescription": "Lets an MCP server that you run yourself reach the images open in this window, on this computer only. The extension does not include an MCP server; see the MCP server guide in the project documentation."
+        }
+      }
+    },
     "menus": {
       "explorer/context": [
         {

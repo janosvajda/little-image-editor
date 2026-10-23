@@ -6,7 +6,7 @@ A fast, private image editor with layers, drawing tools, screenshot annotation a
 |---|---|
 | **Web app** | Runs locally in your browser at `http://127.0.0.1:5173`. |
 | **Chrome extension** | Edit any image on a web page, or capture the visible page or a region of it. |
-| **VS Code extension** | Open and create images inside VS Code, and let Claude Code or Codex look at them and draw in them. |
+| **VS Code extension** | Open and create images inside VS Code. A developer-run MCP server can let Claude Code or Codex look at them and draw in them. |
 
 Everything happens on your computer. Images are never uploaded, and no data is collected or sent anywhere.
 
@@ -174,11 +174,15 @@ This creates `vscode-extension/little-image-editor-<version>.vsix`. Install it w
 
 ## AI assistants (VS Code)
 
-The VS Code extension includes an MCP server that lets **Claude Code** or **Codex** look at the open images and draw in them. Everything they draw is a normal, editable object on a layer, and you can undo it.
+The VS Code extension does **not** include an MCP server. If you want **Claude Code**, **Codex** or another MCP client to look at the open images and draw in them, run the MCP server from this repository yourself. The extension only processes its requests, through a local assistant bridge that is off by default. Everything an assistant draws is a normal, editable object on a layer, and you can undo it.
 
 ### Connecting
 
-Open the Command Palette (**Cmd+Shift+P** on macOS, **Ctrl+Shift+P** on Windows and Linux) and run **Connect to Claude Code – Little Image Editor** or **Connect to Codex – Little Image Editor**, once per project. The extension writes the connection into `.mcp.json` (Claude Code) or `.codex/config.toml` (Codex). Codex first asks you to allow the project. **Disconnect** removes the connection again.
+1. In VS Code, turn on the **Little Image Editor › Assistant Bridge: Enabled** setting for the project.
+2. Build the server with `npm run build:mcp`.
+3. Register `node build/mcp/little-image-editor-mcp.mjs` with your assistant, as a stdio server or over HTTP.
+
+[docs/mcp-server.md](docs/mcp-server.md) covers each step, the client configurations and the bridge protocol.
 
 To check the connection, type `/mcp` in Claude Code, or open **MCP servers** from the gear menu in the Codex panel. Ask for results *in Little Image Editor* or *as an image*, so the assistant uses the editor instead of answering in the chat.
 
@@ -200,9 +204,9 @@ The diagram and drawing logic is part of the shared editor (`src/app/features/di
 
 ### Security
 
-- The server listens only on `127.0.0.1`, so other computers can't reach it.
+- The bridge is off until you turn it on, and it listens only on `127.0.0.1`, so other computers can't reach it.
 - It answers only requests that carry a secret key, and it refuses requests made by web pages.
-- The key is stored in VS Code's secret storage and in the connection file. **Keep `.mcp.json` and `.codex/config.toml` out of version control**; this repository already ignores them.
+- The key is stored in VS Code's secret storage and in a discovery file under `~/.little-image-editor/` that only your user can read. It never goes into the project.
 - The assistant can't save or change your files. You save images yourself, and `export_image` writes only inside the workspace and never replaces a file unless asked to.
 
 ## Development
@@ -216,7 +220,8 @@ src/
     features/          Drawing, annotations, layers, effects, files, document,
                        selection, workspace, capture, assistant, diagrams
     platform/          EditorPlatform: files, clipboard, dialogs and storage per edition
-  shells/vscode/       The VS Code extension: extension host, webview, MCP server
+  shells/vscode/       The VS Code extension: extension host, webview, assistant bridge,
+                       and the developer-run MCP server
   editor.ts            Starts the editor
 vscode-extension/      The VS Code extension package
 tests/                 End-to-end (Playwright) and integration tests
@@ -232,13 +237,14 @@ The editor talks to its surroundings only through the `EditorPlatform` interface
 | `npm run build` | Typecheck and build the web app and Chrome extension into `dist/` |
 | `npm run build:vscode` | Build the VS Code extension |
 | `npm run package:vscode` | Build and package the VS Code `.vsix` |
+| `npm run build:mcp` | Build the developer-run MCP server into `build/mcp/` ([docs/mcp-server.md](docs/mcp-server.md)) |
 | `npm run typecheck` | Strict TypeScript checks for the editor, and for the Node code of the VS Code extension |
 | `npm run lint` | Biome lint, including the rule against magic numbers |
 | `npm run check` | Lint, typecheck and build |
 
 ### Dependencies
 
-The editor itself has no runtime dependencies. The VS Code extension bundles the official MCP SDK (`@modelcontextprotocol/sdk`) and `zod` for its assistant server. Everything else is a development tool (TypeScript, esbuild, Biome, Vitest, Playwright).
+The editor itself has no runtime dependencies. The VS Code extension has none either. The developer-run MCP server bundles the official MCP SDK (`@modelcontextprotocol/sdk`) and `zod`. Everything else is a development tool (TypeScript, esbuild, Biome, Vitest, Playwright).
 
 ## Tests and quality gates
 
