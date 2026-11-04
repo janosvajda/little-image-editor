@@ -1,11 +1,16 @@
 import * as vscode from 'vscode';
 import { ImageExtension } from '../../../app/core/document/imageFormats';
+import { ANIMATION_EXTENSION, animationBaseName, animationFileName, isAnimationFileName } from '../../../app/features/animation/format/animationFileFormat';
 import { FILE_SCHEME, fileNameOf, UNTITLED_SCHEME } from './editorSession';
 
 /** Must match the image view type in `contributes.customEditors` of the extension manifest. */
 export const IMAGE_VIEW_TYPE = 'littleImageEditor.image';
+/** Must match the animation view type there: the editor animation files open in by default. */
+export const ANIMATION_VIEW_TYPE = 'littleImageEditor.animation';
 const OPEN_WITH_COMMAND = 'vscode.openWith';
 const DEFAULT_NAME = 'Untitled';
+/** The name a new animation starts with, numbered as images are. */
+export const UNTITLED_ANIMATION_NAME = animationFileName(DEFAULT_NAME);
 const DEFAULT_EXTENSION = ImageExtension.Png;
 const EXTENSION_SEPARATOR = '.';
 
@@ -20,9 +25,9 @@ export function untitledImageUri(folder: vscode.Uri | undefined, requestedName?:
 		: vscode.Uri.from({ scheme: UNTITLED_SCHEME, path: fileName });
 }
 
-/** Opens an untitled image in Little Image Editor. */
-export async function openUntitledImage(uri: vscode.Uri): Promise<void> {
-	await vscode.commands.executeCommand(OPEN_WITH_COMMAND, uri, IMAGE_VIEW_TYPE);
+/** Opens an untitled image, or with the animation view type an untitled animation, in Little Image Editor. */
+export async function openUntitledImage(uri: vscode.Uri, viewType: string = IMAGE_VIEW_TYPE): Promise<void> {
+	await vscode.commands.executeCommand(OPEN_WITH_COMMAND, uri, viewType);
 }
 
 /**
@@ -41,7 +46,9 @@ function freeName(requestedName: string | undefined): string {
 	for (let number = requested ? 2 : 1; ; number++) if (!taken.has(numbered(number))) return numbered(number);
 }
 
+/** A name's base and extension; an animation's double extension stays whole. */
 function splitName(name: string): readonly [string, string] {
+	if (isAnimationFileName(name)) return [animationBaseName(name), ANIMATION_EXTENSION];
 	const separator = name.lastIndexOf(EXTENSION_SEPARATOR);
 	return separator > 0
 		? [name.slice(0, separator), name.slice(separator + 1)]

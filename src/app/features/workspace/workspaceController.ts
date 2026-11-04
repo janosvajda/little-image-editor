@@ -32,7 +32,7 @@ export class WorkspaceUi {
 			getBounds: () => ({
 				width: this.workspaceWidth(),
 				height: this.workspaceHeight(),
-				bottomInset: STATUS_BAR_HEIGHT,
+				bottomInset: this.bottomInset,
 			}),
 			isLayoutSuspended: () => document.body.classList.contains('focus-mode'),
 		},
@@ -41,15 +41,14 @@ export class WorkspaceUi {
 	readonly themeSelect = element<HTMLSelectElement>('#themeSelect');
 	readonly toolbarPicker: ToolbarVisibilityPicker;
 	#panelPreset: Map<string, boolean> | null = null;
+	/** Room a strip docked along the bottom, such as the animation timeline, takes above the status bar. */
+	#reservedBottom = 0;
 
 	constructor(
 		readonly dialogs: readonly HTMLDialogElement[],
 		readonly toolbarLayoutStore = new ToolbarLayoutStore(),
 	) {
-		this.workspace.style.setProperty(
-			WORKSPACE_BOTTOM_INSET_PROPERTY,
-			`${STATUS_BAR_HEIGHT}px`,
-		);
+		this.applyBottomInset();
 		this.workspace.style.setProperty(
 			WORKSPACE_MARGIN_PROPERTY,
 			`${PANEL_MARGIN}px`,
@@ -263,6 +262,26 @@ export class WorkspaceUi {
 		panel.header.addEventListener('pointermove', move);
 		panel.header.addEventListener('pointerup', end);
 		panel.header.addEventListener('pointercancel', end);
+	}
+
+	/**
+	 * Keeps floating toolbars above a strip docked along the bottom of the
+	 * workspace, as they keep above the status bar; 0 gives the room back.
+	 */
+	reserveBottom(pixels: number): void {
+		const reserved = Math.max(0, pixels);
+		if (reserved === this.#reservedBottom) return;
+		this.#reservedBottom = reserved;
+		this.applyBottomInset();
+		this.clampAllPanels();
+	}
+
+	private get bottomInset(): number {
+		return STATUS_BAR_HEIGHT + this.#reservedBottom;
+	}
+
+	private applyBottomInset(): void {
+		this.workspace.style.setProperty(WORKSPACE_BOTTOM_INSET_PROPERTY, `${this.bottomInset}px`);
 	}
 
 	private clampAllPanels(): void {

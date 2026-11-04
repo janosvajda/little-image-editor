@@ -1,4 +1,4 @@
-import { createEditorIcon, EditorIconId } from '../../shared/style/editorIcons';
+import { EditorIconId } from '../../shared/style/editorIcons';
 import type { CanvasDocument } from '../../core/document/imageDocument';
 import {
 	BLEND_MODE_LABELS,
@@ -22,6 +22,7 @@ import type {
 } from '../annotations/annotationTypes';
 import { layerAppearance } from './layerAppearance';
 import { layerItemLabel } from './layerItemLabels';
+import { layerActionButton, layerIconButton, layerLockButton, layerVisibilityButton } from './layerRowControls';
 import {
 	DRAG_SOURCE_CLASS,
 	LayerListDrag,
@@ -32,13 +33,10 @@ import {
 import { LayerMerger } from './layerMerge';
 import { LayersPanel } from './layersPanel';
 
-const VisibilityIcon = { Visible: EditorIconId.Visible, Hidden: EditorIconId.Hidden } as const;
 /** One chevron; CSS turns it down while the layer is expanded. */
 const EXPAND_ICON = EditorIconId.ChevronRight;
 const ItemCountLabel = { Empty: 'Empty', One: 'item', Many: 'items' } as const;
 const LayerActionIcon = {
-	Locked: EditorIconId.Lock,
-	Unlocked: EditorIconId.Unlock,
 	Edit: EditorIconId.Pencil,
 	Delete: EditorIconId.Close,
 	Forward: EditorIconId.ArrowUp,
@@ -232,17 +230,14 @@ export class LayersController {
 		row.dataset.layerId = layer.id;
 		row.classList.toggle('locked', layer.locked);
 		this.bindSelectableRow(row, selected, () => this.activateCoreLayer(layer.id));
-		const visibility = this.iconButton(
-			layer.visible ? VisibilityIcon.Visible : VisibilityIcon.Hidden,
-			`${layer.visible ? 'Hide' : 'Show'} ${layer.name}`,
-			() => this.documentModel.layers.setVisible(layer.id, !layer.visible),
+		const visibility = layerVisibilityButton(layer.visible, layer.name, () =>
+			this.documentModel.layers.setVisible(layer.id, !layer.visible),
 		);
-		visibility.className = 'layer-visibility';
 		const name = this.actionButton(layer.name, layer.name, () =>
 			this.activateCoreLayer(layer.id),
 		);
 		name.className = 'layer-name';
-		const lock = this.lockButton(layer.locked, layer.name, () =>
+		const lock = layerLockButton(layer.locked, layer.name, () =>
 			this.documentModel.layers.setLocked(layer.id, !layer.locked),
 		);
 		const edit = this.iconButton(
@@ -284,7 +279,7 @@ export class LayersController {
 		);
 		expand.className = 'layer-expand';
 		expand.setAttribute('aria-expanded', String(expanded));
-		const visibility = this.visibilityButton(
+		const visibility = layerVisibilityButton(
 			layer.visible !== false,
 			layer.name,
 			() => this.objects?.setLayerVisible(layer.id, layer.visible === false),
@@ -309,7 +304,7 @@ export class LayersController {
 		);
 		moveBackward.className = 'layer-backward';
 		moveBackward.disabled = indexFromTop === layerCount - 1;
-		const lock = this.lockButton(layer.locked === true, layer.name, () =>
+		const lock = layerLockButton(layer.locked === true, layer.name, () =>
 			this.objects?.setLayerLocked(layer.id, layer.locked !== true),
 		);
 		const edit = this.iconButton(LayerActionIcon.Edit, `Edit ${layer.name}`, () =>
@@ -345,12 +340,12 @@ export class LayersController {
 		const choose = () => this.chooseItem(item.id);
 		this.bindSelectableRow(row, this.objects?.selectedId === item.id, choose);
 		const handle = this.dragHandle(row, entry, label);
-		const visibility = this.visibilityButton(item.visible !== false, label, () =>
+		const visibility = layerVisibilityButton(item.visible !== false, label, () =>
 			this.objects?.setVisible(item.id, item.visible === false),
 		);
 		const name = this.actionButton(label, `Select ${label}`, choose);
 		name.className = 'layer-name';
-		const lock = this.lockButton(item.locked === true, label, () =>
+		const lock = layerLockButton(item.locked === true, label, () =>
 			this.objects?.setLocked(item.id, item.locked !== true),
 		);
 		const remove = this.iconButton(LayerActionIcon.Delete, `Delete ${label}`, () =>
@@ -420,35 +415,6 @@ export class LayersController {
 		return handle;
 	}
 
-	private visibilityButton(
-		visible: boolean,
-		label: string,
-		toggle: () => void,
-	): HTMLButtonElement {
-		const button = this.iconButton(
-			visible ? VisibilityIcon.Visible : VisibilityIcon.Hidden,
-			`${visible ? 'Hide' : 'Show'} ${label}`,
-			toggle,
-		);
-		button.className = 'layer-visibility';
-		return button;
-	}
-
-	private lockButton(
-		locked: boolean,
-		label: string,
-		toggle: () => void,
-	): HTMLButtonElement {
-		const button = this.iconButton(
-			locked ? LayerActionIcon.Locked : LayerActionIcon.Unlocked,
-			`${locked ? 'Unlock' : 'Lock'} ${label}`,
-			toggle,
-		);
-		button.className = 'layer-lock';
-		button.setAttribute('aria-pressed', String(locked));
-		return button;
-	}
-
 	private bindSelectableRow(
 		row: HTMLElement,
 		selected: boolean,
@@ -474,9 +440,7 @@ export class LayersController {
 		label: string,
 		action: () => void,
 	): HTMLButtonElement {
-		const button = this.actionButton('', label, action);
-		button.append(createEditorIcon(icon));
-		return button;
+		return layerIconButton(icon, label, action);
 	}
 
 	private actionButton(
@@ -484,13 +448,7 @@ export class LayersController {
 		label: string,
 		action: () => void,
 	): HTMLButtonElement {
-		const button = document.createElement('button');
-		button.type = 'button';
-		button.textContent = content;
-		button.title = label;
-		button.setAttribute('aria-label', label);
-		button.addEventListener('click', action);
-		return button;
+		return layerActionButton(content, label, action);
 	}
 }
 

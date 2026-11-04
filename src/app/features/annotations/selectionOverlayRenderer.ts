@@ -11,12 +11,15 @@ import {
 	AnnotationObjectTypeId,
 } from './annotationTypes';
 import { transformedStrokePoints } from './strokeGeometry';
+import { itemPivotPoint } from '../animation/itemPivot';
+import { PIVOT_HANDLE_RADIUS } from '../animation/pivotGesture';
 
 const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
 const LAYER_FRAME_CLASS = 'selection-layer-frame';
 const LAYER_OUTLINE_CLASS = 'selection-layer-outline';
 const ITEM_HANDLE_CLASS = 'selection-handle';
 const LAYER_HANDLE_CLASS = `${ITEM_HANDLE_CLASS} layer-selection-handle`;
+const PIVOT_CLASS = 'selection-pivot';
 const SelectionMetrics = {
 	ResizeHandleSize: 8,
 	EndpointHandleSize: 10,
@@ -54,6 +57,7 @@ export class SelectionOverlayRenderer {
 		visualScale: number,
 		presentation: SelectionPresentation = SelectionPresentation.Transform,
 		layerFrame: TransformableGeometry | null = null,
+		showPivot = false,
 	): void {
 		this.reset(width, height);
 		if (!object || presentation === SelectionPresentation.Hidden) return;
@@ -65,6 +69,7 @@ export class SelectionOverlayRenderer {
 		this.appendFrame(geometry);
 		if (presentation !== SelectionPresentation.Transform) return;
 		this.appendCornerHandles(geometry, visualScale);
+		if (showPivot) this.element.append(pivotMark(itemPivotPoint(object), PIVOT_HANDLE_RADIUS * visualScale));
 		if (object.type === AnnotationObjectTypeId.Stroke)
 			for (const point of strokeEndpoints(object))
 				this.element.append(
@@ -157,6 +162,16 @@ function handle(point: Point, size: number, className: string): SVGRectElement {
 	element.setAttribute('width', String(size));
 	element.setAttribute('height', String(size));
 	element.setAttribute('class', className);
+	return element;
+}
+
+/** The pivot, as Flash shows its transform point: a small circle. */
+function pivotMark(point: Point, radius: number): SVGCircleElement {
+	const element = svgElement('circle');
+	element.setAttribute('cx', String(point.x));
+	element.setAttribute('cy', String(point.y));
+	element.setAttribute('r', String(radius));
+	element.setAttribute('class', PIVOT_CLASS);
 	return element;
 }
 

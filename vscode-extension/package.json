@@ -3,7 +3,7 @@
   "displayName": "Little Image Editor",
   "description": "Edit images and layered SVG documents inside VS Code.",
   "icon": "webview/assets/images/extensionIcon-128.png",
-  "version": "0.3.33",
+  "version": "0.3.34",
   "publisher": "janosvajda",
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
@@ -45,6 +45,16 @@
           }
         ],
         "priority": "option"
+      },
+      {
+        "viewType": "littleImageEditor.animation",
+        "displayName": "Little Image Editor – Animation",
+        "selector": [
+          {
+            "filenamePattern": "*.anim.json"
+          }
+        ],
+        "priority": "default"
       }
     ],
     "commands": [
@@ -52,6 +62,11 @@
         "command": "littleImageEditor.newImage",
         "title": "New Image – Little Image Editor",
         "icon": "$(file-media)"
+      },
+      {
+        "command": "littleImageEditor.newAnimation",
+        "title": "New Animation – Little Image Editor",
+        "icon": "$(play)"
       }
     ],
     "configuration": {
@@ -71,6 +86,11 @@
           "command": "littleImageEditor.newImage",
           "when": "explorerResourceIsFolder",
           "group": "navigation@10"
+        },
+        {
+          "command": "littleImageEditor.newAnimation",
+          "when": "explorerResourceIsFolder",
+          "group": "navigation@11"
         }
       ]
     }

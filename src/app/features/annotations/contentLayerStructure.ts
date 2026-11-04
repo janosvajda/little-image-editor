@@ -59,6 +59,7 @@ export function normalizeAnnotationState(
 		objects: itemsInLayerOrder(layers, itemsById),
 		layers,
 		nextStep: input.nextStep,
+		...(input.animation ? { animation: input.animation } : {}),
 	};
 }
 

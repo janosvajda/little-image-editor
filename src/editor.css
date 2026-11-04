@@ -2612,3 +2612,378 @@ html[data-workspace-layout='docked'] .dock-pages>.panel.dock-active {
 .dock-pages>.layers-panel.collapsed>.panel-body {
     display: contents
 }
+
+/* Animation timeline, docked under the canvas above the status bar. */
+.workspace {
+    --timeline-height: 196px;
+    --timeline-collapsed-height: 38px;
+    --timeline-layer-width: 190px;
+    --timeline-status-height: 28px
+}
+
+.workspace.timeline-open .canvas-wrap {
+    bottom: calc(var(--timeline-status-height) + var(--timeline-height))
+}
+
+.workspace.timeline-open.timeline-collapsed .canvas-wrap {
+    bottom: calc(var(--timeline-status-height) + var(--timeline-collapsed-height))
+}
+
+.timeline-dock {
+    position: absolute;
+    /* Docked, it stays above the floating toolbars, as the status bar beneath it does. */
+    z-index: 25;
+    left: 0;
+    right: 0;
+    bottom: var(--timeline-status-height);
+    height: var(--timeline-height);
+    display: flex;
+    flex-direction: column;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    color: var(--text);
+    font-size: 11px;
+    user-select: none
+}
+
+.timeline-dock.collapsed {
+    height: var(--timeline-collapsed-height)
+}
+
+.timeline-dock.collapsed .timeline-body {
+    display: none
+}
+
+/* The timeline's own display rules would otherwise outrank the hidden attribute. */
+.timeline-dock[hidden],
+.timeline-dock [hidden] {
+    display: none !important
+}
+
+.timeline-empty {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 0;
+    padding: 12px;
+    color: var(--muted)
+}
+
+.timeline-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: var(--timeline-collapsed-height);
+    padding: 0 8px;
+    border-bottom: 1px solid var(--border)
+}
+
+.timeline-title {
+    font-weight: 700
+}
+
+.timeline-controls {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: none
+}
+
+.timeline-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap
+}
+
+.timeline-group label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--muted)
+}
+
+.timeline-group input[type='number'] {
+    width: 56px;
+    padding: 3px 4px
+}
+
+.timeline-tween input[type='text'] {
+    width: 130px;
+    padding: 3px 4px
+}
+
+.timeline-group button,
+.timeline-layer button {
+    display: inline-grid;
+    place-items: center;
+    min-width: 24px;
+    height: 24px;
+    padding: 2px;
+    border: 1px solid var(--color-transparent);
+    border-radius: 5px;
+    background: var(--color-transparent)
+}
+
+.timeline-group button svg,
+.timeline-layer button svg {
+    width: 16px;
+    height: 16px
+}
+
+.timeline-group button[aria-pressed='true'] {
+    border-color: var(--accent);
+    background: var(--surface2)
+}
+
+.timeline-body {
+    flex: 1;
+    min-height: 0;
+    display: flex
+}
+
+.timeline-scroll {
+    flex: 1;
+    overflow: auto
+}
+
+.timeline-grid {
+    position: relative;
+    width: calc(var(--timeline-layer-width) + var(--timeline-frames) * var(--timeline-frame-width));
+    min-width: 100%
+}
+
+.timeline-ruler-row,
+.timeline-row {
+    display: flex;
+    height: 24px
+}
+
+.timeline-ruler-row {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border)
+}
+
+.timeline-corner,
+.timeline-layer {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    flex: none;
+    width: var(--timeline-layer-width);
+    background: var(--surface);
+    border-right: 1px solid var(--border)
+}
+
+.timeline-corner {
+    display: flex;
+    align-items: center;
+    padding: 0 8px;
+    color: var(--muted)
+}
+
+.timeline-ruler,
+.timeline-frames {
+    display: flex;
+    cursor: pointer
+}
+
+.timeline-ruler-mark,
+.timeline-cell {
+    flex: none;
+    width: var(--timeline-frame-width);
+    height: 100%;
+    box-sizing: border-box;
+    border-right: 1px solid color-mix(in srgb, var(--border) 45%, var(--color-transparent))
+}
+
+.timeline-ruler-mark {
+    padding-top: 4px;
+    overflow: visible;
+    color: var(--muted);
+    font-size: 9px;
+    white-space: nowrap
+}
+
+.timeline-row {
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 45%, var(--color-transparent))
+}
+
+.timeline-layer {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 0 4px
+}
+
+.timeline-layer .layer-name {
+    flex: 1;
+    justify-content: start;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap
+}
+
+.timeline-row.active .timeline-layer,
+.timeline-row.active .timeline-frames {
+    background: color-mix(in srgb, var(--accent) 14%, var(--surface))
+}
+
+.timeline-row.locked .layer-name {
+    color: var(--muted)
+}
+
+.timeline-row.dragging-source {
+    opacity: .5
+}
+
+.timeline-row.drag-target {
+    box-shadow: inset 0 2px 0 var(--accent)
+}
+
+.timeline-cell {
+    position: relative
+}
+
+.timeline-cell[data-kind='held'],
+.timeline-cell[data-kind='keyframe'],
+.timeline-cell[data-kind='emptyKeyframe'] {
+    background: var(--surface2)
+}
+
+.timeline-cell[data-tween='tweened'] {
+    background: color-mix(in srgb, var(--accent) 22%, var(--surface2))
+}
+
+/* A motion tween is an arrow span: a line through its frames to the next keyframe. */
+.timeline-cell[data-tween='tweened']::after,
+.timeline-cell[data-tween='broken']::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 50%;
+    border-top: 1px solid var(--text)
+}
+
+.timeline-cell[data-tween='broken']::after {
+    border-top-style: dashed
+}
+
+.timeline-cell[data-kind='keyframe']::before,
+.timeline-cell[data-kind='emptyKeyframe']::before {
+    content: '';
+    position: absolute;
+    z-index: 1;
+    left: 50%;
+    top: 50%;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    border: 1px solid var(--text);
+    background: var(--text)
+}
+
+.timeline-cell[data-kind='emptyKeyframe']::before {
+    background: var(--surface)
+}
+
+.timeline-cell.current,
+.timeline-ruler-mark.current {
+    outline: 1px solid var(--accent);
+    outline-offset: -1px
+}
+
+.timeline-grid.empty .timeline-playhead {
+    display: none
+}
+
+.timeline-playhead {
+    position: absolute;
+    z-index: 4;
+    top: 0;
+    bottom: 0;
+    left: calc(var(--timeline-layer-width) + (var(--timeline-playhead) + .5) * var(--timeline-frame-width));
+    width: 0;
+    border-left: 1px solid var(--accent);
+    pointer-events: none
+}
+
+.timeline-context-menu {
+    position: fixed;
+    z-index: 3500;
+    width: 240px
+}
+
+.timeline-context-menu button:disabled {
+    color: var(--muted);
+    opacity: .6
+}
+
+.onion-skin-canvas {
+    pointer-events: none
+}
+
+/* An item's pivot, like Flash's transform point: a small ring where it turns and scales about. */
+.selection-overlay .selection-pivot {
+    fill: var(--selection-contrast);
+    fill-opacity: .6;
+    stroke: var(--accent);
+    stroke-width: 1.5;
+    vector-effect: non-scaling-stroke
+}
+
+/* The timeline's frame actions as labelled buttons, and the next step in plain words. */
+.workspace {
+    --timeline-height: 230px
+}
+
+.timeline-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 36px;
+    padding: 4px 8px;
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+    scrollbar-width: none
+}
+
+.timeline-dock.collapsed .timeline-actions {
+    display: none
+}
+
+.timeline-actions .timeline-action {
+    height: 26px;
+    padding: 0 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface2);
+    color: var(--text);
+    white-space: nowrap
+}
+
+.timeline-actions .timeline-action:disabled {
+    color: var(--muted);
+    opacity: .55
+}
+
+.timeline-actions .timeline-action[aria-pressed='true'] {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 18%, var(--surface2))
+}
+
+.timeline-guide {
+    flex: 1;
+    min-width: 240px;
+    margin: 0;
+    color: var(--text);
+    font-size: 12px
+}

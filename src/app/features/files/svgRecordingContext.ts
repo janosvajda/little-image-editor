@@ -32,6 +32,8 @@ const DEFAULT_COLOR = '#000000';
 const DEFAULT_LINE_WIDTH = 1;
 const TRANSPARENT = 'transparent';
 const NO_FILTER = 'none';
+/** Drawing over what is there, as canvas does unless told otherwise. */
+const NORMAL_COMPOSITING: GlobalCompositeOperation = 'source-over';
 /** The one canvas filter SVG has an equal of: a Gaussian blur, its spread in pixels. */
 const CANVAS_BLUR = /^blur\(\s*([\d.]+)px\s*\)$/;
 /** A canvas shadow's blur is twice the spread SVG's Gaussian blur names. */
@@ -44,7 +46,7 @@ const TextAnchor: Readonly<Record<string, string>> = { center: 'middle', middle:
 const DominantBaseline: Readonly<Record<string, string>> = { middle: 'middle', top: 'hanging', hanging: 'hanging', bottom: 'text-after-edge' };
 
 /** What a fill or a line is painted with. */
-type RecordedPaint = string | RecordedGradient | RecordedPattern;
+export type RecordedPaint = string | RecordedGradient | RecordedPattern;
 
 interface DrawingState {
 	matrix: AffineMatrix;
@@ -98,8 +100,59 @@ type SimpleShape =
 	| { readonly name: 'polyline'; readonly points: readonly (readonly [number, number])[] };
 
 /** How a recorded path was painted. */
-const PathPaint = { Fill: 'fill', Stroke: 'stroke' } as const;
-type PathPaint = (typeof PathPaint)[keyof typeof PathPaint];
+export const PathPaint = { Fill: 'fill', Stroke: 'stroke' } as const;
+export type PathPaint = (typeof PathPaint)[keyof typeof PathPaint];
+
+/**
+ * What a drawing call drew, for formats that keep paths, text and pictures
+ * as kinds of their own rather than as SVG. Anything SVG alone can say, such
+ * as drawing kept through a mask, a clip or a filter, is `Other`.
+ */
+export const DrawingCallKind = { Path: 'path', Text: 'text', Image: 'image', Other: 'other' } as const;
+
+export interface RecordedLineStyle {
+	readonly width: number;
+	readonly cap: CanvasLineCap;
+	readonly join: CanvasLineJoin;
+	readonly dash: readonly number[];
+}
+
+interface DrawingCallBase {
+	readonly matrix: AffineMatrix;
+	readonly alpha: number;
+}
+
+export type DrawingCall =
+	| (DrawingCallBase & {
+			readonly kind: typeof DrawingCallKind.Path;
+			readonly data: string;
+			readonly paint: PathPaint;
+			readonly style: RecordedPaint;
+			readonly fillRule: CanvasFillRule;
+			readonly line: RecordedLineStyle;
+	  })
+	| (DrawingCallBase & {
+			readonly kind: typeof DrawingCallKind.Text;
+			readonly text: string;
+			readonly x: number;
+			readonly y: number;
+			readonly maxWidth?: number;
+			readonly font: string;
+			readonly align: CanvasTextAlign;
+			readonly baseline: CanvasTextBaseline;
+			readonly style: RecordedPaint;
+	  })
+	| (DrawingCallBase & {
+			readonly kind: typeof DrawingCallKind.Image;
+			readonly source: HTMLCanvasElement;
+			readonly x: number;
+			readonly y: number;
+			readonly width: number;
+			readonly height: number;
+	  })
+	| { readonly kind: typeof DrawingCallKind.Other };
+
+const OTHER_CALL: DrawingCall = { kind: DrawingCallKind.Other };
 
 /** One drawing call, kept until it is written: what it drew, under which transform and fading. */
 interface RecordedElement {
@@ -109,6 +162,8 @@ interface RecordedElement {
 	readonly matrix: AffineMatrix;
 	readonly alpha: number;
 	readonly path?: { readonly data: string; readonly shape: SimpleShape | null; readonly paint: PathPaint };
+	/** The call as its own kind, where it is one a format other than SVG can keep. */
+	readonly call?: DrawingCall;
 }
 
 /** A gradient as the canvas made it, kept to write as an SVG gradient. */
@@ -188,7 +243,7 @@ export class SvgRecordingContext {
 		shadowColor: TRANSPARENT,
 		shadowBlur: 0,
 		filter: NO_FILTER,
-		compositing: 'source-over',
+		compositing: NORMAL_COMPOSITING,
 	};
 	readonly #masks: RecordedMask[] = [];
 	/** The mask erasing goes on adding to, until something is drawn over it. */
@@ -235,6 +290,11 @@ export class SvgRecordingContext {
 	 */
 	get shapes(): readonly string[] {
 		return shapesOf(this.#records);
+	}
+
+	/** Every drawing call as its own kind, in drawing order. */
+	get drawingCalls(): readonly DrawingCall[] {
+		return this.#records.map((record) => record.call ?? OTHER_CALL);
 	}
 
 	/** The paths that were filled, as SVG path data with the transform each was drawn under. */
@@ -429,7 +489,7 @@ export class SvgRecordingContext {
 
 	fill(rule: CanvasFillRule = 'nonzero'): void {
 		if (!this.#path) return;
-		this.emitPath(PathPaint.Fill, { 'fill-rule': rule === 'evenodd' ? 'evenodd' : undefined, ...this.paint('fill'), stroke: 'none' });
+		this.emitPath(PathPaint.Fill, { 'fill-rule': rule === 'evenodd' ? 'evenodd' : undefined, ...this.paint('fill'), stroke: 'none' }, rule);
 	}
 
 	stroke(): void {
@@ -440,7 +500,8 @@ export class SvgRecordingContext {
 
 	/** A filled rectangle; several in a row in the same paint join one path, as a spray's dots or a fill's rows do. */
 	fillRect(x: number, y: number, width: number, height: number): void {
-		const record: RecordedElement = { name: 'rect', attributes: { x, y, width, height, ...this.paint('fill'), ...this.clipAndFilter() }, matrix: this.#state.matrix, alpha: this.#state.globalAlpha };
+		const attributes = { x, y, width, height, ...this.paint('fill'), ...this.clipAndFilter() };
+		const record: RecordedElement = { name: 'rect', attributes, matrix: this.#state.matrix, alpha: this.#state.globalAlpha, call: this.pathCall(rectData(x, y, width, height), PathPaint.Fill, attributes) };
 		const previous = this.#records.at(-1);
 		if (!previous || MaskCompositing[this.#state.compositing] || !fillsAlike(previous, record)) {
 			this.record(record);
@@ -448,29 +509,32 @@ export class SvgRecordingContext {
 		}
 		const data = `${filledData(previous)}${rectData(x, y, width, height)}`;
 		const { x: _x, y: _y, width: _width, height: _height, ...paint } = record.attributes;
-		this.#records[this.#records.length - 1] = { ...record, name: 'path', attributes: { d: data, ...paint, stroke: 'none' }, path: { data, shape: null, paint: PathPaint.Fill } };
+		this.#records[this.#records.length - 1] = { ...record, name: 'path', attributes: { d: data, ...paint, stroke: 'none' }, path: { data, shape: null, paint: PathPaint.Fill }, call: joinedCall(previous.call, data) };
 	}
 
 	strokeRect(x: number, y: number, width: number, height: number): void {
-		this.emit('rect', { x, y, width, height, fill: 'none', ...this.paint('stroke'), ...this.lineStyle() });
+		const attributes = { x, y, width, height, fill: 'none', ...this.paint('stroke'), ...this.lineStyle() };
+		this.emit('rect', attributes, undefined, this.pathCall(rectData(x, y, width, height), PathPaint.Stroke, { ...attributes, ...this.clipAndFilter() }));
 	}
 
 	clearRect(): void {}
 
 	fillText(text: string, x: number, y: number, maxWidth?: number): void {
+		const { font, textAlign: align, textBaseline: baseline, fillStyle: style, matrix, globalAlpha: alpha } = this.#state;
 		this.emit(
 			'text',
 			{
 				x,
 				y,
-				style: `font: ${this.#state.font}; white-space: pre`,
-				'text-anchor': TextAnchor[this.#state.textAlign],
-				'dominant-baseline': DominantBaseline[this.#state.textBaseline],
+				style: `font: ${font}; white-space: pre`,
+				'text-anchor': TextAnchor[align],
+				'dominant-baseline': DominantBaseline[baseline],
 				textLength: maxWidth,
 				lengthAdjust: maxWidth === undefined ? undefined : 'spacingAndGlyphs',
 				...this.paint('fill'),
 			},
 			escapeXml(text),
+			this.keepsAsItsOwnKind() ? { kind: DrawingCallKind.Text, text, x, y, ...(maxWidth === undefined ? {} : { maxWidth }), font, align, baseline, style, matrix, alpha } : OTHER_CALL,
 		);
 	}
 
@@ -501,11 +565,30 @@ export class SvgRecordingContext {
 		}
 		const canvas = asCanvas(source);
 		const [x = 0, y = 0, width = canvas.width, height = canvas.height] = placement.length === CROPPED_DRAW ? placement.slice(CROPPED_DESTINATION) : placement;
-		this.emit('image', { href: canvas.toDataURL('image/png'), x, y, width, height, preserveAspectRatio: 'none' });
+		// A part of a picture is kept as SVG keeps it, cropped by its image element; as a picture of its own it would be the whole source.
+		const call: DrawingCall =
+			this.keepsAsItsOwnKind() && placement.length !== CROPPED_DRAW
+				? { kind: DrawingCallKind.Image, source: canvas, x, y, width, height, matrix: this.#state.matrix, alpha: this.#state.globalAlpha }
+				: OTHER_CALL;
+		this.emit('image', { href: canvas.toDataURL('image/png'), x, y, width, height, preserveAspectRatio: 'none' }, undefined, call);
 	}
 
-	private emit(name: string, attributes: Attributes, content?: string): void {
-		this.record({ name, attributes: { ...attributes, ...this.clipAndFilter() }, content, matrix: this.#state.matrix, alpha: this.#state.globalAlpha });
+	private emit(name: string, attributes: Attributes, content?: string, call?: DrawingCall): void {
+		this.record({ name, attributes: { ...attributes, ...this.clipAndFilter() }, content, matrix: this.#state.matrix, alpha: this.#state.globalAlpha, ...(call ? { call } : {}) });
+	}
+
+	/** Whether what is drawn now is plain drawing: composited normally, not kept through a mask, a clip or a filter, which only SVG says. */
+	private keepsAsItsOwnKind(): boolean {
+		const { clip, filter, compositing, shadowBlur, shadowColor } = this.#state;
+		return !clip && filter.trim() === NO_FILTER && compositing === NORMAL_COMPOSITING && !(shadowBlur > 0 && shadowColor !== TRANSPARENT);
+	}
+
+	/** A painted path as its own kind of call, unless it is painted with a pattern or drawn through something only SVG says. */
+	private pathCall(data: string, paint: PathPaint, attributes: Attributes, fillRule: CanvasFillRule = 'nonzero'): DrawingCall {
+		const { fillStyle, strokeStyle, lineWidth: width, lineCap: cap, lineJoin: join, lineDash, matrix, globalAlpha: alpha } = this.#state;
+		const style = paint === PathPaint.Fill ? fillStyle : strokeStyle;
+		if (!this.keepsAsItsOwnKind() || style instanceof RecordedPattern || attributes['clip-path'] !== undefined || attributes.filter !== undefined) return OTHER_CALL;
+		return { kind: DrawingCallKind.Path, data, paint, style, fillRule, line: { width, cap, join, dash: [...lineDash] }, matrix, alpha };
 	}
 
 	/**
@@ -557,14 +640,16 @@ export class SvgRecordingContext {
 	 * brush's many pieces are one element. A soft edge, as a canvas shadow
 	 * gives a brush, is an SVG blur under the path.
 	 */
-	private emitPath(paint: PathPaint, attributes: Attributes): void {
+	private emitPath(paint: PathPaint, attributes: Attributes, fillRule?: CanvasFillRule): void {
 		const softEdge = this.softEdge();
+		const written = { d: this.#path, ...attributes, ...this.clipAndFilter(), ...(softEdge ? { filter: softEdge } : {}) };
 		const record: RecordedElement = {
 			name: 'path',
-			attributes: { d: this.#path, ...attributes, ...this.clipAndFilter(), ...(softEdge ? { filter: softEdge } : {}) },
+			attributes: written,
 			matrix: this.#state.matrix,
 			alpha: this.#state.globalAlpha,
 			path: { data: this.#path, shape: this.#shape ?? null, paint },
+			call: this.pathCall(this.#path, paint, written, fillRule),
 		};
 		// A mark joins only marks of the mask it goes in, never the drawing it hides or keeps, however alike their paint.
 		const masking = MaskCompositing[this.#state.compositing];
@@ -572,7 +657,7 @@ export class SvgRecordingContext {
 		const previous = records.at(-1);
 		if (previous?.path && joins(previous, record)) {
 			const data = `${previous.path.data}${record.path!.data}`;
-			records[records.length - 1] = { ...previous, attributes: { ...previous.attributes, d: data }, path: { data, shape: null, paint } };
+			records[records.length - 1] = { ...previous, attributes: { ...previous.attributes, d: data }, path: { data, shape: null, paint }, call: joinedCall(previous.call, data) };
 		} else this.record(record);
 	}
 
@@ -642,6 +727,11 @@ function patternTileMarkup(pattern: FillPattern, id: string): string {
 	const recorder = new SvgRecordingContext({ width: pattern.size, height: pattern.size }, `${id}-`);
 	drawPatternTile(recorder, pattern);
 	return recorder.shapes.join('');
+}
+
+/** A path call grown by the path joined to it; any other call cannot take more. */
+function joinedCall(call: DrawingCall | undefined, data: string): DrawingCall {
+	return call?.kind === DrawingCallKind.Path ? { ...call, data } : OTHER_CALL;
 }
 
 /** What a drawing is painted and kept in: rectangles that agree on all of it can be one path. */

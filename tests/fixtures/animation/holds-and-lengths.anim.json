@@ -1,0 +1,364 @@
+{
+  "format": "little-animation",
+  "version": 1,
+  "stage": {
+    "width": 80,
+    "height": 80,
+    "background": [
+      1,
+      1,
+      1,
+      1
+    ],
+    "fps": 6,
+    "frames": 6
+  },
+  "library": [],
+  "timeline": {
+    "layers": [
+      {
+        "id": "tweened",
+        "name": "tweened",
+        "visible": true,
+        "locked": false,
+        "opacity": 1,
+        "blendMode": "normal",
+        "length": 6,
+        "keyframes": [
+          {
+            "frame": 0,
+            "items": [
+              {
+                "id": "leaving",
+                "transform": {
+                  "x": 0,
+                  "y": 0,
+                  "rotation": 0,
+                  "scaleX": 1,
+                  "scaleY": 1,
+                  "skewX": 0,
+                  "pivot": {
+                    "x": 0,
+                    "y": 0
+                  }
+                },
+                "opacity": 1,
+                "visible": true,
+                "kind": "path",
+                "contours": [
+                  {
+                    "closed": true,
+                    "commands": [
+                      [
+                        "M",
+                        0,
+                        0
+                      ],
+                      [
+                        "L",
+                        4,
+                        0
+                      ],
+                      [
+                        "L",
+                        4,
+                        4
+                      ],
+                      [
+                        "L",
+                        0,
+                        4
+                      ],
+                      [
+                        "Z"
+                      ]
+                    ]
+                  }
+                ],
+                "fill": {
+                  "kind": "solid",
+                  "color": [
+                    0,
+                    0,
+                    0,
+                    1
+                  ]
+                },
+                "fillRule": "nonzero",
+                "stroke": null
+              },
+              {
+                "id": "moving",
+                "transform": {
+                  "x": 0,
+                  "y": 40,
+                  "rotation": 0,
+                  "scaleX": 1,
+                  "scaleY": 1,
+                  "skewX": 0,
+                  "pivot": {
+                    "x": 0,
+                    "y": 0
+                  }
+                },
+                "opacity": 1,
+                "visible": true,
+                "kind": "path",
+                "contours": [
+                  {
+                    "closed": true,
+                    "commands": [
+                      [
+                        "M",
+                        0,
+                        0
+                      ],
+                      [
+                        "L",
+                        4,
+                        0
+                      ],
+                      [
+                        "L",
+                        4,
+                        4
+                      ],
+                      [
+                        "L",
+                        0,
+                        4
+                      ],
+                      [
+                        "Z"
+                      ]
+                    ]
+                  }
+                ],
+                "fill": {
+                  "kind": "solid",
+                  "color": [
+                    0,
+                    0,
+                    0,
+                    1
+                  ]
+                },
+                "fillRule": "nonzero",
+                "stroke": null
+              }
+            ],
+            "tween": {
+              "kind": "motion",
+              "ease": {
+                "kind": "linear"
+              },
+              "rotate": "auto",
+              "extraTurns": 0
+            }
+          },
+          {
+            "frame": 4,
+            "items": [
+              {
+                "id": "moving",
+                "transform": {
+                  "x": 40,
+                  "y": 40,
+                  "rotation": 0,
+                  "scaleX": 1,
+                  "scaleY": 1,
+                  "skewX": 0,
+                  "pivot": {
+                    "x": 0,
+                    "y": 0
+                  }
+                },
+                "opacity": 1,
+                "visible": true,
+                "kind": "path",
+                "contours": [
+                  {
+                    "closed": true,
+                    "commands": [
+                      [
+                        "M",
+                        0,
+                        0
+                      ],
+                      [
+                        "L",
+                        4,
+                        0
+                      ],
+                      [
+                        "L",
+                        4,
+                        4
+                      ],
+                      [
+                        "L",
+                        0,
+                        4
+                      ],
+                      [
+                        "Z"
+                      ]
+                    ]
+                  }
+                ],
+                "fill": {
+                  "kind": "solid",
+                  "color": [
+                    0,
+                    0,
+                    0,
+                    1
+                  ]
+                },
+                "fillRule": "nonzero",
+                "stroke": null
+              },
+              {
+                "id": "arriving",
+                "transform": {
+                  "x": 70,
+                  "y": 70,
+                  "rotation": 0,
+                  "scaleX": 1,
+                  "scaleY": 1,
+                  "skewX": 0,
+                  "pivot": {
+                    "x": 0,
+                    "y": 0
+                  }
+                },
+                "opacity": 1,
+                "visible": true,
+                "kind": "path",
+                "contours": [
+                  {
+                    "closed": true,
+                    "commands": [
+                      [
+                        "M",
+                        0,
+                        0
+                      ],
+                      [
+                        "L",
+                        4,
+                        0
+                      ],
+                      [
+                        "L",
+                        4,
+                        4
+                      ],
+                      [
+                        "L",
+                        0,
+                        4
+                      ],
+                      [
+                        "Z"
+                      ]
+                    ]
+                  }
+                ],
+                "fill": {
+                  "kind": "solid",
+                  "color": [
+                    0,
+                    0,
+                    0,
+                    1
+                  ]
+                },
+                "fillRule": "nonzero",
+                "stroke": null
+              }
+            ],
+            "tween": null
+          }
+        ]
+      },
+      {
+        "id": "short",
+        "name": "short",
+        "visible": true,
+        "locked": false,
+        "opacity": 1,
+        "blendMode": "normal",
+        "length": 3,
+        "keyframes": [
+          {
+            "frame": 0,
+            "items": [
+              {
+                "id": "slanted",
+                "transform": {
+                  "x": 20,
+                  "y": 20,
+                  "rotation": 0,
+                  "scaleX": 2,
+                  "scaleY": 0.5,
+                  "skewX": 0.785398,
+                  "pivot": {
+                    "x": 0,
+                    "y": 0
+                  }
+                },
+                "opacity": 1,
+                "visible": true,
+                "kind": "path",
+                "contours": [
+                  {
+                    "closed": true,
+                    "commands": [
+                      [
+                        "M",
+                        0,
+                        0
+                      ],
+                      [
+                        "L",
+                        10,
+                        0
+                      ],
+                      [
+                        "L",
+                        10,
+                        10
+                      ],
+                      [
+                        "L",
+                        0,
+                        10
+                      ],
+                      [
+                        "Z"
+                      ]
+                    ]
+                  }
+                ],
+                "fill": {
+                  "kind": "solid",
+                  "color": [
+                    0,
+                    0,
+                    0,
+                    1
+                  ]
+                },
+                "fillRule": "nonzero",
+                "stroke": null
+              }
+            ],
+            "tween": null
+          }
+        ]
+      }
+    ],
+    "labels": []
+  }
+}

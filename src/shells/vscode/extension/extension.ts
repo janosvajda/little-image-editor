@@ -11,16 +11,19 @@ import {
 import { AssistantBridge, OUTPUT_NAME } from './assistantBridge';
 import { EditorDocument, EditorSession, FILE_SCHEME, fileNameOf } from './editorSession';
 import { OpenEditors } from './openEditors';
-import { IMAGE_VIEW_TYPE, openUntitledImage, untitledImageUri } from './untitledImages';
+import { ANIMATION_VIEW_TYPE, IMAGE_VIEW_TYPE, openUntitledImage, UNTITLED_ANIMATION_NAME, untitledImageUri } from './untitledImages';
 
 /** Must match `contributes.customEditors[].viewType` in the extension manifest. */
 const ViewType = {
 	/** Offered for images through "Open With…", leaving VS Code's image preview the default. */
 	Image: IMAGE_VIEW_TYPE,
+	/** The default editor for animation files, which VS Code has no other editor for. */
+	Animation: ANIMATION_VIEW_TYPE,
 } as const;
 /** Must match `contributes.commands[].command` in the extension manifest. */
 const Command = {
 	NewImage: 'littleImageEditor.newImage',
+	NewAnimation: 'littleImageEditor.newAnimation',
 } as const;
 const PREFERENCES_KEY = 'littleImageEditor.preferences';
 /** The built editor page and its assets, inside the extension. */
@@ -228,6 +231,11 @@ async function newImage(folder?: vscode.Uri): Promise<void> {
 	await openUntitledImage(untitledImageUri(folder));
 }
 
+/** Opens a new, untitled animation, beside the folder it was chosen in from the Explorer. */
+async function newAnimation(folder?: vscode.Uri): Promise<void> {
+	await openUntitledImage(untitledImageUri(folder, UNTITLED_ANIMATION_NAME), ViewType.Animation);
+}
+
 /** Native save pickers need a real file address, including for untitled images. */
 function suggestedSaveUri(document: EditorDocument, name: string): vscode.Uri | undefined {
 	if (!document.isUntitled) return vscode.Uri.joinPath(document.destination, '..', name);
@@ -262,7 +270,7 @@ export function activate(context: vscode.ExtensionContext): void {
 				supportsMultipleEditorsPerDocument: false,
 			}),
 		);
-	context.subscriptions.push(vscode.commands.registerCommand(Command.NewImage, newImage));
+	context.subscriptions.push(vscode.commands.registerCommand(Command.NewImage, newImage), vscode.commands.registerCommand(Command.NewAnimation, newAnimation));
 	const log = vscode.window.createOutputChannel(OUTPUT_NAME);
 	const bridge = new AssistantBridge(context, editors, log);
 	context.subscriptions.push(log, bridge);

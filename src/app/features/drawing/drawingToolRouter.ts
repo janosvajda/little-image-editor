@@ -89,6 +89,11 @@ export class DrawingToolRouter {
 		this.#crop.cancel();
 	}
 
+	/** Whether a selected item's pivot can be dragged with Select. */
+	setPivotEditing(enabled: boolean): void {
+		this.#objects.setPivotEditing(enabled);
+	}
+
 	/** Whether the Pen has a path under way, which Enter finishes and Escape drops. */
 	get penDrawing(): boolean {
 		return this.#pen?.drawing ?? false;
@@ -129,13 +134,13 @@ export class DrawingToolRouter {
 	removeSelectedPathNode(): boolean {
 		return this.#pathPoints?.removeSelected() ?? false;
 	}
-	cursor(tool: Tool, point: Point, visualScale: number): string {
+	cursor(tool: Tool, point: Point, visualScale: number, pivotKeyHeld = false): string {
 		if (
 			(tool === UtilityToolId.Crop || tool === UtilityToolId.Select) &&
 			this.#crop.containsSelection(point)
 		)
 			return 'move';
-		return this.#objects.cursor(tool, point, visualScale);
+		return this.#objects.cursor(tool, point, visualScale, pivotKeyHeld);
 	}
 
 	begin(
@@ -166,7 +171,7 @@ export class DrawingToolRouter {
 			if (move) return move;
 			if (tool === UtilityToolId.Select) this.#crop.cancel();
 		}
-		const editing = this.#objects.begin(tool, point, visualScale, shape);
+		const editing = this.#objects.begin(tool, point, visualScale, shape, event.altKey);
 		if (editing) return editing;
 		if (tool === UtilityToolId.Crop)
 			return this.#crop.begin(point, this.settings.cropSelectionKind);

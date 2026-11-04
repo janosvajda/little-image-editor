@@ -1,4 +1,4 @@
-import type { CropRect } from '../../core/document/appTypes';
+import type { CropRect, Point } from '../../core/document/appTypes';
 import { svgNumber } from './svgRecordingContext';
 
 /**
@@ -49,6 +49,10 @@ export const SvgDataAttribute = {
 	Cutouts: 'data-cutouts',
 	/** Parts of an item kept by a cut, one entry each, as cut-outs are written. */
 	Clips: 'data-clips',
+	/** The point an item turns and scales about, as `x y` relative to its frame. */
+	Pivot: 'data-pivot',
+	/** An item's id, kept where it must stay the same, as in an animation file's editing data. */
+	Id: 'data-id',
 } as const;
 
 /** A word that stands for a value an entry leaves out. */
@@ -65,6 +69,7 @@ export const SVG_FLAG = 'true';
 export type SvgAttributes = Readonly<Record<string, string | number | undefined>>;
 
 const FRAME_PARTS = 4;
+const POINT_PARTS = 2;
 const NUMBERS = /[+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?/gi;
 
 /** A frame as `x y width height`. */
@@ -78,6 +83,17 @@ export function parseFrame(value: string | null): CropRect | null {
 	if (numbers.length !== FRAME_PARTS) return null;
 	const [x, y, width, height] = numbers as [number, number, number, number];
 	return width >= 0 && height >= 0 ? { x, y, width, height } : null;
+}
+
+/** A point as `x y`. */
+export function pointValue({ x, y }: Point): string {
+	return [x, y].map((value) => svgNumber(value)).join(' ');
+}
+
+/** A point from `x y`; null when it is not one. */
+export function parsePoint(value: string | null): Point | null {
+	const numbers = numberList(value);
+	return numbers.length === POINT_PARTS ? { x: numbers[0]!, y: numbers[1]! } : null;
 }
 
 const TRIPLE = 3;

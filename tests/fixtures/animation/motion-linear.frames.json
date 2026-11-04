@@ -1,0 +1,223 @@
+{
+  "frames": {
+    "0": {
+      "frame": 0,
+      "width": 200,
+      "height": 100,
+      "background": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "layers": [
+        {
+          "id": "stage",
+          "blendMode": "normal",
+          "opacity": 1,
+          "items": [
+            {
+              "kind": "path",
+              "matrix": [
+                1,
+                0,
+                0,
+                1,
+                0,
+                0
+              ],
+              "opacity": 1,
+              "contours": [
+                {
+                  "closed": true,
+                  "commands": [
+                    [
+                      "M",
+                      0,
+                      0
+                    ],
+                    [
+                      "L",
+                      10,
+                      0
+                    ],
+                    [
+                      "L",
+                      10,
+                      10
+                    ],
+                    [
+                      "L",
+                      0,
+                      10
+                    ],
+                    [
+                      "Z"
+                    ]
+                  ]
+                }
+              ],
+              "fill": {
+                "kind": "solid",
+                "color": [
+                  0,
+                  0,
+                  0,
+                  1
+                ]
+              },
+              "fillRule": "nonzero",
+              "stroke": null
+            }
+          ]
+        }
+      ]
+    },
+    "5": {
+      "frame": 5,
+      "width": 200,
+      "height": 100,
+      "background": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "layers": [
+        {
+          "id": "stage",
+          "blendMode": "normal",
+          "opacity": 1,
+          "items": [
+            {
+              "kind": "path",
+              "matrix": [
+                1,
+                0,
+                0,
+                1,
+                50,
+                20
+              ],
+              "opacity": 1,
+              "contours": [
+                {
+                  "closed": true,
+                  "commands": [
+                    [
+                      "M",
+                      0,
+                      0
+                    ],
+                    [
+                      "L",
+                      10,
+                      0
+                    ],
+                    [
+                      "L",
+                      10,
+                      10
+                    ],
+                    [
+                      "L",
+                      0,
+                      10
+                    ],
+                    [
+                      "Z"
+                    ]
+                  ]
+                }
+              ],
+              "fill": {
+                "kind": "solid",
+                "color": [
+                  0,
+                  0,
+                  0,
+                  1
+                ]
+              },
+              "fillRule": "nonzero",
+              "stroke": null
+            }
+          ]
+        }
+      ]
+    },
+    "10": {
+      "frame": 10,
+      "width": 200,
+      "height": 100,
+      "background": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "layers": [
+        {
+          "id": "stage",
+          "blendMode": "normal",
+          "opacity": 1,
+          "items": [
+            {
+              "kind": "path",
+              "matrix": [
+                1,
+                0,
+                0,
+                1,
+                100,
+                40
+              ],
+              "opacity": 1,
+              "contours": [
+                {
+                  "closed": true,
+                  "commands": [
+                    [
+                      "M",
+                      0,
+                      0
+                    ],
+                    [
+                      "L",
+                      10,
+                      0
+                    ],
+                    [
+                      "L",
+                      10,
+                      10
+                    ],
+                    [
+                      "L",
+                      0,
+                      10
+                    ],
+                    [
+                      "Z"
+                    ]
+                  ]
+                }
+              ],
+              "fill": {
+                "kind": "solid",
+                "color": [
+                  0,
+                  0,
+                  0,
+                  1
+                ]
+              },
+              "fillRule": "nonzero",
+              "stroke": null
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

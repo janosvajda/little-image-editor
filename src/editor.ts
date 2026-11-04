@@ -1,5 +1,5 @@
 import { presentEditorIcons } from './app/shared/style/editorIcons';
-import type { Tool } from './app/core/document/appTypes';
+import { DocumentType, type Tool } from './app/core/document/appTypes';
 import {
 	EditorHistory,
 	HistoryDomain,
@@ -19,6 +19,12 @@ import {
 	type BugReportPreferences,
 } from './app/features/annotations/bugReportController';
 import { ContentLayerCanvas } from './app/features/annotations/contentLayerCanvas';
+import { AnimationDocument } from './app/features/animation/animationDocument';
+import { AnimationFileController } from './app/features/animation/animationFileController';
+import { AnimationExporter } from './app/features/animation/export/animationExporter';
+import { OnionSkinCanvas } from './app/features/animation/onionSkin';
+import { TimelineController } from './app/features/animation/timelineController';
+import { AnimationDefaults } from './app/features/animation/animationTypes';
 import { SelectionPresentation } from './app/features/annotations/selectionOverlayRenderer';
 import { BrowserCaptureImporter } from './app/features/capture/browserCaptureImporter';
 import { DrawingController } from './app/features/drawing/drawingController';
@@ -66,6 +72,10 @@ import { acceptsTyping, element } from './app/shared/dom/domHelpers';
 import { KeyboardKey, ShortcutKey } from './app/shared/input/keyboardKeys';
 
 const SPLASH_EXIT_TRANSITION_MS = 220;
+/** How the workspace makes room for the docked timeline. */
+const TimelineLayoutClass = { Open: 'timeline-open', Collapsed: 'timeline-collapsed' } as const;
+/** Controls Enter already acts on, which a timeline key must not take it from. */
+const ENTER_TARGETS = 'button, select, summary, a[href]';
 const STARTUP_MODE_PARAMETER = 'mode';
 
 element('#quickOpenButton').after(element('#quickSaveButton'));
@@ -78,6 +88,8 @@ const documentModel = new CanvasDocument(
 	element<HTMLCanvasElement>('#overlay'),
 );
 const vectorShapes = new AnnotationDocument();
+// The animation keeps its timeline in the layers' state, so it follows every edit and undo from the start.
+const animation = new AnimationDocument(vectorShapes);
 const newImage = new NewImageController(documentModel);
 const files = new FileController(
 	documentModel,
@@ -85,7 +97,11 @@ const files = new FileController(
 );
 const svgDocuments = new SvgDocumentController(documentModel, vectorShapes);
 files.setSvgDocument(svgDocuments);
-const imageExport = new ImageExportController(documentModel, files, svgDocuments);
+files.setAnimationDocument(new AnimationFileController(documentModel, vectorShapes));
+// An animation also exports to play anywhere: as an animated GIF, or a WebM video.
+const animationExporter = new AnimationExporter(documentModel, vectorShapes);
+files.setAnimationExporter(animationExporter);
+const imageExport = new ImageExportController(documentModel, files, svgDocuments, animationExporter);
 // Export… asks how a copy is written, in the same dialog in every edition.
 files.setExportDialog(() => imageExport.open());
 const clipboard = new ClipboardController(documentModel);
@@ -140,6 +156,27 @@ const layerCanvas = new ContentLayerCanvas(
 	vectorShapes,
 	() => layerMerger.flattenBeforeGeometryChange(),
 );
+// Onion skin lies beneath the layers, so the frame being edited stays clear above the frames around it.
+const onionSkin = new OnionSkinCanvas(documentModel.canvas);
+viewport.addCanvasLayer(onionSkin.canvas);
+layerCanvas.canvas.before(onionSkin.canvas);
+documentModel.onDocumentChange(({ width, height }) => onionSkin.resize(width, height));
+const timeline = new TimelineController(animation, vectorShapes, documentModel, platform.storage, onionSkin);
+element<HTMLElement>('.workspace').append(timeline.panel.element);
+// A new animation starts with its first layer ready to draw on.
+newImage.onCreate((options) => {
+	if (options.documentType === DocumentType.Animation) animation.start(options.fps ?? AnimationDefaults.Fps);
+});
+document.body.append(timeline.menu.element);
+// While animating, the selected item shows its pivot, and Select drags it.
+timeline.onLayoutChange(({ visible, collapsed }) => {
+	element('.workspace').classList.toggle(TimelineLayoutClass.Open, visible);
+	element('.workspace').classList.toggle(TimelineLayoutClass.Collapsed, collapsed);
+	// Floating toolbars keep above the docked timeline, as they keep above the status bar.
+	workspaceUi.reserveBottom(visible ? timeline.panel.element.getBoundingClientRect().height : 0);
+	drawing.setPivotEditing(visible);
+	layerCanvas.setPivotVisible(visible);
+});
 const presentSelectionFor = (tool: Tool) =>
 	layerCanvas.setSelectionPresentation(selectionPresentationFor(tool));
 presentSelectionFor(drawing.tool);
@@ -313,7 +350,16 @@ function handleKeyboardShortcut(event: KeyboardEvent): void {
 	const target = event.target as HTMLElement;
 	if (modifier && handleModifiedShortcut(event, key, target)) return;
 	if (handleWorkspaceShortcut(event, target)) return;
+	if (!modifier && !acceptsTyping(target) && handleTimelineShortcut(event, target)) return;
 	if (!modifier && !acceptsTyping(target)) drawing.handleShortcut(key, event.shiftKey);
+}
+
+/** The timeline's keys, while it is shown; Enter stays with a focused control that acts on it. */
+function handleTimelineShortcut(event: KeyboardEvent, target: HTMLElement): boolean {
+	if (event.key === KeyboardKey.Enter && target.closest(ENTER_TARGETS)) return false;
+	if (!timeline.handleShortcut(event.key, event.shiftKey)) return false;
+	event.preventDefault();
+	return true;
 }
 
 function handleModifiedShortcut(

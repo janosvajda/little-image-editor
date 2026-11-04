@@ -14,14 +14,20 @@ import { isSvgFile, isSvgFileName, SVG_EXTENSION, SVG_MIME_TYPE } from '../../co
 import type { ImageEncoding } from './canvasHelpers';
 import type { ExportOptions } from './exportOptions';
 import type { SvgDocumentOptions } from './svgExport';
+import { ANIMATION_EXTENSION, animationBaseName, animationFileName, isAnimationFile, isAnimationFileName } from '../animation/format/animationFileFormat';
+import { ANIMATION_EXPORT_FORMATS, type AnimationExportFormat, isAnimationExportFormat } from '../animation/export/animationExportFormats';
 
-/** What a document is saved as: one of the image formats, or SVG. */
-/** What a copy can be exported as: one of the image formats, or SVG. */
-export type ExportFormat = ImageFormat | typeof SVG_MIME_TYPE;
+/** What a copy can be exported as: one of the image formats, SVG, or, for an animation, a GIF or a video. */
+export type ExportFormat = ImageFormat | typeof SVG_MIME_TYPE | AnimationExportFormat;
+
+/** What naming a file to save asks for, by what it holds. */
+const SavePrompt = { Image: 'Save image as', Animation: 'Save animation as', Export: 'Export animation as' } as const;
 
 /** A kind of file to choose: how a picker shows it, which names it takes, and how a name is put right. */
 interface ChosenFileKind {
 	readonly extension: string;
+	/** What is asked for when the file is named rather than picked. */
+	readonly prompt: string;
 	readonly types: readonly PickerFileType[];
 	accepts(name: string): boolean;
 	named(name: string): string;
@@ -30,6 +36,7 @@ interface ChosenFileKind {
 /** An SVG to save or export: only an SVG name will do. */
 const SVG_FILE_KIND: ChosenFileKind = {
 	extension: SVG_EXTENSION,
+	prompt: SavePrompt.Image,
 	types: [SVG_PICKER_TYPE],
 	accepts: isSvgFileName,
 	named: (name) => ensureExtension(name, SVG_EXTENSION),
@@ -45,13 +52,54 @@ export interface SvgDocumentPort {
 	write(options?: SvgDocumentOptions): Blob;
 }
 
+/** An animation to save: only an animation file's name will do. */
+const ANIMATION_FILE_KIND: ChosenFileKind = {
+	extension: ANIMATION_EXTENSION,
+	prompt: SavePrompt.Animation,
+	types: [ANIMATION_PICKER_TYPE],
+	accepts: isAnimationFileName,
+	named: animationFileName,
+};
+
+/** An animation file written, and what it does not keep, each said as a question to continue. */
+export interface AnimationDocumentWrite {
+	readonly blob: Blob;
+	readonly warnings: readonly string[];
+}
+
+/** The animation exported to play anywhere, which the editor gives the file controller. */
+export interface AnimationExportPort {
+	supports(format: AnimationExportFormat): boolean;
+	export(format: AnimationExportFormat, options: ExportOptions): Promise<Blob>;
+}
+
+/** An exported animation's file: only a name of its format will do. */
+function animationExportKind(format: AnimationExportFormat): ChosenFileKind {
+	const { label, extension } = ANIMATION_EXPORT_FORMATS[format];
+	const suffix = `.${extension}`;
+	return {
+		extension,
+		prompt: SavePrompt.Export,
+		types: [{ description: label, accept: { [format]: [suffix] } }],
+		accepts: (name) => name.toLowerCase().endsWith(suffix),
+		named: (name) => ensureExtension(name, extension),
+	};
+}
+
+/** The document as an animation file, which the editor gives the file controller: opening one, and writing the animation as one. */
+export interface AnimationDocumentPort {
+	open(file: File, target: SaveTarget | null): Promise<void>;
+	write(): Promise<AnimationDocumentWrite>;
+}
+
 function imageFileKind(format: ImageFormat, types: readonly PickerFileType[], accepts: (name: string) => boolean): ChosenFileKind {
-	return { extension: preferredExtension(format), types, accepts, named: (name) => ensureImageExtension(name, format) };
+	return { extension: preferredExtension(format), prompt: SavePrompt.Image, types, accepts, named: (name) => ensureImageExtension(name, format) };
 }
 import { isImageFileType } from './formatSelectHelpers';
 import {
 	EDITOR_OPEN_FILE_ACCEPT,
 	EDITOR_OPEN_PICKER_TYPES,
+	ANIMATION_PICKER_TYPE,
 	imagePickerType,
 	isSavableFileName,
 	SVG_PICKER_TYPE,
@@ -71,7 +119,6 @@ const ABORT_ERROR_NAME = 'AbortError';
 const SAVE_CANCELLED_MESSAGE = 'Saving was cancelled.';
 /** How many files of the wrong kind Save As takes before it stops asking. */
 const MAX_PICK_ATTEMPTS = 3;
-const SAVE_PROMPT = 'Save image as';
 const UNSAVABLE_FORMAT_MESSAGE =
 	'Little Image Editor saves SVG documents and PNG, JPEG or WebP images. Use Save As to choose one of them.';
 const OPEN_FAILED_MESSAGE = 'The file could not be opened as an image.';
@@ -88,6 +135,8 @@ export class FileController {
 	/** Save targets that are downloads, which Save cannot write to again. */
 	readonly #downloads = new WeakSet<SaveTarget>();
 	#svgDocument: SvgDocumentPort | null = null;
+	#animationDocument: AnimationDocumentPort | null = null;
+	#animationExporter: AnimationExportPort | null = null;
 	/** Opens the Export dialog, where an edition has one, to choose how a copy is exported. */
 	#exportDialog: (() => void) | null = null;
 
@@ -153,6 +202,14 @@ export class FileController {
 	setSvgDocument(svg: SvgDocumentPort): void {
 		this.#svgDocument = svg;
 	}
+	/** Exports the animation as a GIF or a video. */
+	setAnimationExporter(exporter: AnimationExportPort): void {
+		this.#animationExporter = exporter;
+	}
+	/** Reads and writes animation files; the editor gives it the animation it keeps. */
+	setAnimationDocument(animation: AnimationDocumentPort): void {
+		this.#animationDocument = animation;
+	}
 	/** Opens a file the host owns; Save then writes back into it. */
 	async openTarget(target: OpenTarget): Promise<void> {
 		await this.openFile(await target.getFile(), target);
@@ -163,6 +220,10 @@ export class FileController {
 	 * editable document, or an image. With a target, Save writes back into it.
 	 */
 	async openFile(file: File, target?: SaveTarget): Promise<void> {
+		if (isAnimationFile(file) && this.#animationDocument) {
+			await this.#animationDocument.open(file, target ?? null);
+			return;
+		}
 		if (isSvgFile(file) && this.#svgDocument) {
 			await this.#svgDocument.open(file, target ?? null);
 			return;
@@ -180,7 +241,7 @@ export class FileController {
 	async save(): Promise<void> {
 		if (!this.documentModel.hasImage) return;
 		const current = this.documentModel.fileHandle;
-		if (current && isSvgFileName(current.name)) await ignoringCancel(this.saveInto(current));
+		if (current && this.documentKind().accepts(current.name)) await ignoringCancel(this.saveInto(current));
 		else await this.saveAs();
 	}
 
@@ -217,6 +278,10 @@ export class FileController {
 			return;
 		}
 		const format = type ?? this.documentModel.savedType;
+		if (isAnimationExportFormat(format)) {
+			await ignoringCancel(this.exportAnimation(format, options));
+			return;
+		}
 		if (format === SVG_MIME_TYPE) {
 			await ignoringCancel(this.exportSvg(options));
 			return;
@@ -236,8 +301,13 @@ export class FileController {
 	}
 
 	private async saveChosen(): Promise<void> {
-		const target = await this.chooseTarget(SVG_FILE_KIND);
-		if (target) await this.writeSvgDocument(target);
+		const target = await this.chooseTarget(this.documentKind());
+		if (target) await this.saveByName(target);
+	}
+
+	/** The file an editable document is saved as: an animation file for an animation, otherwise an SVG. */
+	private documentKind(): ChosenFileKind {
+		return this.documentModel.documentType === DocumentType.Animation ? ANIMATION_FILE_KIND : SVG_FILE_KIND;
 	}
 
 	/**
@@ -246,6 +316,10 @@ export class FileController {
 	 * come once the file is chosen; a declined one cancels the save.
 	 */
 	private async saveByName(target: SaveTarget): Promise<void> {
+		if (isAnimationFileName(target.name)) {
+			await this.writeAnimationDocument(target);
+			return;
+		}
 		if (isSvgFileName(target.name)) {
 			await this.writeSvgDocument(target);
 			return;
@@ -261,6 +335,14 @@ export class FileController {
 		if (target) await this.write(target, imageFormatOfFileName(target.name)?.mimeType ?? type, encoding);
 	}
 
+	/** The animation as a GIF or a video; the file is chosen first, as making a video takes as long as the animation plays. */
+	private async exportAnimation(format: AnimationExportFormat, options: ExportOptions = { scale: 1 }): Promise<void> {
+		const exporter = this.#animationExporter;
+		if (!exporter?.supports(format)) return;
+		const target = await this.chooseTarget(animationExportKind(format));
+		if (target) await writeToTarget(target, await exporter.export(format, options));
+	}
+
 	private async exportSvg(options?: SvgDocumentOptions): Promise<void> {
 		const svg = this.#svgDocument;
 		if (!svg) return;
@@ -274,10 +356,29 @@ export class FileController {
 		if (!svg) throw new DOMException(SAVE_CANCELLED_MESSAGE, ABORT_ERROR_NAME);
 		this.prepareDocumentForSave();
 		await writeToTarget(target, svg.write());
+		this.keepEditableFile(target, DocumentType.Svg, target.name.replace(/\.[^.]+$/, ''));
+	}
+
+	/**
+	 * Writes the document into an animation file, which Save then keeps writing
+	 * to. What the file will not keep is asked about first; declining cancels.
+	 */
+	private async writeAnimationDocument(target: SaveTarget): Promise<void> {
+		const animation = this.#animationDocument;
+		if (!animation) throw new DOMException(SAVE_CANCELLED_MESSAGE, ABORT_ERROR_NAME);
+		this.prepareDocumentForSave();
+		const { blob, warnings } = await animation.write();
+		for (const warning of warnings) if (!(await this.platform.dialogs.confirm(warning))) throw new DOMException(SAVE_CANCELLED_MESSAGE, ABORT_ERROR_NAME);
+		await writeToTarget(target, blob);
+		this.keepEditableFile(target, DocumentType.Animation, animationBaseName(target.name));
+	}
+
+	/** Makes a written file the one Save writes to, as the kind of document it holds; a download is not kept. */
+	private keepEditableFile(target: SaveTarget, documentType: DocumentType, baseName: string): void {
 		if (this.#downloads.has(target)) return;
 		this.documentModel.fileHandle = target;
-		this.documentModel.documentType = DocumentType.Svg;
-		this.documentModel.baseName = target.name.replace(/\.[^.]+$/, '') || this.documentModel.baseName;
+		this.documentModel.documentType = documentType;
+		this.documentModel.baseName = baseName || this.documentModel.baseName;
 	}
 
 	/** A file of a kind: chosen in a picker where the browser has one, otherwise named and downloaded. */
@@ -297,7 +398,7 @@ export class FileController {
 
 	/** Where no file can be chosen: asks for a name, then hands the file over as a download. */
 	private async promptedDownload(kind: ChosenFileKind): Promise<SaveTarget | null> {
-		const requested = await this.platform.dialogs.prompt(SAVE_PROMPT, kind.named(this.documentModel.baseName));
+		const requested = await this.platform.dialogs.prompt(kind.prompt, kind.named(this.documentModel.baseName));
 		if (!requested) return null;
 		const name = kind.accepts(requested) ? requested.trim() : kind.named(requested);
 		const target = downloadTarget(this.platform.files, name);

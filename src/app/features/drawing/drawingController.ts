@@ -140,6 +140,11 @@ export class DrawingController {
 		this.#controls.onSelection(listener);
 	}
 
+	/** Whether a selected item's pivot can be dragged with Select, as while animating. */
+	setPivotEditing(enabled: boolean): void {
+		this.#router.setPivotEditing(enabled);
+	}
+
 	/** Told when a path's points start or stop being edited. */
 	onPathPointEditingChange(listener: (editing: boolean) => void): void {
 		this.#router.onPathPointEditingChange(listener);
@@ -290,7 +295,7 @@ export class DrawingController {
 		if (!gesture) {
 			if (isPathTool(this.#controls.tool)) this.#router.hoverPen(this.point(event));
 			if (this.shapes || this.#controls.tool === UtilityToolId.Crop)
-				this.presentCursor(this.#router.cursor(this.#controls.tool, this.point(event), this.visualScale()));
+				this.presentCursor(this.#router.cursor(this.#controls.tool, this.point(event), this.visualScale(), event.altKey));
 			return;
 		}
 		event.preventDefault();

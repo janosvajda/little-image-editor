@@ -11,6 +11,7 @@ import type {
 import type { BlendMode, CoreLayerId } from '../../core/layers/layerTypes';
 import type { RectOrientation } from '../../core/geometry/geometryHelpers';
 import type { FloodFillRun } from '../drawing/floodFillHelpers';
+import type { AnimationTimeline } from '../animation/animationTypes';
 
 /** The kinds of item a content layer holds. */
 export const AnnotationObjectTypeId = {
@@ -96,6 +97,11 @@ interface AnnotationBase extends ErasableAnnotation {
 	locked?: boolean;
 	effects?: ItemEffects;
 	clip?: ItemClip;
+	/**
+	 * The point the item turns and scales about, relative to its frame from 0
+	 * to 1 on each side, as its clip is; its frame's centre when absent.
+	 */
+	pivot?: Point;
 }
 
 export interface StrokePoint extends Point {
@@ -291,6 +297,11 @@ export interface AnnotationState {
 	objects: AnnotationObject[];
 	layers: ContentLayer[];
 	nextStep: number;
+	/**
+	 * The layers' frames when the document is animated. `layers` and
+	 * `objects` then always show the frame at its playhead.
+	 */
+	animation?: AnimationTimeline;
 }
 
 /** A state from a caller that may predate content layers; the document completes it. */

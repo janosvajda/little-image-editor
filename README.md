@@ -224,7 +224,7 @@ src/
                        and the developer-run MCP server
   editor.ts            Starts the editor
 vscode-extension/      The VS Code extension package
-tests/                 End-to-end (Playwright) and integration tests
+tests/                 Integration tests and preserved end-to-end tests
 ```
 
 The editor talks to its surroundings only through the `EditorPlatform` interface. The browser and Chrome use one implementation, and the VS Code webview uses another. New features belong in `src/app`, so all editions get them.
@@ -244,7 +244,7 @@ The editor talks to its surroundings only through the `EditorPlatform` interface
 
 ### Dependencies
 
-The editor itself has no runtime dependencies. The VS Code extension has none either. The developer-run MCP server bundles the official MCP SDK (`@modelcontextprotocol/sdk`) and `zod`. Everything else is a development tool (TypeScript, esbuild, Biome, Vitest, Playwright).
+The editor itself has no runtime dependencies. The VS Code extension has none either. The developer-run MCP server bundles the official MCP SDK (`@modelcontextprotocol/sdk`) and `zod`. Everything else is a development tool (TypeScript, esbuild, Biome, Vitest). Playwright and its testing browsers have been temporarily removed.
 
 ## Tests and quality gates
 
@@ -252,14 +252,16 @@ The editor itself has no runtime dependencies. The VS Code extension has none ei
 npm test                  # unit and integration tests, with coverage
 npm run test:unit
 npm run test:integration
-npm run test:e2e          # Playwright (Chromium), including the VS Code webview
+npm run test:e2e          # unavailable while Playwright is removed; exits with an error
 npm run test:contracts    # immutable test contracts
-npm run test:all          # contracts, coverage and end-to-end
+npm run test:all          # requires E2E testing to be restored before it can pass
 ```
 
 - **Coverage:** the build fails below **98% of lines**, 90% of statements and functions, and 80% of branches. Key controllers must also reach 98% each.
 - **Lint:** production TypeScript may not contain magic numbers; values get meaningful names.
-- **Pull requests** run the same checks in GitHub Actions: test contracts, lint, strict typechecking, the production build, coverage, and Chromium end-to-end tests.
+- **Pull requests** run test contracts, lint, strict typechecking, the production build, and coverage in GitHub Actions.
+
+Browser E2E testing is temporarily unavailable. The Playwright dependency, browser configuration, and CI browser-install/test job have been removed; the tests in `tests/e2e` and their contract hashes are preserved unchanged. `npm run test:e2e` exits with an error so an unavailable browser suite cannot be mistaken for a passing run. Unit and integration tests use jsdom and do not launch a Chromium browser. Restoring E2E testing requires reinstalling a reviewed Playwright version, restoring its browser configuration and CI job, and reconnecting the E2E script. These changes do not modify the locally installed Chrome browser or its profile.
 
 ### Immutable test contracts
 

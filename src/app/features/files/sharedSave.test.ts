@@ -54,6 +54,7 @@ describe('the File menu', () => {
 		);
 		expect(items).toEqual([
 			'newImageButton',
+			'newAnimationButton',
 			'openButton',
 			'|',
 			'saveButton',
