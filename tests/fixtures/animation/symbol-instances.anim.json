@@ -1,0 +1,471 @@
+{
+  "format": "little-animation",
+  "version": 1,
+  "stage": {
+    "width": 120,
+    "height": 120,
+    "background": [
+      1,
+      1,
+      1,
+      1
+    ],
+    "fps": 8,
+    "frames": 8
+  },
+  "library": [
+    {
+      "id": "spinner",
+      "name": "Spinner",
+      "timeline": {
+        "layers": [
+          {
+            "id": "dots",
+            "name": "dots",
+            "visible": true,
+            "locked": false,
+            "opacity": 1,
+            "blendMode": "normal",
+            "length": 4,
+            "keyframes": [
+              {
+                "frame": 0,
+                "items": [
+                  {
+                    "id": "dot",
+                    "transform": {
+                      "x": 0,
+                      "y": 0,
+                      "rotation": 0,
+                      "scaleX": 1,
+                      "scaleY": 1,
+                      "skewX": 0,
+                      "pivot": {
+                        "x": 0,
+                        "y": 0
+                      }
+                    },
+                    "opacity": 1,
+                    "visible": true,
+                    "kind": "path",
+                    "contours": [
+                      {
+                        "closed": true,
+                        "commands": [
+                          [
+                            "M",
+                            0,
+                            0
+                          ],
+                          [
+                            "L",
+                            2,
+                            0
+                          ],
+                          [
+                            "L",
+                            2,
+                            2
+                          ],
+                          [
+                            "L",
+                            0,
+                            2
+                          ],
+                          [
+                            "Z"
+                          ]
+                        ]
+                      }
+                    ],
+                    "fill": {
+                      "kind": "solid",
+                      "color": [
+                        0,
+                        0,
+                        0,
+                        1
+                      ]
+                    },
+                    "fillRule": "nonzero",
+                    "stroke": null
+                  }
+                ],
+                "tween": null
+              },
+              {
+                "frame": 1,
+                "items": [
+                  {
+                    "id": "dot",
+                    "transform": {
+                      "x": 10,
+                      "y": 0,
+                      "rotation": 0,
+                      "scaleX": 1,
+                      "scaleY": 1,
+                      "skewX": 0,
+                      "pivot": {
+                        "x": 0,
+                        "y": 0
+                      }
+                    },
+                    "opacity": 1,
+                    "visible": true,
+                    "kind": "path",
+                    "contours": [
+                      {
+                        "closed": true,
+                        "commands": [
+                          [
+                            "M",
+                            0,
+                            0
+                          ],
+                          [
+                            "L",
+                            2,
+                            0
+                          ],
+                          [
+                            "L",
+                            2,
+                            2
+                          ],
+                          [
+                            "L",
+                            0,
+                            2
+                          ],
+                          [
+                            "Z"
+                          ]
+                        ]
+                      }
+                    ],
+                    "fill": {
+                      "kind": "solid",
+                      "color": [
+                        0,
+                        0,
+                        0,
+                        1
+                      ]
+                    },
+                    "fillRule": "nonzero",
+                    "stroke": null
+                  }
+                ],
+                "tween": null
+              },
+              {
+                "frame": 2,
+                "items": [
+                  {
+                    "id": "dot",
+                    "transform": {
+                      "x": 20,
+                      "y": 0,
+                      "rotation": 0,
+                      "scaleX": 1,
+                      "scaleY": 1,
+                      "skewX": 0,
+                      "pivot": {
+                        "x": 0,
+                        "y": 0
+                      }
+                    },
+                    "opacity": 1,
+                    "visible": true,
+                    "kind": "path",
+                    "contours": [
+                      {
+                        "closed": true,
+                        "commands": [
+                          [
+                            "M",
+                            0,
+                            0
+                          ],
+                          [
+                            "L",
+                            2,
+                            0
+                          ],
+                          [
+                            "L",
+                            2,
+                            2
+                          ],
+                          [
+                            "L",
+                            0,
+                            2
+                          ],
+                          [
+                            "Z"
+                          ]
+                        ]
+                      }
+                    ],
+                    "fill": {
+                      "kind": "solid",
+                      "color": [
+                        0,
+                        0,
+                        0,
+                        1
+                      ]
+                    },
+                    "fillRule": "nonzero",
+                    "stroke": null
+                  }
+                ],
+                "tween": null
+              },
+              {
+                "frame": 3,
+                "items": [
+                  {
+                    "id": "dot",
+                    "transform": {
+                      "x": 30,
+                      "y": 0,
+                      "rotation": 0,
+                      "scaleX": 1,
+                      "scaleY": 1,
+                      "skewX": 0,
+                      "pivot": {
+                        "x": 0,
+                        "y": 0
+                      }
+                    },
+                    "opacity": 1,
+                    "visible": true,
+                    "kind": "path",
+                    "contours": [
+                      {
+                        "closed": true,
+                        "commands": [
+                          [
+                            "M",
+                            0,
+                            0
+                          ],
+                          [
+                            "L",
+                            2,
+                            0
+                          ],
+                          [
+                            "L",
+                            2,
+                            2
+                          ],
+                          [
+                            "L",
+                            0,
+                            2
+                          ],
+                          [
+                            "Z"
+                          ]
+                        ]
+                      }
+                    ],
+                    "fill": {
+                      "kind": "solid",
+                      "color": [
+                        0,
+                        0,
+                        0,
+                        1
+                      ]
+                    },
+                    "fillRule": "nonzero",
+                    "stroke": null
+                  }
+                ],
+                "tween": null
+              }
+            ]
+          }
+        ],
+        "labels": []
+      },
+      "frames": 4
+    },
+    {
+      "id": "orbit",
+      "name": "Orbit",
+      "timeline": {
+        "layers": [
+          {
+            "id": "ring",
+            "name": "ring",
+            "visible": true,
+            "locked": false,
+            "opacity": 0.5,
+            "blendMode": "normal",
+            "length": 2,
+            "keyframes": [
+              {
+                "frame": 0,
+                "items": [
+                  {
+                    "id": "inner",
+                    "transform": {
+                      "x": 5,
+                      "y": 5,
+                      "rotation": 0,
+                      "scaleX": 1,
+                      "scaleY": 1,
+                      "skewX": 0,
+                      "pivot": {
+                        "x": 0,
+                        "y": 0
+                      }
+                    },
+                    "opacity": 1,
+                    "visible": true,
+                    "kind": "instance",
+                    "symbol": "spinner",
+                    "play": "loop",
+                    "firstFrame": 0,
+                    "tint": null
+                  }
+                ],
+                "tween": null
+              }
+            ]
+          }
+        ],
+        "labels": []
+      },
+      "frames": 2
+    }
+  ],
+  "timeline": {
+    "layers": [
+      {
+        "id": "instances",
+        "name": "instances",
+        "visible": true,
+        "locked": false,
+        "opacity": 1,
+        "blendMode": "normal",
+        "length": 8,
+        "keyframes": [
+          {
+            "frame": 0,
+            "items": [],
+            "tween": null
+          },
+          {
+            "frame": 2,
+            "items": [
+              {
+                "id": "looping",
+                "transform": {
+                  "x": 0,
+                  "y": 0,
+                  "rotation": 0,
+                  "scaleX": 1,
+                  "scaleY": 1,
+                  "skewX": 0,
+                  "pivot": {
+                    "x": 0,
+                    "y": 0
+                  }
+                },
+                "opacity": 1,
+                "visible": true,
+                "kind": "instance",
+                "symbol": "spinner",
+                "play": "loop",
+                "firstFrame": 1,
+                "tint": null
+              },
+              {
+                "id": "once",
+                "transform": {
+                  "x": 0,
+                  "y": 20,
+                  "rotation": 0,
+                  "scaleX": 1,
+                  "scaleY": 1,
+                  "skewX": 0,
+                  "pivot": {
+                    "x": 0,
+                    "y": 0
+                  }
+                },
+                "opacity": 1,
+                "visible": true,
+                "kind": "instance",
+                "symbol": "spinner",
+                "play": "once",
+                "firstFrame": 2,
+                "tint": {
+                  "color": [
+                    1,
+                    0,
+                    0,
+                    1
+                  ],
+                  "amount": 0.5
+                }
+              },
+              {
+                "id": "held",
+                "transform": {
+                  "x": 0,
+                  "y": 40,
+                  "rotation": 0,
+                  "scaleX": 1,
+                  "scaleY": 1,
+                  "skewX": 0,
+                  "pivot": {
+                    "x": 0,
+                    "y": 0
+                  }
+                },
+                "opacity": 0.5,
+                "visible": true,
+                "kind": "instance",
+                "symbol": "spinner",
+                "play": "single",
+                "firstFrame": 3,
+                "tint": null
+              },
+              {
+                "id": "nested",
+                "transform": {
+                  "x": 0,
+                  "y": 60,
+                  "rotation": 0,
+                  "scaleX": 1,
+                  "scaleY": 1,
+                  "skewX": 0,
+                  "pivot": {
+                    "x": 0,
+                    "y": 0
+                  }
+                },
+                "opacity": 1,
+                "visible": true,
+                "kind": "instance",
+                "symbol": "orbit",
+                "play": "loop",
+                "firstFrame": 0,
+                "tint": null
+              }
+            ],
+            "tween": null
+          }
+        ]
+      }
+    ],
+    "labels": []
+  }
+}

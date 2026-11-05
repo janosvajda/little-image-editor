@@ -24,7 +24,7 @@ import { FillRule, pathData } from '../../core/geometry/vectorPath';
 import { layerAppearance } from '../layers/layerAppearance';
 import { documentMetadata } from './svgDocumentMetadata';
 import { erasableAttributes, itemCodec } from './svgItemCodecs';
-import { flagValue, SvgDataAttribute } from './svgItemFormat';
+import { flagValue, pointValue, SvgDataAttribute } from './svgItemFormat';
 import { type LineEndMarkerStyle, lineEndMarker, MarkerPosition } from './svgLineEnds';
 import { asCanvasContext, escapeXml, SvgRecordingContext, svgElement, svgNumber } from './svgRecordingContext';
 import { SvgKeyword } from './svgStyle';
@@ -99,6 +99,22 @@ export function svgDocument(documentModel: CanvasDocument, state: Readonly<Annot
 	)}\n`;
 }
 
+/** The prefix of the ids an item's own SVG gives its definitions. */
+const ITEM_DOCUMENT_ID_PREFIX = 'item-';
+
+/**
+ * One item as an SVG of its own, its definitions with it and its group
+ * naming its id: the item exactly as the editor keeps it, to be read back
+ * with `importItemSvg`. Pictures it draws of the image are embedded.
+ */
+export function itemSvgDocument(documentModel: CanvasDocument, item: AnnotationObject): string {
+	const { width, height } = documentModel;
+	const definitions: string[] = [];
+	const group = itemSvg({ documentModel, definitions, images: new Map() }, item, ITEM_DOCUMENT_ID_PREFIX, ItemIdentity.Kept);
+	const defs = definitions.length ? svgElement('defs', {}, definitions.join('')) : '';
+	return svgElement('svg', { xmlns: SVG_NAMESPACE, width, height, viewBox: `0 0 ${width} ${height}` }, `${defs}${group}`);
+}
+
 /** The image's own photo, hidden and locked as its layer is. */
 function imageElement(documentModel: CanvasDocument): string {
 	const layer = documentModel.layers.state.layers.find(({ id }) => id === CoreLayerId.Image);
@@ -114,14 +130,18 @@ function imageElement(documentModel: CanvasDocument): string {
 	});
 }
 
+/** Whether an item's group names its id: kept where the id must stay the same, as on an animation's keyframes. */
+const ItemIdentity = { Free: 'free', Kept: 'kept' } as const;
+type ItemIdentity = (typeof ItemIdentity)[keyof typeof ItemIdentity];
+
 /**
  * One item: its group, named by its kind and turned as it is, around its
  * drawing, inside its clip and its effects as SVG writes those, which apply
  * to the item as it is turned.
  */
-function itemSvg(writing: SvgWriting, item: AnnotationObject, idPrefix: string): string {
+function itemSvg(writing: SvgWriting, item: AnnotationObject, idPrefix: string, identity: ItemIdentity = ItemIdentity.Free): string {
 	const { documentModel, definitions } = writing;
-	const content = itemGroup(writing, { ...item, effects: undefined, clip: undefined }, idPrefix);
+	const content = itemGroup(writing, { ...item, effects: undefined, clip: undefined }, idPrefix, identity);
 	const clipped = item.clip ? clippedSvg(item, item.clip, content, idPrefix, definitions) : content;
 	return hasVisibleEffects(item.effects) ? effectsSvg(documentModel, item.effects, clipped, idPrefix, definitions) : clipped;
 }
@@ -159,8 +179,8 @@ function effectsSvg(documentModel: CanvasDocument, { blur = 0, shadow }: ItemEff
  * drawing and as an embedded picture when it is pixels, turned by the group,
  * which says what kind of item it is and what its drawing cannot show.
  */
-function itemGroup(writing: SvgWriting, item: AnnotationObject, idPrefix: string): string {
-	const unturned = { ...item, rotation: undefined, visible: undefined, locked: undefined };
+function itemGroup(writing: SvgWriting, item: AnnotationObject, idPrefix: string, identity: ItemIdentity): string {
+	const unturned = { ...item, rotation: undefined, visible: undefined, locked: undefined, pivot: undefined };
 	const drawing = vectorItemSvg(writing, unturned, idPrefix);
 	const centre = shapeCenter(genericShape(item).geometry);
 	return svgElement(
@@ -170,6 +190,8 @@ function itemGroup(writing: SvgWriting, item: AnnotationObject, idPrefix: string
 			...itemCodec(item).attributes(item),
 			...erasableAttributes(item),
 			[SvgDataAttribute.Locked]: flagValue(item.locked),
+			[SvgDataAttribute.Pivot]: item.pivot ? pointValue(item.pivot) : undefined,
+			[SvgDataAttribute.Id]: identity === ItemIdentity.Kept ? item.id : undefined,
 			// Hidden, but still there to read, as SVG's visibility keeps it.
 			visibility: item.visible === false ? SvgKeyword.Hidden : undefined,
 			transform: item.rotation ? `rotate(${svgNumber(item.rotation)} ${svgNumber(centre.x)} ${svgNumber(centre.y)})` : undefined,

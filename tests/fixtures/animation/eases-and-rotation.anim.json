@@ -1,0 +1,324 @@
+{
+  "format": "little-animation",
+  "version": 1,
+  "stage": {
+    "width": 100,
+    "height": 100,
+    "background": [
+      1,
+      1,
+      1,
+      1
+    ],
+    "fps": 12,
+    "frames": 5
+  },
+  "library": [],
+  "timeline": {
+    "layers": [
+      {
+        "id": "turning",
+        "name": "turning",
+        "visible": true,
+        "locked": false,
+        "opacity": 1,
+        "blendMode": "normal",
+        "length": 5,
+        "keyframes": [
+          {
+            "frame": 0,
+            "items": [
+              {
+                "id": "spinner",
+                "transform": {
+                  "x": 50,
+                  "y": 50,
+                  "rotation": 0,
+                  "scaleX": 1,
+                  "scaleY": 1,
+                  "skewX": 0,
+                  "pivot": {
+                    "x": 5,
+                    "y": 5
+                  }
+                },
+                "opacity": 1,
+                "visible": true,
+                "kind": "path",
+                "contours": [
+                  {
+                    "closed": true,
+                    "commands": [
+                      [
+                        "M",
+                        0,
+                        0
+                      ],
+                      [
+                        "L",
+                        10,
+                        0
+                      ],
+                      [
+                        "L",
+                        10,
+                        10
+                      ],
+                      [
+                        "L",
+                        0,
+                        10
+                      ],
+                      [
+                        "Z"
+                      ]
+                    ]
+                  }
+                ],
+                "fill": {
+                  "kind": "solid",
+                  "color": [
+                    0,
+                    0,
+                    0,
+                    1
+                  ]
+                },
+                "fillRule": "nonzero",
+                "stroke": null
+              }
+            ],
+            "tween": {
+              "kind": "motion",
+              "ease": {
+                "kind": "easeIn"
+              },
+              "rotate": "clockwise",
+              "extraTurns": 1
+            }
+          },
+          {
+            "frame": 4,
+            "items": [
+              {
+                "id": "spinner",
+                "transform": {
+                  "x": 50,
+                  "y": 50,
+                  "rotation": 1.570796,
+                  "scaleX": 1,
+                  "scaleY": 1,
+                  "skewX": 0,
+                  "pivot": {
+                    "x": 5,
+                    "y": 5
+                  }
+                },
+                "opacity": 1,
+                "visible": true,
+                "kind": "path",
+                "contours": [
+                  {
+                    "closed": true,
+                    "commands": [
+                      [
+                        "M",
+                        0,
+                        0
+                      ],
+                      [
+                        "L",
+                        10,
+                        0
+                      ],
+                      [
+                        "L",
+                        10,
+                        10
+                      ],
+                      [
+                        "L",
+                        0,
+                        10
+                      ],
+                      [
+                        "Z"
+                      ]
+                    ]
+                  }
+                ],
+                "fill": {
+                  "kind": "solid",
+                  "color": [
+                    0,
+                    0,
+                    0,
+                    1
+                  ]
+                },
+                "fillRule": "nonzero",
+                "stroke": null
+              }
+            ],
+            "tween": null
+          }
+        ]
+      },
+      {
+        "id": "custom",
+        "name": "custom",
+        "visible": true,
+        "locked": false,
+        "opacity": 1,
+        "blendMode": "normal",
+        "length": 5,
+        "keyframes": [
+          {
+            "frame": 0,
+            "items": [
+              {
+                "id": "slider",
+                "transform": {
+                  "x": 0,
+                  "y": 90,
+                  "rotation": 0,
+                  "scaleX": 1,
+                  "scaleY": 1,
+                  "skewX": 0,
+                  "pivot": {
+                    "x": 0,
+                    "y": 0
+                  }
+                },
+                "opacity": 1,
+                "visible": true,
+                "kind": "path",
+                "contours": [
+                  {
+                    "closed": true,
+                    "commands": [
+                      [
+                        "M",
+                        0,
+                        0
+                      ],
+                      [
+                        "L",
+                        4,
+                        0
+                      ],
+                      [
+                        "L",
+                        4,
+                        4
+                      ],
+                      [
+                        "L",
+                        0,
+                        4
+                      ],
+                      [
+                        "Z"
+                      ]
+                    ]
+                  }
+                ],
+                "fill": {
+                  "kind": "solid",
+                  "color": [
+                    0,
+                    0,
+                    0,
+                    1
+                  ]
+                },
+                "fillRule": "nonzero",
+                "stroke": null
+              }
+            ],
+            "tween": {
+              "kind": "motion",
+              "ease": {
+                "kind": "custom",
+                "points": [
+                  0.42,
+                  0,
+                  0.58,
+                  1
+                ]
+              },
+              "rotate": "auto",
+              "extraTurns": 0
+            }
+          },
+          {
+            "frame": 4,
+            "items": [
+              {
+                "id": "slider",
+                "transform": {
+                  "x": 80,
+                  "y": 90,
+                  "rotation": 0,
+                  "scaleX": 1,
+                  "scaleY": 1,
+                  "skewX": 0,
+                  "pivot": {
+                    "x": 0,
+                    "y": 0
+                  }
+                },
+                "opacity": 1,
+                "visible": true,
+                "kind": "path",
+                "contours": [
+                  {
+                    "closed": true,
+                    "commands": [
+                      [
+                        "M",
+                        0,
+                        0
+                      ],
+                      [
+                        "L",
+                        4,
+                        0
+                      ],
+                      [
+                        "L",
+                        4,
+                        4
+                      ],
+                      [
+                        "L",
+                        0,
+                        4
+                      ],
+                      [
+                        "Z"
+                      ]
+                    ]
+                  }
+                ],
+                "fill": {
+                  "kind": "solid",
+                  "color": [
+                    0,
+                    0,
+                    0,
+                    1
+                  ]
+                },
+                "fillRule": "nonzero",
+                "stroke": null
+              }
+            ],
+            "tween": null
+          }
+        ]
+      }
+    ],
+    "labels": []
+  }
+}

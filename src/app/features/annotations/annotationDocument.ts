@@ -43,6 +43,7 @@ import {
 	layerAppearance,
 	LayerNumbering,
 } from '../layers/layerAppearance';
+import { translateTimeline } from '../animation/timelineModel';
 import {
 	emptyAnnotationState,
 	itemsInLayerOrder,
@@ -74,6 +75,8 @@ export const AnnotationChangeKind = {
 	Transient: 'transient',
 	Interaction: 'interaction',
 	Selection: 'selection',
+	/** Different content is shown without an edit, such as another frame of an animation. */
+	Presentation: 'presentation',
 } as const;
 export type AnnotationChangeKind =
 	(typeof AnnotationChangeKind)[keyof typeof AnnotationChangeKind];
@@ -119,6 +122,7 @@ export class AnnotationDocument implements HistoryParticipant {
 	#linkedHistoryListeners = new Set<
 		(domain: LinkedHistoryDomain, direction: LinkedHistoryDirection) => void
 	>();
+	#commitReconciler: ((state: AnnotationState) => void) | null = null;
 	readonly #objectsById = new Map<string, AnnotationObject>();
 	readonly #rasterHitSurfaces = new Map<string, RasterFragmentSurface>();
 	readonly #objectOrder = new Map<string, number>();
@@ -283,6 +287,32 @@ export class AnnotationDocument implements HistoryParticipant {
 			historyIndex: this.#historyIndex,
 			...(historyLinks ? { historyLinks } : {}),
 		};
+	}
+
+	/**
+	 * Lets a model kept in the state alongside the items, such as an
+	 * animation's timeline, follow each edit: it runs on the state just before
+	 * every undo step is recorded, so the step holds both. It may change only
+	 * its own part of the state, never the items or the layers.
+	 */
+	setCommitReconciler(reconcile: ((state: AnnotationState) => void) | null): void {
+		this.#commitReconciler = reconcile;
+	}
+
+	/**
+	 * Puts a whole state in place at once, such as an animation moved to
+	 * another frame. Items and layers that remain stay selected and active. A
+	 * committed change is one undo step; otherwise the new state is only shown.
+	 */
+	replaceState(state: AnnotationStateInput, commit: boolean): void {
+		this.#state = normalizeAnnotationState(state);
+		this.rebuildObjectIndex();
+		if (this.selectedId !== null && !this.#objectsById.has(this.selectedId)) this.selectedId = null;
+		if (this.#selectedLayerId !== null && !this.#layersById.has(this.#selectedLayerId)) this.#selectedLayerId = null;
+		this.keepExistingActiveLayer();
+		this.markRenderedContentChanged(null, false);
+		if (commit) this.commit();
+		else this.emit(AnnotationChangeKind.Presentation);
 	}
 
 	restore(state?: AnnotationStateInput): void {
@@ -864,8 +894,10 @@ export class AnnotationDocument implements HistoryParticipant {
 
 	/** Re-bases retained content after a document crop without flattening it. */
 	translateAll(delta: Point, recordHistory = true): void {
-		if (this.#state.objects.length === 0) return;
+		if (this.#state.objects.length === 0 && !this.#state.animation) return;
 		for (const object of this.#state.objects) genericShape(object).move(delta);
+		// An animation's other frames move with the frame shown, so they stay in step with it.
+		if (this.#state.animation) this.#state.animation = translateTimeline(this.#state.animation, delta);
 		this.rebuildObjectIndex();
 		this.markRenderedContentChanged(null, false);
 		if (recordHistory) this.commit();
@@ -957,6 +989,7 @@ export class AnnotationDocument implements HistoryParticipant {
 	}
 
 	private commit(historyLink: LinkedHistoryDomain | null = null): void {
+		this.#commitReconciler?.(this.#state);
 		this.#history.splice(this.#historyIndex + 1);
 		this.#historyLinks.splice(this.#historyIndex + 1);
 		this.#history.push(cloneState(this.#state));

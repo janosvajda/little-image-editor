@@ -38,6 +38,7 @@ export class ContentLayerCanvas {
 	readonly #renderCache = new AnnotationRenderCache();
 	readonly #selectionOverlay = new SelectionOverlayRenderer();
 	#selectionPresentation: SelectionPresentation = SelectionPresentation.Transform;
+	#pivotVisible = false;
 	#transientRenderFrame: number | null = null;
 	#restoring = false;
 
@@ -78,6 +79,12 @@ export class ContentLayerCanvas {
 	/** How the current tool shows the selection: with handles, as a frame, or not at all. */
 	setSelectionPresentation(presentation: SelectionPresentation): void {
 		this.#selectionPresentation = presentation;
+		this.renderSelection();
+	}
+
+	/** Whether the selected item shows its pivot, the point it turns and scales about, as while animating. */
+	setPivotVisible(visible: boolean): void {
+		this.#pivotVisible = visible;
 		this.renderSelection();
 	}
 
@@ -183,6 +190,7 @@ export class ContentLayerCanvas {
 			visualScale,
 			this.#selectionPresentation,
 			itemLayer ? this.layers.layerFrame(itemLayer.id) : null,
+			this.#pivotVisible,
 		);
 	}
 

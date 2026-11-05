@@ -1,0 +1,324 @@
+{
+  "format": "little-animation",
+  "version": 1,
+  "stage": {
+    "width": 60,
+    "height": 60,
+    "background": [
+      1,
+      1,
+      1,
+      1
+    ],
+    "fps": 24,
+    "frames": 3
+  },
+  "library": [],
+  "timeline": {
+    "layers": [
+      {
+        "id": "paints",
+        "name": "paints",
+        "visible": true,
+        "locked": false,
+        "opacity": 0.5,
+        "blendMode": "multiply",
+        "length": 3,
+        "keyframes": [
+          {
+            "frame": 0,
+            "items": [
+              {
+                "id": "swatch",
+                "transform": {
+                  "x": 10,
+                  "y": 10,
+                  "rotation": 0,
+                  "scaleX": 1,
+                  "scaleY": 1,
+                  "skewX": 0,
+                  "pivot": {
+                    "x": 0,
+                    "y": 0
+                  }
+                },
+                "opacity": 1,
+                "visible": true,
+                "kind": "path",
+                "contours": [
+                  {
+                    "closed": true,
+                    "commands": [
+                      [
+                        "M",
+                        0,
+                        0
+                      ],
+                      [
+                        "L",
+                        20,
+                        0
+                      ],
+                      [
+                        "L",
+                        20,
+                        20
+                      ],
+                      [
+                        "L",
+                        0,
+                        20
+                      ],
+                      [
+                        "Z"
+                      ]
+                    ]
+                  }
+                ],
+                "fill": {
+                  "kind": "solid",
+                  "color": [
+                    1,
+                    0,
+                    0,
+                    1
+                  ]
+                },
+                "fillRule": "nonzero",
+                "stroke": {
+                  "paint": {
+                    "kind": "linear",
+                    "stops": [
+                      {
+                        "offset": 0,
+                        "color": [
+                          1,
+                          0,
+                          0,
+                          1
+                        ]
+                      },
+                      {
+                        "offset": 1,
+                        "color": [
+                          1,
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    ],
+                    "from": {
+                      "x": 0,
+                      "y": 0
+                    },
+                    "to": {
+                      "x": 20,
+                      "y": 0
+                    }
+                  },
+                  "width": 2,
+                  "cap": "round",
+                  "join": "round",
+                  "dash": [
+                    4,
+                    2
+                  ]
+                }
+              }
+            ],
+            "tween": {
+              "kind": "motion",
+              "ease": {
+                "kind": "linear"
+              },
+              "rotate": "auto",
+              "extraTurns": 0
+            }
+          },
+          {
+            "frame": 2,
+            "items": [
+              {
+                "id": "swatch",
+                "transform": {
+                  "x": 10,
+                  "y": 10,
+                  "rotation": 0,
+                  "scaleX": 1,
+                  "scaleY": 1,
+                  "skewX": 0,
+                  "pivot": {
+                    "x": 0,
+                    "y": 0
+                  }
+                },
+                "opacity": 0,
+                "visible": true,
+                "kind": "path",
+                "contours": [
+                  {
+                    "closed": true,
+                    "commands": [
+                      [
+                        "M",
+                        0,
+                        0
+                      ],
+                      [
+                        "L",
+                        20,
+                        0
+                      ],
+                      [
+                        "L",
+                        20,
+                        20
+                      ],
+                      [
+                        "L",
+                        0,
+                        20
+                      ],
+                      [
+                        "Z"
+                      ]
+                    ]
+                  }
+                ],
+                "fill": {
+                  "kind": "solid",
+                  "color": [
+                    0,
+                    0,
+                    1,
+                    1
+                  ]
+                },
+                "fillRule": "nonzero",
+                "stroke": {
+                  "paint": {
+                    "kind": "linear",
+                    "stops": [
+                      {
+                        "offset": 0,
+                        "color": [
+                          0,
+                          0,
+                          1,
+                          1
+                        ]
+                      },
+                      {
+                        "offset": 1,
+                        "color": [
+                          0,
+                          0,
+                          0,
+                          1
+                        ]
+                      }
+                    ],
+                    "from": {
+                      "x": 0,
+                      "y": 20
+                    },
+                    "to": {
+                      "x": 20,
+                      "y": 20
+                    }
+                  },
+                  "width": 2,
+                  "cap": "round",
+                  "join": "round",
+                  "dash": [
+                    4,
+                    2
+                  ]
+                }
+              }
+            ],
+            "tween": null
+          }
+        ]
+      },
+      {
+        "id": "hidden",
+        "name": "hidden",
+        "visible": false,
+        "locked": false,
+        "opacity": 1,
+        "blendMode": "normal",
+        "length": 3,
+        "keyframes": [
+          {
+            "frame": 0,
+            "items": [
+              {
+                "id": "unseen",
+                "transform": {
+                  "x": 0,
+                  "y": 0,
+                  "rotation": 0,
+                  "scaleX": 1,
+                  "scaleY": 1,
+                  "skewX": 0,
+                  "pivot": {
+                    "x": 0,
+                    "y": 0
+                  }
+                },
+                "opacity": 1,
+                "visible": true,
+                "kind": "path",
+                "contours": [
+                  {
+                    "closed": true,
+                    "commands": [
+                      [
+                        "M",
+                        0,
+                        0
+                      ],
+                      [
+                        "L",
+                        5,
+                        0
+                      ],
+                      [
+                        "L",
+                        5,
+                        5
+                      ],
+                      [
+                        "L",
+                        0,
+                        5
+                      ],
+                      [
+                        "Z"
+                      ]
+                    ]
+                  }
+                ],
+                "fill": {
+                  "kind": "solid",
+                  "color": [
+                    0,
+                    0,
+                    0,
+                    1
+                  ]
+                },
+                "fillRule": "nonzero",
+                "stroke": null
+              }
+            ],
+            "tween": null
+          }
+        ]
+      }
+    ],
+    "labels": []
+  }
+}

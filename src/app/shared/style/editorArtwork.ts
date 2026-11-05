@@ -492,6 +492,26 @@ export const ORIGINAL_ICON_SHAPES: Readonly<Record<EditorIconId, string>> = {
 		photo() +
 		circle(['19.1', '19.1'], '4.1', Material.Gold) +
 		group('translate(10.7 10.7) scale(.7)', plus()),
+	// A film strip of frames, the middle one a keyframe.
+	[EditorIconId.Timeline]:
+		rect(['2.4', '5.4', '19.2', '13.2'], Material.Paper, '1.3') +
+		line('M2.4 8.4H21.6M2.4 15.6H21.6M8.8 8.4V15.6M15.2 8.4V15.6') +
+		circle(['12', '12'], '1.9', Material.Gold) +
+		line('M5 6.9H6.4M9.4 6.9H10.8M13.2 6.9H14.6M17.6 6.9H19M5 17.1H6.4M9.4 17.1H10.8M13.2 17.1H14.6M17.6 17.1H19', Stroke.Ink, '.6'),
+	[EditorIconId.Play]: surface('M7 3.8 19.6 12 7 20.2Z', Material.Green) + shine('M8.6 7.2 14.4 11'),
+	[EditorIconId.Pause]: rect(['5.8', '4', '4.4', '16'], Material.Gold, '1') + rect(['13.8', '4', '4.4', '16'], Material.Gold, '1') + shine('M7.2 6.4V11.2'),
+	[EditorIconId.Loop]:
+		line('M5.2 14.6V10.6Q5.2 6.6 9.2 6.6H18.2M18.8 9.4V13.4Q18.8 17.4 14.8 17.4H5.8', Stroke.Leaf, '1.6') +
+		surface('M16.4 3.6 20.2 6.6 16.4 9.6Z', Material.Gold) +
+		surface('M7.6 14.4 3.8 17.4 7.6 20.4Z', Material.Gold),
+	// The frames before and after, faded behind the current one.
+	[EditorIconId.OnionSkin]:
+		'<g opacity=".45">' +
+		circle(['7.2', '12'], '5.2', Material.Green) +
+		circle(['16.8', '12'], '5.2', Material.Green) +
+		'</g>' +
+		circle(['12', '12'], '5.6', Material.Gold) +
+		shine('M9.4 9.6Q10.6 8 12.6 7.9'),
 };
 
 /** Locally authored material shading, shared by toolbar artwork and cursor SVGs. */

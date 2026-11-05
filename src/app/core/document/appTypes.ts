@@ -72,6 +72,8 @@ export const DocumentType = {
 	Image: 'image',
 	/** An SVG: saved as SVG, its layers as groups and its shapes, paths and text as vectors. */
 	Svg: 'svg',
+	/** An animation: a stage with layers of keyframes on a timeline, saved as an animation file. */
+	Animation: 'animation',
 } as const;
 export type DocumentType = (typeof DocumentType)[keyof typeof DocumentType];
 

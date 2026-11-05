@@ -166,3 +166,38 @@ Markdown. Report and annotated-image copying use `ClipboardController`.
 them to exports, keeps them aligned through crops and saves them with the
 document. `LayerMerger` flattens layers into the image, both for the Layers
 panel's Flatten action and before the image is resized or turned.
+
+## Animation
+
+An animated document keeps an `AnimationTimeline` in `AnnotationState.animation`:
+its frame rate, its playhead and, for each content layer by id, a `LayerTimeline`
+of keyframes (sorted, frames counted from 0) and a length. A keyframe holds the
+layer's items at that frame and an optional motion tween to the next keyframe.
+Layer names, visibility, lock, opacity and blend mode stay on the content layers.
+
+`layers` and `objects` always show the playhead's frame (`presentFrame`), so every
+tool, the renderer, selection, export and the layer list work on that frame as on
+any document. Because the timeline lives in the state, each undo step holds it:
+every timeline edit is one step, and moving the playhead (`replaceState` without
+committing) is none. `AnimationDocument` registers a commit reconciler that folds
+edits made with the tools back into the timeline just before each step is
+recorded: an edit on a keyframe or a held frame updates that keyframe; an edit
+inside a motion tween becomes a keyframe at the playhead; a new layer gets a
+keyframe at frame 0 lasting the timeline. Item ids are kept across a layer's
+keyframes, which is how a motion tween pairs an item with its next pose.
+
+A motion tween moves an item's pivot in a straight line and turns, scales and
+recolours it on the way (`interpolateItem`), through the same frame transform
+(`GenericShape.setGeometry`) every item supports. An item's `pivot` is kept
+relative to its frame, from 0 to 1, as its clip is; it is shown and dragged with
+Select only while the timeline is open, so ordinary editing is unchanged.
+
+Animation is a kind of document (`DocumentType.Animation`), made with New
+animation or by opening an `.anim.json` file; the timeline panel is shown exactly
+while one is open, and images never have one. The image layer is the stage,
+filled with its background. An animation is saved as an `.anim.json` file,
+specified in `docs/animation-format.md`: each item is written as the paths,
+text and pictures the editor's renderer draws for it (recorded through
+`SvgRecordingContext.drawingCalls`), and kept exactly, for editing, as its own
+`SVG_ITEM_CODECS` group. Export adds an animated GIF, encoded by the editor,
+and a WebM video, recorded by the browser.

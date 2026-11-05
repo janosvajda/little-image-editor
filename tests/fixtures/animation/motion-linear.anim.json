@@ -1,0 +1,170 @@
+{
+  "format": "little-animation",
+  "version": 1,
+  "stage": {
+    "width": 200,
+    "height": 100,
+    "background": [
+      1,
+      1,
+      1,
+      1
+    ],
+    "fps": 10,
+    "frames": 11
+  },
+  "library": [],
+  "timeline": {
+    "layers": [
+      {
+        "id": "stage",
+        "name": "stage",
+        "visible": true,
+        "locked": false,
+        "opacity": 1,
+        "blendMode": "normal",
+        "length": 11,
+        "keyframes": [
+          {
+            "frame": 0,
+            "items": [
+              {
+                "id": "box",
+                "transform": {
+                  "x": 0,
+                  "y": 0,
+                  "rotation": 0,
+                  "scaleX": 1,
+                  "scaleY": 1,
+                  "skewX": 0,
+                  "pivot": {
+                    "x": 0,
+                    "y": 0
+                  }
+                },
+                "opacity": 1,
+                "visible": true,
+                "kind": "path",
+                "contours": [
+                  {
+                    "closed": true,
+                    "commands": [
+                      [
+                        "M",
+                        0,
+                        0
+                      ],
+                      [
+                        "L",
+                        10,
+                        0
+                      ],
+                      [
+                        "L",
+                        10,
+                        10
+                      ],
+                      [
+                        "L",
+                        0,
+                        10
+                      ],
+                      [
+                        "Z"
+                      ]
+                    ]
+                  }
+                ],
+                "fill": {
+                  "kind": "solid",
+                  "color": [
+                    0,
+                    0,
+                    0,
+                    1
+                  ]
+                },
+                "fillRule": "nonzero",
+                "stroke": null
+              }
+            ],
+            "tween": {
+              "kind": "motion",
+              "ease": {
+                "kind": "linear"
+              },
+              "rotate": "auto",
+              "extraTurns": 0
+            }
+          },
+          {
+            "frame": 10,
+            "items": [
+              {
+                "id": "box",
+                "transform": {
+                  "x": 100,
+                  "y": 40,
+                  "rotation": 0,
+                  "scaleX": 1,
+                  "scaleY": 1,
+                  "skewX": 0,
+                  "pivot": {
+                    "x": 0,
+                    "y": 0
+                  }
+                },
+                "opacity": 1,
+                "visible": true,
+                "kind": "path",
+                "contours": [
+                  {
+                    "closed": true,
+                    "commands": [
+                      [
+                        "M",
+                        0,
+                        0
+                      ],
+                      [
+                        "L",
+                        10,
+                        0
+                      ],
+                      [
+                        "L",
+                        10,
+                        10
+                      ],
+                      [
+                        "L",
+                        0,
+                        10
+                      ],
+                      [
+                        "Z"
+                      ]
+                    ]
+                  }
+                ],
+                "fill": {
+                  "kind": "solid",
+                  "color": [
+                    0,
+                    0,
+                    0,
+                    1
+                  ]
+                },
+                "fillRule": "nonzero",
+                "stroke": null
+              }
+            ],
+            "tween": null
+          }
+        ]
+      }
+    ],
+    "labels": []
+  }
+}

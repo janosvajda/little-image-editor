@@ -79,5 +79,10 @@ export const EditorIconId = {
 	ShapeFill: 'shape-fill',
 	ShapeOutlineAndFill: 'shape-outline-and-fill',
 	PlaceImage: 'place-image',
+	Timeline: 'timeline',
+	Play: 'play',
+	Pause: 'pause',
+	Loop: 'loop',
+	OnionSkin: 'onion-skin',
 } as const;
 export type EditorIconId = (typeof EditorIconId)[keyof typeof EditorIconId];

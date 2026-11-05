@@ -1,11 +1,12 @@
-import { ImageMimeType } from '../../core/document/appTypes';
+import { DocumentType, ImageMimeType } from '../../core/document/appTypes';
+import { ANIMATION_EXPORT_FORMATS, AnimationExportFormat, isAnimationExportFormat } from '../animation/export/animationExportFormats';
 import { imageFormat, isImageFormat } from '../../core/document/imageFormats';
 import type { CanvasDocument } from '../../core/document/imageDocument';
 import { element } from '../../shared/dom/domHelpers';
 import { SVG_MIME_TYPE } from '../../core/document/svgFormat';
 import { encodedSize } from './canvasHelpers';
 import { DEFAULT_EXPORT_QUALITY, EXPORT_SCALES, type ExportOptions, ExportQualityPercent, ExportScale, PERCENT } from './exportOptions';
-import type { ExportFormat, FileController, SvgDocumentPort } from './fileController';
+import type { AnimationExportPort, ExportFormat, FileController, SvgDocumentPort } from './fileController';
 import { populateImageFormatSelect } from './formatSelectHelpers';
 import { imagePicture } from './imagePicture';
 
@@ -17,6 +18,10 @@ const ESTIMATE_DELAY_MS = 250;
 const BYTES_PER_KILOBYTE = 1024;
 const SIZE_UNITS = ['bytes', 'KB', 'MB', 'GB'] as const;
 const SIZE_DECIMALS = 1;
+/** An animation's size is known only once it is encoded, which is the export itself. */
+const ANIMATION_SIZE_NOTE = 'Its size is known once it is exported.';
+/** Said while an animation is made, which for a video takes as long as the animation plays. */
+const ANIMATION_EXPORTING = 'Exporting the animation…';
 
 /** The settings an export can have; each format shows its own. */
 const ExportOption = {
@@ -33,6 +38,8 @@ const FORMAT_OPTIONS: Readonly<Record<ExportFormat, readonly ExportOption[]>> = 
 	[ImageMimeType.Jpeg]: [ExportOption.Quality, ExportOption.Background],
 	[ImageMimeType.Webp]: [ExportOption.Quality, ExportOption.Transparency, ExportOption.Background],
 	[SVG_MIME_TYPE]: [ExportOption.IncludeImage],
+	[AnimationExportFormat.Gif]: [ExportOption.Transparency, ExportOption.Background],
+	[AnimationExportFormat.Webm]: [ExportOption.Background],
 };
 
 /**
@@ -64,6 +71,8 @@ export class ImageExportController {
 		private readonly files: Pick<FileController, 'exportImage'>,
 		/** Writes the SVG an export would make, so its size can be estimated. */
 		private readonly svg?: Pick<SvgDocumentPort, 'write'>,
+		/** Exports an animation as a GIF or a video; offered only while an animation is open. */
+		private readonly animations?: Pick<AnimationExportPort, 'supports'>,
 	) {
 		populateImageFormatSelect(this.#format, ImageMimeType.Png);
 		// Vector output for the same picture, after the image formats.
@@ -96,10 +105,23 @@ export class ImageExportController {
 		this.#error.textContent = '';
 		element('#exportImageDimensions').textContent =
 			`${this.documentModel.width} × ${this.documentModel.height} px · Original size`;
+		this.offerAnimationFormats();
 		this.describeScales();
 		this.describeFormat();
 		this.dialog.showModal();
 		void this.showPreview();
+	}
+
+	/**
+	 * An animation can also be exported to play anywhere, as a GIF or a video,
+	 * which is then what the dialog starts with; other documents export pictures.
+	 */
+	private offerAnimationFormats(): void {
+		for (const option of [...this.#format.options]) if (isAnimationExportFormat(option.value)) option.remove();
+		if (this.documentModel.documentType !== DocumentType.Animation || !this.animations) return;
+		const formats = Object.values(AnimationExportFormat).filter((format) => this.animations?.supports(format));
+		this.#format.prepend(...formats.map((format) => new Option(ANIMATION_EXPORT_FORMATS[format].label, format)));
+		if (formats[0]) this.#format.value = formats[0];
 	}
 
 	/** Each size with the pixels it makes, the original chosen when the dialog opens. */
@@ -125,13 +147,13 @@ export class ImageExportController {
 		}
 		this.#qualityValue.value = `${this.#quality.value}%`;
 		element('#exportImageFormatHint').textContent = formatHint(format);
-		this.#submit.textContent = `Export ${format === SVG_MIME_TYPE ? SVG_LABEL : imageFormat(format).label}…`;
+		this.#submit.textContent = `Export ${formatLabel(format)}…`;
 		this.scheduleEstimate();
 	}
 
 	private chosenFormat(): ExportFormat {
 		const format = this.#format.value;
-		return isImageFormat(format) || format === SVG_MIME_TYPE ? format : ImageMimeType.Png;
+		return isExportFormat(format) ? format : ImageMimeType.Png;
 	}
 
 	/** The chosen settings, only those the format has. */
@@ -158,6 +180,10 @@ export class ImageExportController {
 	private async estimate(request: number): Promise<void> {
 		if (!this.dialog.open) return;
 		const format = this.chosenFormat();
+		if (isAnimationExportFormat(format)) {
+			this.#estimate.textContent = ANIMATION_SIZE_NOTE;
+			return;
+		}
 		const options = this.options(format);
 		try {
 			const blob = format === SVG_MIME_TYPE ? this.svg?.write(options) : await this.documentModel.toBlob(format, options);
@@ -169,10 +195,11 @@ export class ImageExportController {
 
 	private async export(): Promise<void> {
 		const format = this.#format.value;
-		if (this.#submit.disabled || !(isImageFormat(format) || format === SVG_MIME_TYPE)) return;
+		if (this.#submit.disabled || !isExportFormat(format)) return;
 		this.#submit.disabled = true;
 		this.#format.disabled = true;
 		this.#error.textContent = '';
+		if (isAnimationExportFormat(format)) this.#estimate.textContent = ANIMATION_EXPORTING;
 		try {
 			await this.files.exportImage(format, this.options(format));
 			this.dialog.close();
@@ -205,9 +232,20 @@ export class ImageExportController {
 	}
 }
 
+function isExportFormat(format: string): format is ExportFormat {
+	return isImageFormat(format) || format === SVG_MIME_TYPE || isAnimationExportFormat(format);
+}
+
+/** A format's name, as the export button says it. */
+function formatLabel(format: ExportFormat): string {
+	if (format === SVG_MIME_TYPE) return SVG_LABEL;
+	return isAnimationExportFormat(format) ? ANIMATION_EXPORT_FORMATS[format].label : imageFormat(format).label;
+}
+
 /** What a format keeps, said where it is chosen. */
 function formatHint(format: ExportFormat): string {
 	if (format === SVG_MIME_TYPE) return SVG_HINT;
+	if (isAnimationExportFormat(format)) return ANIMATION_EXPORT_FORMATS[format].hint;
 	const { label, supportsTransparency, quality } = imageFormat(format);
 	const compression = quality === undefined ? `${label} is lossless.` : `${label} is compressed; a lower quality makes a smaller file.`;
 	const transparency = supportsTransparency

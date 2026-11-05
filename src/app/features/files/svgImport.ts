@@ -23,7 +23,8 @@ import { pictureFragment } from './placedImage';
 import { clipFor } from '../annotations/itemClip';
 import { type ItemLook, readLook } from './svgEffects';
 import { isAnnotationObjectType, readErasable, SVG_ITEM_CODECS, type SvgItemCodec, SvgItemDrawing } from './svgItemCodecs';
-import { flagAttribute, numberAttribute, SvgDataAttribute } from './svgItemFormat';
+import { flagAttribute, numberAttribute, parsePoint, SvgDataAttribute } from './svgItemFormat';
+import type { Point } from '../../core/document/appTypes';
 import { readDocumentMetadata } from './svgDocumentMetadata';
 import { elementStyle, INITIAL_SVG_STYLE, isDisplayed, isVisible, SvgKeyword, SvgProperty, type SvgStyle, SvgStyleSheet, styleOpacity } from './svgStyle';
 
@@ -41,7 +42,7 @@ import { elementStyle, INITIAL_SVG_STYLE, isDisplayed, isVisible, SvgKeyword, Sv
 type PendingEntry =
 	| { readonly kind: typeof ElementOutcome.Items; readonly item: AnnotationObject }
 	| { readonly kind: typeof ElementOutcome.Picture; readonly element: Element }
-	| { readonly kind: typeof ElementOutcome.Image; readonly image: SvgImagePlacement; readonly locked?: boolean };
+	| { readonly kind: typeof ElementOutcome.Image; readonly image: SvgImagePlacement; readonly locked?: boolean; readonly pivot?: Point };
 
 interface PendingLayer {
 	readonly name: string | null;
@@ -86,6 +87,19 @@ export async function importSvg(source: string, baseName: string): Promise<Edito
 		toolbarStates: { ...readDocumentMetadata(root) },
 	};
 	return { document, editableObjects: session(state) };
+}
+
+/**
+ * An item from the SVG `itemSvgDocument` wrote for it, with the id it names;
+ * null when the SVG holds no item the editor can read.
+ */
+export async function importItemSvg(source: string): Promise<AnnotationObject | null> {
+	const { root, size } = safeSvg(source);
+	const viewport = viewBoxSize(root, size);
+	const reader = new SvgLayerReader({ root, sheet: new SvgStyleSheet(root), viewport }, viewBoxMatrix(root, size, viewport));
+	const groups = [...root.children].filter((child) => !NON_RENDERING_ELEMENTS.has(child.localName));
+	const [item] = await reader.readItemGroups(groups, root, size);
+	return item ?? null;
 }
 
 /** The document's layers, its image hidden and locked as the photo it was written with is. */
@@ -222,7 +236,31 @@ class SvgLayerReader {
 		const unturned = codec.read(group, items);
 		const item = unturned && placedItem(unturned, groupMatrix, parentMatrix);
 		if (!item) return null;
-		return { kind: ElementOutcome.Items, item: { ...item, ...erasable, ...(isVisible(style) ? {} : { visible: false }), ...(locked ? { locked: true } : {}) } };
+		const pivot = parsePoint(group.getAttribute(SvgDataAttribute.Pivot));
+		return {
+			kind: ElementOutcome.Items,
+			item: { ...item, ...erasable, ...(isVisible(style) ? {} : { visible: false }), ...(locked ? { locked: true } : {}), ...(pivot ? { pivot } : {}) },
+		};
+	}
+
+	/**
+	 * The editor's own item groups kept outside the drawing, such as an
+	 * animation's keyframes, read as the drawing's are, each keeping the id
+	 * its group names.
+	 */
+	async readItemGroups(groups: readonly Element[], root: Element, size: SvgSize): Promise<AnnotationObject[]> {
+		const items: AnnotationObject[] = [];
+		for (const group of groups) {
+			const entries: PendingEntry[] = [];
+			this.collect(group, this.#rootStyle, this.rootMatrix, 1, entries);
+			// An item with a clip or effects is written inside groups that apply them; its own group names its id.
+			const id = (group.hasAttribute(SvgDataAttribute.Id) ? group : group.querySelector(`[${SvgDataAttribute.Id}]`))?.getAttribute(SvgDataAttribute.Id);
+			for (const entry of entries) {
+				const item = await finishedEntry(entry, root, size);
+				if (item) items.push(id && entries.length === 1 ? { ...item, id } : item);
+			}
+		}
+		return items;
 	}
 
 	/** An item whose drawing is its pixels: the picture, placed as its group places it, which keeps the item's settings once decoded. */
@@ -230,7 +268,8 @@ class SvgLayerReader {
 		const drawn: PendingEntry[] = [];
 		for (const child of group.children) this.collect(child, style, matrix, opacity, drawn);
 		const [picture] = drawn;
-		return drawn.length === 1 && picture?.kind === ElementOutcome.Image ? { ...picture, locked } : null;
+		const pivot = parsePoint(group.getAttribute(SvgDataAttribute.Pivot));
+		return drawn.length === 1 && picture?.kind === ElementOutcome.Image ? { ...picture, locked, ...(pivot ? { pivot } : {}) } : null;
 	}
 
 	/** What an element holds: a group's parts, or the element as items. */
@@ -386,7 +425,8 @@ function contentLayer(layer: PendingLayer, name: string, items: readonly Annotat
 
 function finishedEntry(entry: PendingEntry, root: Element, size: SvgSize, layer?: Element): Promise<AnnotationObject | null> {
 	if (entry.kind === ElementOutcome.Items) return Promise.resolve(entry.item);
-	if (entry.kind === ElementOutcome.Image) return embeddedPictureItem(entry.image).then((item) => (item && entry.locked ? { ...item, locked: true } : item));
+	if (entry.kind === ElementOutcome.Image)
+		return embeddedPictureItem(entry.image).then((item) => (item ? { ...item, ...(entry.locked ? { locked: true } : {}), ...(entry.pivot ? { pivot: entry.pivot } : {}) } : item));
 	return elementPicture(root, entry.element, size, layer);
 }
 

@@ -4,11 +4,14 @@ import {
 	imageFormat,
 } from '../../core/document/imageFormats';
 import { SVG_EXTENSION, SVG_MIME_TYPE } from '../../core/document/svgFormat';
+import { ANIMATION_EXTENSION, ANIMATION_FILE_TYPE } from '../animation/format/animationFileFormat';
 
 const RasterFlatteningMessage =
 	'Raster formats save a flattened image. Layers remain editable in the open document, but cannot be restored from the saved raster file.';
 const SvgDocumentMessage =
 	'SVG keeps layers as groups and shapes, paths, lines and text as editable vectors; brush strokes and other pixels are kept as pictures.';
+const AnimationDocumentMessage =
+	'An animation keeps its layers, keyframes and tweens. Export it as an animated GIF or a video to play it anywhere.';
 
 export function populateImageFormatSelect(
 	select: HTMLSelectElement,
@@ -27,6 +30,7 @@ export function isImageFileType(value: string): value is (typeof IMAGE_FORMATS)[
 export function populateDocumentFileTypeSelect(select: HTMLSelectElement): void {
 	select.replaceChildren(
 		new Option(`SVG (.${SVG_EXTENSION}) — editable layers and vectors`, SVG_MIME_TYPE, true, true),
+		new Option(`Animation (.${ANIMATION_EXTENSION}) — layers, keyframes and tweens`, ANIMATION_FILE_TYPE),
 		...IMAGE_FORMATS.map(
 			(format) =>
 				new Option(`${format.label} — flattened image`, format.mimeType),
@@ -35,6 +39,7 @@ export function populateDocumentFileTypeSelect(select: HTMLSelectElement): void 
 }
 
 export function documentFileTypeWarning(fileType: string): string {
+	if (fileType === ANIMATION_FILE_TYPE) return AnimationDocumentMessage;
 	return fileType === SVG_MIME_TYPE ? SvgDocumentMessage : RasterFlatteningMessage;
 }
 

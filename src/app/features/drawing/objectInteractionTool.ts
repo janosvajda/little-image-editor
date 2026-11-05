@@ -25,9 +25,15 @@ import {
 } from './gestures/objectTransformGesture';
 import { LayerTransformGesture } from './gestures/layerTransformGesture';
 import { RasterSelectionGesture } from './gestures/rasterSelectionGesture';
+import { hitsPivot, PivotGesture } from '../animation/pivotGesture';
+
+/** The cursor over a selected item's pivot, which drags it. */
+const PIVOT_CURSOR = 'crosshair';
 
 /** What a Select-tool press acts on, in priority order. */
 const SelectTargetKind = {
+	/** The selected item's pivot, the point it turns and scales about in an animation. */
+	Pivot: 'pivot',
 	/** A corner handle, or the rotation band, of the selected item. */
 	Handle: 'handle',
 	/**
@@ -41,6 +47,7 @@ const SelectTargetKind = {
 	Selected: 'selected',
 } as const;
 type SelectTarget =
+	| { readonly kind: typeof SelectTargetKind.Pivot; readonly item: AnnotationObject }
 	| {
 			readonly kind: typeof SelectTargetKind.Handle;
 			readonly item: AnnotationObject;
@@ -66,20 +73,29 @@ type SelectTarget =
  * to it never turns it. Paint tools never transform.
  */
 export class ObjectInteractionTool {
+	#pivotEditing = false;
+
 	constructor(
 		private readonly objects?: AnnotationDocument,
 		private readonly rasterSelection?: RasterSelection,
 	) {}
 
+	/** Whether a selected item's pivot can be dragged with Select, as while animating. */
+	setPivotEditing(enabled: boolean): void {
+		this.#pivotEditing = enabled;
+	}
+
+	/** `pivotKeyHeld` is whether the key that moves an item's pivot instead of the item, Alt or Option, is down. */
 	begin(
 		tool: Tool,
 		point: Point,
 		visualScale: number,
 		shapeDraft: DrawingGesture | null,
+		pivotKeyHeld = false,
 	): DrawingGesture | null {
 		if (!this.objects) return null;
 		if (tool === UtilityToolId.Select)
-			return this.beginSelect(point, visualScale);
+			return this.beginSelect(point, visualScale, pivotKeyHeld);
 		if (tool === UtilityToolId.Crop) return this.moveCutFragment(point);
 		if (!shapeDraft) return null;
 		return (
@@ -88,15 +104,16 @@ export class ObjectInteractionTool {
 		);
 	}
 
-	cursor(tool: Tool, point: Point, visualScale: number): string {
+	cursor(tool: Tool, point: Point, visualScale: number, pivotKeyHeld = false): string {
 		const defaultCursor = drawingToolBehavior(tool).cursor;
 		if (tool === UtilityToolId.Crop)
 			return this.cutFragmentAt(point) ? 'move' : 'crosshair';
 		if (isShapeTool(tool))
 			return this.selectedShapeCursor(point, visualScale) ?? defaultCursor;
 		if (tool !== UtilityToolId.Select) return defaultCursor;
-		const target = this.selectTarget(point, visualScale);
+		const target = this.selectTarget(point, visualScale, pivotKeyHeld);
 		if (!target) return defaultCursor;
+		if (target.kind === SelectTargetKind.Pivot) return PIVOT_CURSOR;
 		if (target.kind === SelectTargetKind.Handle)
 			return genericShape(target.item).handleCursorAt(point, visualScale) ?? defaultCursor;
 		if (target.kind === SelectTargetKind.Layer && target.handle)
@@ -107,11 +124,13 @@ export class ObjectInteractionTool {
 		return 'move';
 	}
 
-	private beginSelect(point: Point, visualScale: number): DrawingGesture | null {
+	private beginSelect(point: Point, visualScale: number, pivotKeyHeld: boolean): DrawingGesture | null {
 		if (!this.objects) return null;
-		const target = this.selectTarget(point, visualScale);
+		const target = this.selectTarget(point, visualScale, pivotKeyHeld);
 		const hitId = this.objects.hitTest(point)?.id ?? null;
 		switch (target?.kind) {
+			case SelectTargetKind.Pivot:
+				return new PivotGesture(this.objects, target.item.id);
 			case SelectTargetKind.Handle:
 				return new ObjectTransformGesture(this.objects, target.item.id, point, {
 					kind: ObjectTransformKind.Handle,
@@ -150,9 +169,19 @@ export class ObjectInteractionTool {
 		}
 	}
 
-	/** Decides what a Select-tool press at `point` acts on; the cursor shows the same. */
-	private selectTarget(point: Point, visualScale: number): SelectTarget | null {
+	/**
+	 * Decides what a Select-tool press at `point` acts on; the cursor shows the
+	 * same. The pivot sits inside its item, so only a press with the pivot key
+	 * moves it; any other press there moves the item, as everywhere else.
+	 */
+	private selectTarget(point: Point, visualScale: number, pivotKeyHeld = false): SelectTarget | null {
 		const selected = this.editableSelection();
+		if (this.#pivotEditing && pivotKeyHeld && selected && hitsPivot(selected, point, visualScale)) return { kind: SelectTargetKind.Pivot, item: selected };
+		return this.transformTarget(selected, point, visualScale);
+	}
+
+	/** The handle, layer or item a press transforms or selects. */
+	private transformTarget(selected: AnnotationObject | null, point: Point, visualScale: number): SelectTarget | null {
 		const handle = selected
 			? genericShape(selected).hitHandle(point, visualScale)
 			: null;
